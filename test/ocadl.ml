@@ -36,13 +36,15 @@ let adder_data =
 let () =
   time () |> int_of_float |> Random.init ;
 
-  let train_data = adder_data in
+  let train_data = read_train_data "mini.csv" 1 28;
+  (* let train_data = adder_data in *)
   let nn = make_nn [3; 9; 6; 2] in
 
   cost train_data nn |> Printf.printf "Cost: %f\n" ;
 
   let trained_nn = learn train_data 10000 nn in
   trained_nn |> cost train_data |> Printf.printf "Trained Cost %f\n";
+
 
   ()
 
