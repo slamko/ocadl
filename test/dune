@@ -1,2 +1,10 @@
+(env
+  (dev
+    (flags (:standard -warn-error -A))))
+
 (test
- (name ocadl))
+ (name ocadl)
+ (libraries lacaml
+            unix
+            ocadl)
+)

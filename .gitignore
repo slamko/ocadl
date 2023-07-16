@@ -3,6 +3,8 @@
 **.cmi
 **.o
 **.deep
+**.exe
+**ocadl
 _build/
 **.opam
  

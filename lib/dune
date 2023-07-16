@@ -1,2 +1,4 @@
 (library
+ (public_name ocadl)
+  (libraries lacaml)
  (name ocadl))

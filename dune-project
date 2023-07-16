@@ -7,11 +7,11 @@
 (source
  (github username/reponame))
 
-(authors "Viacheslav Chepelyk-Kozhin")
+(authors "Author Name")
 
-(maintainers "Viacheslav Chepelyk-Kozhin")
+(maintainers "Maintainer Name")
 
-(license GPL-v3.0)
+(license LICENSE)
 
 (documentation https://url/to/documentation)
 
