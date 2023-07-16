@@ -56,7 +56,7 @@ let make_nn arch : nnet =
     | [] -> nn_acc
     | [a] -> nn_acc 
     | h::t ->
-       make_wl_rec t (Mat.make (hd t) h 0.25 :: nn_acc)
+       make_wl_rec t (Mat.random (hd t) h :: nn_acc)
   in
 
   let rec make_bl_rec arch nn_acc =
@@ -64,7 +64,7 @@ let make_nn arch : nnet =
     | [] -> nn_acc
     | [a] -> nn_acc 
     | h::t ->
-       make_bl_rec t (Mat.make 1 h 0.25 :: nn_acc)
+       make_bl_rec t (Mat.random 1 h :: nn_acc)
   in
 
   let rev_arch = rev arch in
@@ -134,14 +134,27 @@ let ident_data =
     ([| [|1.|] |] |> Mat.of_array , [| [|1.|] |] |> Mat.of_array )
   ]
 
-
 let xor_data =
   [
     ([| [|0.|] |] |> Mat.of_array , [| [|0.; 0.|] |] |> Mat.of_array ) ;
-    ([| [|0.|] |] |> Mat.of_array , [| [|0.; 1.|] |] |> Mat.of_array ) ;
+    ([| [|1.|] |] |> Mat.of_array , [| [|0.; 1.|] |] |> Mat.of_array ) ;
     ([| [|1.|] |] |> Mat.of_array , [| [|1.; 0.|] |] |> Mat.of_array ) ;
-    ([| [|1.|] |] |> Mat.of_array , [| [|1.; 1.|] |] |> Mat.of_array )
+    ([| [|0.|] |] |> Mat.of_array , [| [|1.; 1.|] |] |> Mat.of_array )
   ]
+
+
+let adder_data =
+  [
+    ([| [|0.; 0.|] |] |> Mat.of_array , [| [|0.;0.; 0.|] |] |> Mat.of_array ) ;
+    ([| [|0.; 1.|] |] |> Mat.of_array , [| [|0.;0.; 1.|] |] |> Mat.of_array ) ;
+    ([| [|0.; 1.|] |] |> Mat.of_array , [| [|0.;1.; 0.|] |] |> Mat.of_array ) ;
+    ([| [|1.; 0.|] |] |> Mat.of_array , [| [|0.;1.; 1.|] |] |> Mat.of_array ) ;
+    ([| [|0.; 1.|] |] |> Mat.of_array , [| [|1.;0.; 0.|] |] |> Mat.of_array );
+    ([| [|1.; 0.|] |] |> Mat.of_array , [| [|1.;0.; 1.|] |] |> Mat.of_array );
+    ([| [|1.; 0.|] |] |> Mat.of_array , [| [|1.;1.; 0.|] |] |> Mat.of_array );
+    ([| [|1.; 1.|] |] |> Mat.of_array , [| [|1.;1.; 1.|] |] |> Mat.of_array )
+  ]
+
 
 let mat_add mat1 mat2 =
   Mat.add mat1 mat2
@@ -329,16 +342,17 @@ let rec learn nn data iter =
 
 let () =
   time () |> int_of_float |> Random.init ;
-  let nn = make_nn [2; 3; 1] in
-  cost xor_data nn |> print_float ;
+  let train_data = adder_data in
+  let nn = make_nn [3; 9; 6; 2] in
+  cost train_data nn |> print_float ;
   print_newline () ;
-  let newn = learn nn xor_data 10000 in
-  newn |> cost xor_data |> Printf.printf "tr Cost %f\n";
+  let newn = learn nn train_data 10000 in
+  newn |> cost train_data |> Printf.printf "tr Cost %f\n";
   (* newn |> nn_print; *)
   (* newn |> nn_map (mat_scale (List.length xor_data |> float_of_int |> *)
             (* (fun x -> 1. /. x))) |> nn_print; *)
   print_newline () ;
-  (* perform newn xor_data; *)
+  (* perform newn train_data; *)
   
   (* hd newn.wl |> Mat.to_array |> arr_get 0 |> arr_get 1 |> print_float ; *)
 
