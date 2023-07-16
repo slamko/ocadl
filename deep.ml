@@ -117,10 +117,42 @@ let nn_zero nn =
     bl = make_zero_mat_list nn.bl
   }
 
-let backprop_neuron w_mat_arr w_col w_row diffi ai ai_prev_arr
+let arr_get index arr =
+  Array.get arr index
+
+let mat_add mat1 mat2 =
+  Mat.add mat1 mat2
+
+let mat_sub mat1 mat2 =
+  Mat.sub mat1 mat2
+
+let mat_add_const cst mat =
+  Mat.add_const cst mat
+
+let mat_scale cst mat =
+  Mat.map (fun v -> v *. cst) mat
+
+let cost data nn =
+
+  let rec cost_rec nn data err = 
+    match data with
+    | [] -> err
+    | sample::data_tail ->
+       let ff = forward (snd sample) nn in
+       let expected = fst sample in
+       let diff = Mat.sub (hd ff.res) expected
+                  |> Mat.as_vec
+                  |> Vec.fold (fun res total -> res +. total) 0. in
+
+       cost_rec nn data_tail (err +. (diff *. diff))
+  in
+
+  List.length data |> float_of_int |> (/.) @@ cost_rec nn data 0.
+
+let backprop_neuron w_mat_arr w_row w_col diffi ai ai_prev_arr
       pd_prev_arr_acc =
 
-  let rec bp_neuron_rec w_col irow diffi ai ai_prev_arr =
+  let rec bp_neuron_rec irow w_col diffi ai ai_prev_arr =
     match irow with
     | -1 -> {
         wmat_arr = w_mat_arr;
@@ -130,17 +162,18 @@ let backprop_neuron w_mat_arr w_col w_row diffi ai ai_prev_arr
     | _ ->
        let ai_prev = Array.get ai_prev_arr irow in
        let wi_grad : float = 2.0 *. diffi *. ai *. (1. -. ai) *. ai_prev in
-       let cur_w = Array.get (Array.get w_mat_arr w_col) irow in
+       let cur_w = Array.get (Array.get w_mat_arr irow) w_col in
        let pd_prev : float = 2.0 *. diffi *. ai *. (1. -. ai) *. cur_w in
        let last_pd_prev = Array.get pd_prev_arr_acc irow in
+        (* print_string "Neuron\n" ; *)
        
-       Array.set (Array.get w_mat_arr w_col) irow wi_grad ;
+       Array.set (Array.get w_mat_arr irow) w_col wi_grad ;
        Array.set pd_prev_arr_acc irow (pd_prev +. last_pd_prev) ;
 
-       bp_neuron_rec w_col (irow - 1) diffi ai ai_prev_arr
+       bp_neuron_rec (irow - 1) w_col diffi ai ai_prev_arr
   in
 
-  bp_neuron_rec w_col (w_row - 1) diffi ai ai_prev_arr
+  bp_neuron_rec (w_row - 1) (w_col - 1) diffi ai ai_prev_arr
   
 
 let rec backprop_layer w_row w_col wmat_arr b_acc_arr prev_diff_arr_acc
@@ -148,7 +181,7 @@ let rec backprop_layer w_row w_col wmat_arr b_acc_arr prev_diff_arr_acc
   if i = w_col
   then { prev_diff_vec = prev_diff_arr_acc ;
          wmat = Mat.of_array wmat_arr;
-         bmat = Mat.from_row_vec (Vec.of_array b_acc_arr)
+         bmat = Mat.of_array [|b_acc_arr|]
        }
   else
     let ai = Array.get ai_arr i in
@@ -159,7 +192,8 @@ let rec backprop_layer w_row w_col wmat_arr b_acc_arr prev_diff_arr_acc
     let pd_prev_diff_arr = bp_neuron.pd_prev_arr in
     let bias_grad = 2. *. diff *. ai *. (1. -. ai) in
 
-    Array.set b_acc_arr i bias_grad ;
+    (* Array.set b_acc_arr i bias_grad ; *)
+    (* print_float @@ Array.get b_acc_arr 0; *)
 
     backprop_layer w_row w_col grad_mat b_acc_arr pd_prev_diff_arr ai_arr
       diff_arr ai_prev_arr (i + 1)
@@ -185,16 +219,6 @@ let rec backprop_nn ff_list wmat_list wgrad_mat_list bgrad_mat_list
 
      backprop_nn ff_tail (tl wmat_list) wgrad_list_acc bgrad_list_acc bp_layer.prev_diff_vec
   
-
-let arr_get index arr =
-  Array.get arr index
-
-let mat_add mat1 mat2 =
-  Mat.add mat1 mat2
-
-let mat_sub mat1 mat2 =
-  Mat.sub mat1 mat2
-
 let backprop nn data =
 
   let rec bp_rec nn data bp_grad_acc =
@@ -210,10 +234,19 @@ let backprop nn data =
 
        let bp_grad = backprop_nn ff_net.res ff_net.wl_ff [] [] res_diff in
 
+       print_endline "One sample nn" ;
+       nn_print bp_grad ;
        nn_apply mat_add bp_grad bp_grad_acc |> bp_rec nn data_tail
   in
+ 
+  let newn = nn_zero nn
+            |> bp_rec nn data in
 
-  nn_zero nn |> bp_rec nn data 
+  print_endline "Full nn";
+  nn_print newn ;
+  newn |> nn_map @@ mat_scale (List.length data
+             |> float_of_int
+             |> (fun x -> 1. /. x))
 
 let rec learn nn data iter =
 
@@ -223,12 +256,25 @@ let rec learn nn data iter =
      let grad_nn = backprop nn data in
      let new_nn = nn_apply mat_sub nn grad_nn in
      
+     nn_print grad_nn ;
      learn new_nn data (iter - 1)
+
+let xor_data =
+  [
+    ([| [|0.|] |] |> Mat.of_array , [| [|0.; 0.|] |] |> Mat.of_array ) ;
+    ([| [|1.|] |] |> Mat.of_array , [| [|0.; 1.|] |] |> Mat.of_array ) ;
+    ([| [|1.|] |] |> Mat.of_array , [| [|1.; 0.|] |] |> Mat.of_array ) ;
+    ([| [|1.|] |] |> Mat.of_array , [| [|1.; 1.|] |] |> Mat.of_array )
+  ]
 
 let () =
   time () |> int_of_float |> Random.init ;
-  let nn = make_nn [2; 2; 1] |> forward (Mat.random 1 2) in
-  mat_print (hd nn.res) ;
+  let nn = make_nn [2; 3; 1] in
+  cost xor_data nn |> print_float ;
+  print_newline () ;
+  learn nn xor_data 2 |> cost xor_data |> print_float ;
+  print_newline () ;
+
   ()
 
 
