@@ -1,6 +1,8 @@
 open Lacaml.D
 open Unix
 open Ocadl.Deep
+open Ocadl.Types
+open Ocadl.Nn
 
 let ident_data =
   [

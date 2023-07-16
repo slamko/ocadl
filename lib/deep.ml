@@ -1,13 +1,8 @@
 open List
 open Lacaml.D
-
-type weight_list = mat list
-type bias_list = mat list
-
-type nnet = {
-    wl : weight_list;
-    bl : bias_list
-  }
+open Types
+open Nn
+open Deepmath
 
 type backprop_neuron = {
     wmat_arr : float array array;
@@ -25,53 +20,12 @@ type backprop_layer = {
     wmat : mat;
     bmat : mat 
   }
-
-let mat_print (mat : mat)  =
-   Format.printf
-    "\
-      @[<2>Matrix :\n\
-        @\n\
-        %a@]\n\
-      @\n"
-    Lacaml.Io.pp_fmat mat
-
-let arr_print arr =
-  arr |> Array.iter @@ Printf.printf "El: %f\n"
-
-let nn_print nn =
-  print_string "\nNN print: \n" ;
-  Printf.printf "Weights:\n" ;
-  List.iter mat_print nn.wl ;
-  Printf.printf "\nBiases:\n" ;
-  List.iter mat_print nn.bl 
-
-    
-let make_nn arch : nnet =
-
-  let rec make_wl_rec arch nn_acc =
-    match arch with
-    | [] -> nn_acc
-    | [_] -> nn_acc 
-    | h::t ->
-       make_wl_rec t (Mat.random (hd t) h :: nn_acc)
-  in
-
-  let rec make_bl_rec arch nn_acc =
-    match arch with
-    | [] -> nn_acc
-    | [_] -> nn_acc 
-    | h::t ->
-       make_bl_rec t (Mat.random 1 h :: nn_acc)
-  in
-
-  let rev_arch = rev arch in
-  {    
-    wl = make_wl_rec rev_arch [] ;
-    bl = make_bl_rec rev_arch [] ;
+ 
+let nn_of_ff ff_tree =
+  { wl = ff_tree.wl_ff;
+    bl = ff_tree.bl_ff;
   }
 
-let sigmoid (x : float) : float =
-  1. /. (1. +. exp(-. x))
 
 let forward_layer input wmat bmat =
   gemm input wmat |> Mat.add bmat |> Mat.map sigmoid
@@ -94,55 +48,6 @@ let forward input nn =
   in
 
   forward_rec nn.wl nn.bl input { wl_ff = []; bl_ff = []; res = [input] }
-    
-let nn_of_ff ff_tree =
-  { wl = ff_tree.wl_ff;
-    bl = ff_tree.bl_ff;
-  }
-
-let nn_apply proc nn1 nn2 =
-  {
-    wl = List.map2 proc nn1.wl nn2.wl;
-    bl = List.map2 proc nn1.bl nn2.bl
-  }
-
-let nn_map proc nn =
-  { wl = List.map proc nn.wl ;
-    bl = List.map proc nn.bl ;
-  }
-
-let make_zero_mat_list mat_list =
-  List.fold_right (fun mat mlist ->
-      (Mat.make (Mat.dim1 mat) (Mat.dim2 mat) 0.) ::  mlist) mat_list []
-
-let nn_zero nn =
-  { wl = make_zero_mat_list nn.wl;
-    bl = make_zero_mat_list nn.bl
-  }
-
-let arr_get index arr =
-  Array.get arr index
-
-let mat_add mat1 mat2 =
-  Mat.add mat1 mat2
-
-let mat_sub mat1 mat2 =
-  Mat.sub mat1 mat2
-
-let mat_add_const cst mat =
-  Mat.add_const cst mat
-
-let mat_scale cst mat =
-  Mat.map (fun v -> v *. cst) mat
-
-let mat_row_to_array col mat =
-  Mat.to_array mat |> arr_get col
-
-let get_data_input sample =
-  snd sample
-
-let get_data_out sample =
-  fst sample
 
 let rec perform nn data =
   match data with
@@ -159,7 +64,7 @@ let rec perform nn data =
 
      perform nn t
 
-let cost data nn =
+let cost (data : train_data) nn =
 
   let rec cost_rec nn data err = 
     match data with
