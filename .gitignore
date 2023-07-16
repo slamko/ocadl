@@ -1,0 +1,9 @@
+**.cmxa
+**.cmx
+**.cmi
+**.o
+**.deep
+_build/
+**.opam
+ 
+

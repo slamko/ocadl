@@ -1,0 +1,10 @@
+(env
+  (dev
+    (flags (:standard -warn-error -A))))
+
+(executable
+ (public_name ocadl)
+ (name main)
+ (libraries ocadl
+            unix
+            lacaml))
