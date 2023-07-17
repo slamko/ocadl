@@ -123,12 +123,10 @@ let rec backprop_nn (ff_list : mat list)
           diff_vec : nnet =
 
   match ff_list with
-  | [] -> { wl = wgrad_mat_list_acc ;
-             bl = bgrad_mat_list_acc
-           }
-  | [_] -> { wl = wgrad_mat_list_acc ;
-             bl = bgrad_mat_list_acc
-           }
+  | [_] | [] ->
+     { wl = wgrad_mat_list_acc ;
+       bl = bgrad_mat_list_acc
+     }
   | cur_activation::ff_tail ->
      let wmat = hd wmat_list in
      let wrows = Mat.dim1 wmat in

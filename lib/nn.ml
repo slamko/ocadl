@@ -54,25 +54,66 @@ let read_train_data fname res_len in_cols =
           data_list |> list_to_mat in_cols))
   (* |> List.iter (fun (res, inp) -> mat_print inp) *)
 
-(* let save_nn_to_json fname nn = *)
-  (* let open Yojson in *)
-  
+let save_to_json fname nn =
+  let open Yojson.Basic.Util in
+  let open Yojson.Basic in
 
-   
+  let mat_to_json_rec matl =
+    `List
+      (List.map
+         (fun matrix ->
+           `List
+             (List.map
+                (fun row ->
+                  `List
+                    (List.map
+                       (fun num -> `Float num)
+                       row))
+                matrix))
+         matl)
+  in
+
+  let mat_list_to_json nn =
+    `Assoc [
+        ("weights",
+             List.map Mat.to_list nn.wl
+             |> mat_to_json_rec
+        ) ;
+        ("biases",
+              List.map Mat.to_list nn.bl
+              |> mat_to_json_rec
+        )
+      ]
+  in
+  
+  mat_list_to_json nn |> Yojson.Basic.pretty_to_string |> print_string
+
+let restore_nn_from_json fname nn =
+  let open Yojson.Basic.Util in
+  let json = Yojson.Basic.from_file fname in
+  let weights =
+    json
+    |> member "weights"
+    |> to_list
+    |> filter_list
+    |> List.map filter_float
+  in
+
+  (* List.hd weights |> List.length |> print_int *)
+  weights |> List.iter list_print
+
 let make_nn arch : nnet =
 
   let rec make_wl_rec arch nn_acc =
     match arch with
-    | [] -> nn_acc
-    | [_] -> nn_acc 
+    | [_] | [] -> nn_acc 
     | h::t ->
        make_wl_rec t (Mat.random (List.hd t) h :: nn_acc)
   in
 
   let rec make_bl_rec arch nn_acc =
     match arch with
-    | [] -> nn_acc
-    | [_] -> nn_acc 
+    | [_] | [] -> nn_acc 
     | h::t ->
        make_bl_rec t (Mat.random 1 h :: nn_acc)
   in

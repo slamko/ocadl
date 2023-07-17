@@ -69,11 +69,14 @@ let train train_data_fname iter nn_arch =
   (* let train_data = adder_data in *)
   let nn = make_nn nn_arch in
   (* nn.wl |> List.hd |> Mat.dim2 |> print_int; *)
+  (* restore_nn_from_json "/home/slamko/proj/ai/ocadl/save.json" nn ; *)
+  save_to_json "new.json" nn ;
 
-  let trained_nn = learn train_data iter nn in
-  perform trained_nn train_data ;
-  cost train_data nn |> Printf.printf "Cost: %f\n" ;
-  trained_nn |> cost train_data |> Printf.printf "Trained Cost %f\n";
+  (* let trained_nn = learn train_data iter nn in *)
+
+  (* perform trained_nn train_data ; *)
+  (* cost train_data nn |> Printf.printf "Cost: %f\n" ; *)
+  (* trained_nn |> cost train_data |> Printf.printf "Trained Cost %f\n"; *)
 
   ()
 
