@@ -7,5 +7,7 @@
 **ocadl
 _build/
 **.opam
+**.csv
+**.json
  
 

@@ -145,7 +145,7 @@ let rec backprop_nn (ff_list : mat list)
      backprop_nn ff_tail (tl wmat_list)
        wgrad_list bgrad_list bp_layer.prev_diff_arr
   
-let backprop nn data : nnet =
+let nn_gradient nn data : nnet =
 
   let rec bp_rec nn data bp_grad_acc =
     match data with
@@ -160,7 +160,6 @@ let backprop nn data : nnet =
        let bp_grad = backprop_nn ff_net.res ff_net.wl_ff [] [] res_diff in
 
        (* Printf.printf "One sample nn" ; *)
-       (* nn_print bp_grad_acc ; *)
        nn_apply mat_add bp_grad bp_grad_acc |> bp_rec nn data_tail
   in
  
@@ -168,19 +167,56 @@ let backprop nn data : nnet =
             |> bp_rec nn data in
 
   (* print_endline "Full nn"; *)
-  (* nn_print newn ; *)
   newn |> nn_map (mat_scale (List.length data
              |> float_of_int
              |> (fun x -> 1. /. x)))
 
-let rec learn data iter nn =
+let check_nn_geometry nn data =
+  let sample = hd data in
 
-  match iter with
+  let single_dim_mat_len m =
+    m
+    |> Mat.to_array
+    |> arr_get 0
+    |> Array.length
+  in
+  
+  print_int (get_data_input sample |> single_dim_mat_len);
+  if get_data_input sample |> single_dim_mat_len = Mat.dim1 (hd nn.wl)
+  then
+    if get_data_out sample |> single_dim_mat_len = Mat.dim2 (hd (rev nn.wl))
+    then Ok nn
+    else Error "Unmatched data geometry: number of output neurons should be equal to number of expected outputs"
+  else Error "Unmatched data geometry: number of input neurons should be equal to number of data inputs."
+ 
+let rec learn_rec data epoch_num train_rate batch_size last_batch_epoch
+          grad_acc nn =
+  match epoch_num with
   | 0 -> nn
   | _ ->
-     let grad_nn = backprop nn data in
+     let grad_nn = nn_gradient nn data
+                 |> nn_map @@ mat_scale train_rate in
      (* Printf.printf "Grad_nn\n"; *)
-     let new_nn = nn_apply mat_sub nn grad_nn in
+
+     let full_grad = nn_apply mat_add grad_acc grad_nn in
+
+     if epoch_num <= last_batch_epoch - batch_size
+     then
+       let new_nn = nn_apply mat_sub nn full_grad in
+       learn_rec data (epoch_num - 1) train_rate batch_size epoch_num
+         (nn_zero nn) new_nn
+     else
+       learn_rec data (epoch_num - 1) train_rate batch_size last_batch_epoch
+          full_grad nn
      
      (* nn_print new_nn ; *)
-     learn data (iter - 1) new_nn 
+
+let (>>=) a f =
+  match a with
+  | Ok value -> Ok (f value)
+  | Error err -> Error err
+
+let learn data ?(epoch_num = 11) ?(train_rate = 1.0) ?(batch_size = 1) nn =
+  check_nn_geometry nn data
+  >>= learn_rec data epoch_num train_rate batch_size epoch_num (nn_zero nn)
+ 

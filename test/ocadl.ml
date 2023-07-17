@@ -50,36 +50,44 @@ let rec perform nn data =
      perform nn t
 
 
-let usage_msg = "ocadl -l <train_data_file> -i <iter_count> [<arch>] ... "
-let iter_count = ref 1
+let usage_msg = "ocadl -l <train_data_file> -s <save_file> -i <epoch_num> [<arch>] ... "
+let epoch_num = ref 11
 let train_data_file = ref ""
+let save_file = ref ""
 let arch = ref []
 
 let anon_fun layer =
   arch := (int_of_string layer)::!arch
 
 let speclist =
-  [("-i", Arg.Set_int iter_count, "Learning iteration count") ;
-     ("-l", Arg.Set_string train_data_file, "Training data file name")
+  [
+    ("-i", Arg.Set_int epoch_num, "Learning iteration count") ;
+    ("-l", Arg.Set_string train_data_file, "Training data file name") ;
+    ("-s", Arg.Set_string save_file, "Json file to dump the NN state")
   ]
 
-let train train_data_fname iter nn_arch =
+let train train_data_fname epochs nn_arch =
   let train_data = read_train_data train_data_fname 1 28 in
   (* List.hd train_data |>  |> Mat.dim2 |> print_int ; *)
   (* let train_data = adder_data in *)
   let nn =
-    if Sys.file_exists "save.json"
-    then restore_nn_from_json "save.json"
+    if Sys.file_exists !save_file
+    then restore_nn_from_json !save_file
     else make_nn nn_arch
   in
   
-
-  let trained_nn = learn train_data iter nn in
+  let trained_nn =
+    match learn train_data ~epoch_num:epochs ~batch_size:1 nn with
+    | Ok new_nn -> new_nn
+    | Error err -> failwith err
+  in
 
   (* perform trained_nn train_data ; *)
   cost train_data nn |> Printf.printf "Cost: %f\n" ;
   trained_nn |> cost train_data |> Printf.printf "Trained Cost %f\n";
-  save_to_json "save.json" trained_nn ;
+
+  if not @@ String.equal !save_file ""
+  then save_to_json !save_file trained_nn;
 
   ()
 
@@ -96,7 +104,7 @@ let () =
   else if (List.length !arch) = 0
   then 
        invalid_arg usage_msg
-  else train !train_data_file !iter_count (List.rev !arch)
+  else train !train_data_file !epoch_num (List.rev !arch)
   
 
 

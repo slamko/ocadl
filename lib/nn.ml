@@ -85,21 +85,29 @@ let save_to_json fname nn =
       ] in
 
   let js_out = open_out fname in
-
-  json |> Yojson.Basic.pretty_to_channel js_out
+  json |> Yojson.Basic.pretty_to_channel js_out ;
+  close_out js_out
 
 let restore_nn_from_json fname =
   let open Yojson.Basic.Util in
-  let json = Yojson.Basic.from_file fname in
+  let json =
+    try Yojson.Basic.from_file fname
+    with ex -> failwith "Invalid dump file." in
 
   let json_to_mat_list js_obj =
     js_obj
     |> to_list
     |> filter_list
     |> List.map filter_list
-    |> List.map @@
-         List.map @@
-           List.map to_float
+    |> List.map
+       @@ List.map
+       @@ List.map
+            (fun maybe_num ->
+              match to_float_option maybe_num with
+              | Some num -> num
+              | None -> failwith "Invalid dump file."
+            )
+
     |> List.map Mat.of_list
   in    
   
@@ -134,11 +142,15 @@ let make_nn arch : nnet =
        make_bl_rec t (Mat.random 1 h :: nn_acc)
   in
 
-  let rev_arch = List.rev arch in
-  {    
-    wl = make_wl_rec rev_arch [] ;
-    bl = make_bl_rec rev_arch [] ;
-  }
+  match arch with
+  | [_] | [] -> failwith "Invalid architecture for neural network.
+                          Expected at least two layers"
+  | _ -> 
+     let rev_arch = List.rev arch in
+
+     { wl = make_wl_rec rev_arch [] ;
+       bl = make_bl_rec rev_arch [] ;
+     }
    
 let nn_apply proc nn1 nn2 =
   {
