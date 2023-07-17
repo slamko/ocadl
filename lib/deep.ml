@@ -190,17 +190,13 @@ let check_nn_geometry nn data =
     else Error "Unmatched data geometry: number of output neurons should be equal to number of expected outputs"
   else Error "Unmatched data geometry: number of input neurons should be equal to number of data inputs."
  
-let rec learn_rec pool data epoch_num train_rate batch_size
-          last_batch_epoch nn =
+let rec learn_rec pool pool_size data epoch_num
+          train_rate batch_size pools_per_batch grad_acc nn =
   match epoch_num with
   | 0 ->
-     (* Task.teardown_pool pool ; *)
      nn
   | _ ->
 
-    (* Printf.printf "Grad_nn\n"; *)
-     
-     (* let tasks = [] in *)
      let rec spawn_bp_pool i tasks =
        match i with
        | 0 -> tasks
@@ -213,33 +209,51 @@ let rec learn_rec pool data epoch_num train_rate batch_size
                    |> nn_map @@ mat_scale train_rate)
           |> spawn_bp_pool (i - 1)
      in
-     (* let task_list = Domain.spawn (fun _ -> 4) *)
-                       (* (fun _ -> *)
-                         (* nn_gradient nn data *)
-                         (* |> nn_map @@ mat_scale train_rate) *)
 
-     let task_list = spawn_bp_pool batch_size []
+     let cycles_to_batch = batch_size - (pools_per_batch * pool_size) in
+     let thread_num =
+       if cycles_to_batch > pool_size
+       then pool_size
+       else cycles_to_batch
      in
 
-     (* let grad_list = Task.await pool task_list in *)
-     (* let grad_list = Domain.join task_list in *)
-     (* print_int grad_list ; *)
+     let cur_domain_num =
+       if thread_num > epoch_num
+       then epoch_num
+       else thread_num
+     in
+
+     let task_list = spawn_bp_pool cur_domain_num []
+     in
+
      let grad_list = 
        task_list
        |> List.map @@ Task.await pool in
 
-     (* List.length task_list |> print_int ; *)
-     
-
      (* print_string "hello\n"; *)
-     let full_grad =
+     let new_grad =
        grad_list
-       |> nn_list_fold_left mat_add in
+       |> nn_list_fold_left mat_add
+       |> nn_apply mat_add grad_acc
+     in
      
-     let new_nn = nn_apply mat_sub nn full_grad in
+     let batch_grad = if cycles_to_batch = cur_domain_num
+                      then nn_zero nn
+                      else new_grad 
+     in
 
-     learn_rec pool data (epoch_num - batch_size) train_rate batch_size
-       epoch_num new_nn
+     let new_nn = if cycles_to_batch = cur_domain_num
+                  then nn_apply mat_sub nn new_grad
+                  else nn
+     in
+
+     let next_batch_epoch = if cycles_to_batch = cur_domain_num
+                            then 0
+                            else pools_per_batch + 1
+     in
+
+     learn_rec pool pool_size data (epoch_num - cur_domain_num) train_rate batch_size
+       next_batch_epoch batch_grad new_nn
 
      (*
      let grad_nn = nn_gradient nn data
@@ -255,6 +269,11 @@ let rec learn_rec pool data epoch_num train_rate batch_size
          last_batch_epoch full_grad nn
       *)
      
+let recomended_domain_num =
+  let rec_dom_cnt = Domain.recommended_domain_count () in
+  if rec_dom_cnt = 0
+  then 1
+  else rec_dom_cnt
 
 let (>>=) a f =
   match a with
@@ -262,11 +281,17 @@ let (>>=) a f =
   | Error err -> Error err
 
 let learn data ?(epoch_num = 11) ?(train_rate = 1.0) ?(batch_size = 1) nn =
-  let pool = Task.setup_pool ~num_domains: batch_size () in
+  let thread_num =
+    if batch_size > recomended_domain_num
+    then recomended_domain_num
+    else batch_size
+  in
+
+  let pool = Task.setup_pool ~num_domains: thread_num () in
 
   let res = Task.run pool (fun _ ->
-                learn_rec pool data epoch_num train_rate batch_size
-                  epoch_num  nn) in
+                learn_rec pool thread_num data epoch_num train_rate batch_size
+                  0 (nn_zero nn) nn) in
 
   Task.teardown_pool pool ;
   Ok res
