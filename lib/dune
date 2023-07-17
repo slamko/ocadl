@@ -6,5 +6,6 @@
 (library
  (public_name ocadl)
  (libraries lacaml
+            yojson
             csv)
  (name ocadl))

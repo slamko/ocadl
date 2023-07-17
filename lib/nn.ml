@@ -54,6 +54,10 @@ let read_train_data fname res_len in_cols =
           data_list |> list_to_mat in_cols))
   (* |> List.iter (fun (res, inp) -> mat_print inp) *)
 
+(* let save_nn_to_json fname nn = *)
+  (* let open Yojson in *)
+  
+
    
 let make_nn arch : nnet =
 

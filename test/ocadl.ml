@@ -50,22 +50,47 @@ let rec perform nn data =
      perform nn t
 
 
+let usage_msg = "ocadl -l <train_data_file> -i <iter_count> [<arch>] ... "
+let iter_count = ref 1
+let train_data_file = ref ""
+let arch = ref []
+
+let anon_fun layer =
+  arch := (int_of_string layer)::!arch
+
+let speclist =
+  [("-i", Arg.Set_int iter_count, "Learning iteration count") ;
+     ("-l", Arg.Set_string train_data_file, "Training data file name")
+  ]
+
+let train train_data_fname iter nn_arch =
+  let train_data = read_train_data train_data_fname 1 28 in
+  (* List.hd train_data |>  |> Mat.dim2 |> print_int ; *)
+  (* let train_data = adder_data in *)
+  let nn = make_nn nn_arch in
+  (* nn.wl |> List.hd |> Mat.dim2 |> print_int; *)
+
+  let trained_nn = learn train_data iter nn in
+  perform trained_nn train_data ;
+  cost train_data nn |> Printf.printf "Cost: %f\n" ;
+  trained_nn |> cost train_data |> Printf.printf "Trained Cost %f\n";
+
+  ()
+
 let () =
   time () |> int_of_float |> Random.init ;
 
-  let train_data = read_train_data "data.csv" 1 28 in
-  (* List.hd train_data |>  |> Mat.dim2 |> print_int ; *)
-  (* let train_data = adder_data in *)
-  let nn = make_nn [784; 16; 16; 16; 10] in
-  (* nn.wl |> List.hd |> Mat.dim2 |> print_int; *)
+  Arg.parse speclist anon_fun usage_msg ;
 
-  cost train_data nn |> Printf.printf "Cost: %f\n" ;
+  (* Ocadl.Nn.list_print !arch ; *)
 
-  let trained_nn = learn train_data 1000 nn in
-  trained_nn |> cost train_data |> Printf.printf "Trained Cost %f\n";
-  perform trained_nn train_data ;
-
-
-  ()
+  if String.equal !train_data_file ""
+  then 
+       invalid_arg usage_msg
+  else if (List.length !arch) = 0
+  then 
+       invalid_arg usage_msg
+  else train !train_data_file !iter_count (List.rev !arch)
+  
 
 
