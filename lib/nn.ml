@@ -54,53 +54,69 @@ let read_train_data fname res_len in_cols =
           data_list |> list_to_mat in_cols))
   (* |> List.iter (fun (res, inp) -> mat_print inp) *)
 
+let to_json_list proc l =
+  `List (l |> proc)
+
 let save_to_json fname nn =
   let open Yojson.Basic.Util in
   let open Yojson.Basic in
 
   let mat_to_json_rec matl =
     `List
-      (List.map
-         (fun matrix ->
-           `List
-             (List.map
-                (fun row ->
-                  `List
-                    (List.map
-                       (fun num -> `Float num)
-                       row))
-                matrix))
-         matl)
+      (matl |>
+         List.map @@
+         to_json_list @@
+             List.map @@
+                to_json_list @@
+                List.map
+                   (fun num -> `Float num))
   in
 
-  let mat_list_to_json nn =
+  let json =
     `Assoc [
         ("weights",
-             List.map Mat.to_list nn.wl
-             |> mat_to_json_rec
+         List.map Mat.to_list nn.wl
+         |> mat_to_json_rec
         ) ;
         ("biases",
-              List.map Mat.to_list nn.bl
-              |> mat_to_json_rec
+         List.map Mat.to_list nn.bl
+         |> mat_to_json_rec
         )
-      ]
-  in
-  
-  mat_list_to_json nn |> Yojson.Basic.pretty_to_string |> print_string
+      ] in
 
-let restore_nn_from_json fname nn =
+  let js_out = open_out fname in
+
+  json |> Yojson.Basic.pretty_to_channel js_out
+
+let restore_nn_from_json fname =
   let open Yojson.Basic.Util in
   let json = Yojson.Basic.from_file fname in
+
+  let json_to_mat_list js_obj =
+    js_obj
+    |> to_list
+    |> filter_list
+    |> List.map filter_list
+    |> List.map @@
+         List.map @@
+           List.map to_float
+    |> List.map Mat.of_list
+  in    
+  
   let weights =
     json
     |> member "weights"
-    |> to_list
-    |> filter_list
-    |> List.map filter_float
-  in
+    |> json_to_mat_list in
 
+  let biases =
+    json
+    |> member "biases"
+    |> json_to_mat_list  in
+
+  { wl = weights;
+    bl = biases
+  }
   (* List.hd weights |> List.length |> print_int *)
-  weights |> List.iter list_print
 
 let make_nn arch : nnet =
 
