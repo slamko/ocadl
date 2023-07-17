@@ -77,7 +77,7 @@ let train train_data_fname epochs nn_arch =
   in
   
   let trained_nn =
-    match learn train_data ~epoch_num:epochs ~batch_size:1 nn with
+    match learn train_data ~epoch_num:epochs ~batch_size:2 nn with
     | Ok new_nn -> new_nn
     | Error err -> failwith err
   in
@@ -92,11 +92,7 @@ let train train_data_fname epochs nn_arch =
   ()
 
 let () =
-  time () |> int_of_float |> Random.init ;
-
   Arg.parse speclist anon_fun usage_msg ;
-
-  (* Ocadl.Nn.list_print !arch ; *)
 
   if String.equal !train_data_file ""
   then 

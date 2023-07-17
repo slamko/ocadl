@@ -7,5 +7,6 @@
  (public_name ocadl)
  (libraries lacaml
             yojson
+            domainslib
             csv)
  (name ocadl))

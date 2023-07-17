@@ -28,6 +28,9 @@ let mat_scale cst mat =
 let mat_row_to_array col mat =
   Mat.to_array mat |> arr_get col
 
+let mat_list_fold_left proc mat_list =
+  List.fold_left (fun mat acc ->
+      proc mat acc) mat_list []
 
 let mat_print (mat : mat)  =
    Format.printf

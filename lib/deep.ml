@@ -2,6 +2,7 @@ open List
 open Lacaml.D
 open Types
 open Nn
+open Domainslib
 open Deepmath
 
 type backprop_neuron = {
@@ -189,27 +190,71 @@ let check_nn_geometry nn data =
     else Error "Unmatched data geometry: number of output neurons should be equal to number of expected outputs"
   else Error "Unmatched data geometry: number of input neurons should be equal to number of data inputs."
  
-let rec learn_rec data epoch_num train_rate batch_size last_batch_epoch
-          grad_acc nn =
+let rec learn_rec pool data epoch_num train_rate batch_size
+          last_batch_epoch nn =
   match epoch_num with
-  | 0 -> nn
+  | 0 ->
+     (* Task.teardown_pool pool ; *)
+     nn
   | _ ->
+
+    (* Printf.printf "Grad_nn\n"; *)
+     
+     (* let tasks = [] in *)
+     let rec spawn_bp_pool i tasks =
+       match i with
+       | 0 -> tasks
+       | _ ->
+          tasks
+          |> cons @@
+               Task.async pool
+                 (fun _ ->
+                   nn_gradient nn data
+                   |> nn_map @@ mat_scale train_rate)
+          |> spawn_bp_pool (i - 1)
+     in
+     (* let task_list = Domain.spawn (fun _ -> 4) *)
+                       (* (fun _ -> *)
+                         (* nn_gradient nn data *)
+                         (* |> nn_map @@ mat_scale train_rate) *)
+
+     let task_list = spawn_bp_pool batch_size []
+     in
+
+     (* let grad_list = Task.await pool task_list in *)
+     (* let grad_list = Domain.join task_list in *)
+     (* print_int grad_list ; *)
+     let grad_list = 
+       task_list
+       |> List.map @@ Task.await pool in
+
+     (* List.length task_list |> print_int ; *)
+     
+
+     (* print_string "hello\n"; *)
+     let full_grad =
+       grad_list
+       |> nn_list_fold_left mat_add in
+     
+     let new_nn = nn_apply mat_sub nn full_grad in
+
+     learn_rec pool data (epoch_num - batch_size) train_rate batch_size
+       epoch_num new_nn
+
+     (*
      let grad_nn = nn_gradient nn data
                  |> nn_map @@ mat_scale train_rate in
-     (* Printf.printf "Grad_nn\n"; *)
-
-     let full_grad = nn_apply mat_add grad_acc grad_nn in
-
+      let full_grad = nn_apply mat_add grad_acc grad_nn in
      if epoch_num <= last_batch_epoch - batch_size
      then
        let new_nn = nn_apply mat_sub nn full_grad in
-       learn_rec data (epoch_num - 1) train_rate batch_size epoch_num
-         (nn_zero nn) new_nn
+       learn_rec pool data (epoch_num - 1) train_rate batch_size
+         epoch_num (nn_zero nn) new_nn
      else
-       learn_rec data (epoch_num - 1) train_rate batch_size last_batch_epoch
-          full_grad nn
+       learn_rec pool data (epoch_num - 1) train_rate batch_size
+         last_batch_epoch full_grad nn
+      *)
      
-     (* nn_print new_nn ; *)
 
 let (>>=) a f =
   match a with
@@ -217,6 +262,15 @@ let (>>=) a f =
   | Error err -> Error err
 
 let learn data ?(epoch_num = 11) ?(train_rate = 1.0) ?(batch_size = 1) nn =
-  check_nn_geometry nn data
-  >>= learn_rec data epoch_num train_rate batch_size epoch_num (nn_zero nn)
- 
+  let pool = Task.setup_pool ~num_domains: batch_size () in
+
+  let res = Task.run pool (fun _ ->
+                learn_rec pool data epoch_num train_rate batch_size
+                  epoch_num  nn) in
+
+  Task.teardown_pool pool ;
+  Ok res
+  
+  (* check_nn_geometry nn data *)
+  (* >>= learn_rec pool data epoch_num train_rate batch_size epoch_num (nn_zero nn) *)
+

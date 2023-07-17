@@ -127,6 +127,7 @@ let restore_nn_from_json fname =
   (* List.hd weights |> List.length |> print_int *)
 
 let make_nn arch : nnet =
+  Unix.time () |> int_of_float |> Random.init ;
 
   let rec make_wl_rec arch nn_acc =
     match arch with
@@ -151,7 +152,7 @@ let make_nn arch : nnet =
      { wl = make_wl_rec rev_arch [] ;
        bl = make_bl_rec rev_arch [] ;
      }
-   
+  
 let nn_apply proc nn1 nn2 =
   {
     wl = List.map2 proc nn1.wl nn2.wl;
@@ -168,6 +169,10 @@ let nn_zero nn =
     bl = make_zero_mat_list nn.bl
   }
 
+let nn_list_fold_left proc nn_list =
+  List.fold_left (fun nn (acc : nnet) ->
+      nn_apply proc nn acc) (nn_zero (List.hd nn_list)) nn_list
+ 
 let get_data_input sample =
   snd sample
 
