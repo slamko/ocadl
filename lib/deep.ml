@@ -9,12 +9,6 @@ type backprop_neuron = {
     pd_prev_arr : float array
   }
 
-type feed_forward = {
-    res : mat list;
-    wl_ff : mat list;
-    bl_ff : mat list
-  }
-
 type backprop_layer = {
     prev_diff_arr : float array;
     wmat : mat;
@@ -25,7 +19,6 @@ let nn_of_ff ff_tree =
   { wl = ff_tree.wl_ff;
     bl = ff_tree.bl_ff;
   }
-
 
 let forward_layer input wmat bmat =
   gemm input wmat |> Mat.add bmat |> Mat.map sigmoid
@@ -49,29 +42,14 @@ let forward input nn =
 
   forward_rec nn.wl nn.bl input { wl_ff = []; bl_ff = []; res = [input] }
 
-let rec perform nn data =
-  match data with
-  | [] -> ()
-  | sample::t ->
-     let ff = forward (get_data_input sample) nn in
-     let res = ff.res |> hd in
-     let expected = get_data_out sample in
-     Printf.printf "NN result: \n" ;
-     mat_print res ;
-
-     Printf.printf "Expected result: \n" ;
-     mat_print expected ;
-
-     perform nn t
-
 let cost (data : train_data) nn =
 
   let rec cost_rec nn data err = 
     match data with
     | [] -> err
     | sample::data_tail ->
-       let ff = forward (snd sample) nn in
-       let expected = fst sample in
+       let ff = forward (get_data_input sample) nn in
+       let expected = get_data_out sample in
        let diff = Mat.sub (hd ff.res) expected
                   |> Mat.as_vec
                   |> Vec.fold (fun res total -> res +. total) 0. in
@@ -203,8 +181,8 @@ let rec learn data iter nn =
   | 0 -> nn
   | _ ->
      let grad_nn = backprop nn data in
+     (* Printf.printf "Grad_nn\n"; *)
      let new_nn = nn_apply mat_sub nn grad_nn in
      
-     (* Printf.printf "Grad_nn\n"; *)
      (* nn_print new_nn ; *)
      learn data (iter - 1) new_nn 

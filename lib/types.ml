@@ -10,4 +10,12 @@ type nnet = {
     bl : bias_list
   }
 
+type feed_forward = {
+    res : mat list;
+    wl_ff : mat list;
+    bl_ff : mat list
+  }
+
+
+
 

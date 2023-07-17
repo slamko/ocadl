@@ -23,18 +23,18 @@ let list_split n lst =
   split_rec n [] lst
 
 let list_to_mat n lst =
-  let lst_arr = lst |> Array.of_list in
-  let data_len = Array.length lst_arr in
-  let nrows = data_len / n in
-  let res_arr = Array.make_matrix nrows n 0. in
+  (* let lst_arr = lst |> Array.of_list in *)
+  (* let data_len = Array.length lst_arr in *)
+  (* let nrows = data_len / n in *)
+  (* let res_arr = Array.make_matrix nrows n 0. in *)
 
-  Array.iteri
-    (fun i num ->
-      let row = i / nrows in
-      let col = i mod nrows in
-      res_arr.(row).(col) <- num ; ) lst_arr ;
+  (* Array.iteri *)
+    (* (fun i num -> *)
+      (* let row = i / nrows in *)
+      (* let col = i mod nrows in *)
+      (* res_arr.(row).(col) <- num ; ) lst_arr ; *)
 
-  res_arr |> Mat.of_array
+  [lst] |> Mat.of_list
 
 let list_parse_train_data in_cols pair_list =
   List.map (fun (res_list, data_list) ->
@@ -47,10 +47,14 @@ let read_train_data fname res_len in_cols =
   |> List.map @@ list_split res_len
   |> List.map
        (fun (res_list, data_list) ->
-         ([res_list] |> Mat.of_list,
+         let res_mat = Array.make_matrix 1 10 0. in
+         let col = (List.hd res_list |> int_of_float) in
+         res_mat.(0).(col) <- 1. ;
+         (res_mat |> Mat.of_array,
           data_list |> list_to_mat in_cols))
   (* |> List.iter (fun (res, inp) -> mat_print inp) *)
-    
+
+   
 let make_nn arch : nnet =
 
   let rec make_wl_rec arch nn_acc =
@@ -96,4 +100,3 @@ let get_data_input sample =
 
 let get_data_out sample =
   fst sample
-
