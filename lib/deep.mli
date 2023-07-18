@@ -8,6 +8,6 @@ val learn : train_data -> ?epoch_num:int -> ?learning_rate:float ->
 
 val forward : mat -> nnet -> feed_forward
 
-val nn_gradient : nnet -> train_data -> nnet
+val nn_gradient : nnet -> train_data -> nnet_data
 
 

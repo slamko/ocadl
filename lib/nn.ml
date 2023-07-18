@@ -88,7 +88,7 @@ let save_to_json fname nn =
   json |> Yojson.Basic.pretty_to_channel js_out ;
   close_out js_out
 
-let restore_nn_from_json fname =
+let restore_nn_from_json fname nn =
   let open Yojson.Basic.Util in
   let json =
     try Yojson.Basic.from_file fname
@@ -121,10 +121,20 @@ let restore_nn_from_json fname =
     |> member "biases"
     |> json_to_mat_list  in
 
-  { wl = weights;
-    bl = biases
+  { data = {
+      wl = weights;
+      bl = biases;
+    };
+    activations = nn.activations;
+    derivatives = nn.derivatives
   }
   (* List.hd weights |> List.length |> print_int *)
+
+type layer_arch = {
+    ncount : int;
+    activation : activation;
+    derivative : deriv
+  }
 
 let make_nn arch : nnet =
   Unix.time () |> int_of_float |> Random.init ;
@@ -133,14 +143,14 @@ let make_nn arch : nnet =
     match arch with
     | [_] | [] -> nn_acc 
     | h::t ->
-       make_wl_rec t (Mat.random (List.hd t) h :: nn_acc)
+       make_wl_rec t (Mat.random (List.hd t).ncount h.ncount :: nn_acc)
   in
 
   let rec make_bl_rec arch nn_acc =
     match arch with
     | [_] | [] -> nn_acc 
     | h::t ->
-       make_bl_rec t (Mat.random 1 h :: nn_acc)
+       make_bl_rec t (Mat.random 1 h.ncount :: nn_acc)
   in
 
   match arch with
@@ -149,14 +159,18 @@ let make_nn arch : nnet =
   | _ -> 
      let rev_arch = List.rev arch in
 
-     { wl = make_wl_rec rev_arch [] ;
-       bl = make_bl_rec rev_arch [] ;
+     { data = {
+         wl = make_wl_rec rev_arch [] ;
+         bl = make_bl_rec rev_arch [] ;
+       };
+       activations = List.map (fun layer -> layer.activation) arch; 
+       derivatives = List.map (fun layer -> layer.derivative) rev_arch; 
      }
   
 let nn_apply proc nn1 nn2 =
   {
-    wl = List.map2 proc nn1.wl nn2.wl;
-    bl = List.map2 proc nn1.bl nn2.bl
+    wl = List.map2 proc nn1.wl nn2.wl ;
+    bl = List.map2 proc nn1.bl nn2.bl ;
   }
 
 let nn_map proc nn =
@@ -165,12 +179,12 @@ let nn_map proc nn =
   }
 
 let nn_zero nn =
-  { wl = make_zero_mat_list nn.wl;
-    bl = make_zero_mat_list nn.bl
+  { wl = make_zero_mat_list nn.wl ;
+    bl = make_zero_mat_list nn.bl ;
   }
 
 let nn_list_fold_left proc nn_list =
-  List.fold_left (fun nn (acc : nnet) ->
+  List.fold_left (fun nn acc ->
       nn_apply proc nn acc) (nn_zero (List.hd nn_list)) nn_list
  
 let get_data_input sample =

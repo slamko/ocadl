@@ -4,6 +4,14 @@ open Lacaml.D
 let sigmoid (x : float) : float =
   1. /. (1. +. exp(-. x))
 
+let sigmoid' activation =
+  activation *. (1. -. activation)
+
+let tanh (x : float) : float =
+  ((exp(2. *. x) -. 1.0)  /. (exp(2. *. x) +. 1.))
+
+let tanh' activation =
+  1. -. (activation *. activation)
 
 let make_zero_mat_list mat_list =
   List.fold_right (fun mat mlist ->

@@ -15,33 +15,30 @@ type backprop_layer = {
     wmat : mat;
     bmat : mat 
   }
- 
-let nn_of_ff ff_tree =
-  { wl = ff_tree.wl_ff;
-    bl = ff_tree.bl_ff;
-  }
 
-let forward_layer input wmat bmat =
-  gemm input wmat |> Mat.add bmat |> Mat.map sigmoid
+let forward_layer input act wmat bmat =
+  gemm input wmat |> Mat.add bmat |> Mat.map act
 
 let forward input nn =
 
-  let rec forward_rec wl bl input acc =
+  let rec forward_rec wl bl al input acc =
     match wl with
     | [] -> acc
     | hw::tw ->
        let hb = hd bl in
+       let cur_act = hd al in
        (* mat_print hw ; *)
        (* mat_print input ; *)
-       let layer_activation = forward_layer input hw hb in
-       forward_rec tw (tl bl) layer_activation
+       let layer_activation = forward_layer input cur_act hw hb in
+       forward_rec tw (tl bl) (tl al) layer_activation
          { wl_ff = hw :: acc.wl_ff ;
            bl_ff = hb :: acc.bl_ff ;
            res = layer_activation :: acc.res
          }
   in
 
-  forward_rec nn.wl nn.bl input { wl_ff = []; bl_ff = []; res = [input] }
+  forward_rec nn.data.wl nn.data.bl nn.activations input
+    { wl_ff = []; bl_ff = []; res = [input] }
 
 let cost (data : train_data) nn =
 
@@ -60,7 +57,7 @@ let cost (data : train_data) nn =
 
   List.length data |> float_of_int |> (/.) @@ cost_rec nn data 0.
 
-let backprop_neuron w_mat_arr w_row w_col ff_len diffi ai ai_prev_arr
+let backprop_neuron w_mat_arr fderiv w_row w_col ff_len diffi ai ai_prev_arr
       pd_prev_arr_acc : backprop_neuron =
 
   let rec bp_neuron_rec irow w_col diffi ai ai_prev_arr =
@@ -68,14 +65,15 @@ let backprop_neuron w_mat_arr w_row w_col ff_len diffi ai ai_prev_arr
     | -1 -> ()
     | _ ->
        let ai_prev = Array.get ai_prev_arr irow in
-       let wi_grad : float = 2. *. diffi *. ai *. (1. -. ai) *. ai_prev in
+       let ai_deriv = fderiv ai in
+       let wi_grad : float = 2. *. diffi *. ai_deriv *. ai_prev in
       (* Printf.printf "Diff %f\nNeuron WI : %f \nrow %d \ncol %d \nai %f \nai prev %f\n" diffi wi_grad irow w_col ai ai_prev; *)
        
        let calc_pd = 
          if ff_len > 1
          then
            let cur_w = w_mat_arr.(irow).(w_col) in
-           let pd_prev : float = 2. *. diffi *. ai *. (1. -. ai) *. cur_w in
+           let pd_prev : float = 2. *. diffi *. ai_deriv *. cur_w in
            let last_pd_prev = Array.get pd_prev_arr_acc irow in
            pd_prev_arr_acc.(irow) <- (pd_prev +. last_pd_prev) ;
            (* Printf.printf "calc prev %d\n" ff_len ; *)
@@ -93,6 +91,7 @@ let backprop_neuron w_mat_arr w_row w_col ff_len diffi ai ai_prev_arr
   }
   
 let rec backprop_layer w_row w_col (wmat_arr : float array array)
+          (fderiv : deriv)
           (b_acc_arr : float array)
           (prev_diff_arr_acc : float array)
           (ai_arr : float array)
@@ -108,7 +107,7 @@ let rec backprop_layer w_row w_col (wmat_arr : float array array)
   else
     let ai = Array.get ai_arr i in
     let diff = Array.get diff_arr i in
-    let bp_neuron = backprop_neuron wmat_arr (w_row - 1) i ff_len
+    let bp_neuron = backprop_neuron wmat_arr fderiv (w_row - 1) i ff_len
                       diff ai ai_prev_arr prev_diff_arr_acc in
     let grad_mat = bp_neuron.wmat_arr in
     let pd_prev_diff_arr = bp_neuron.pd_prev_arr in
@@ -119,15 +118,16 @@ let rec backprop_layer w_row w_col (wmat_arr : float array array)
     (* arr_print diff_arr ; *)
     (* print_float @@ Array.get b_acc_arr 0; *)
 
-    backprop_layer w_row w_col grad_mat b_acc_arr
+    backprop_layer w_row w_col grad_mat fderiv b_acc_arr
       pd_prev_diff_arr ai_arr diff_arr ai_prev_arr ff_len (i + 1)
       
 
 let rec backprop_nn (ff_list : mat list)
           (wmat_list : weight_list)
+          (deriv_list : deriv list)
           (wgrad_mat_list_acc : weight_list)
           (bgrad_mat_list_acc : bias_list)
-          diff_vec : nnet =
+          diff_vec : nnet_data =
 
   match ff_list with
   | [_] | [] ->
@@ -136,10 +136,12 @@ let rec backprop_nn (ff_list : mat list)
      }
   | cur_activation::ff_tail ->
      let wmat = hd wmat_list in
+     let fderiv = hd deriv_list in
      let wrows = Mat.dim1 wmat in
      let wcols = Mat.dim2 wmat in
 
      let bp_layer = backprop_layer wrows wcols (Mat.to_array wmat)
+                      fderiv
                       (Array.make wcols 0.) (Array.make wrows 0.)
                       (mat_row_to_array 0 cur_activation) diff_vec
                       (mat_row_to_array 0 (hd ff_tail))
@@ -150,12 +152,12 @@ let rec backprop_nn (ff_list : mat list)
      let wgrad_list = bp_layer.wmat :: wgrad_mat_list_acc in
      let bgrad_list = bp_layer.bmat :: bgrad_mat_list_acc in
 
-     backprop_nn ff_tail (tl wmat_list)
+     backprop_nn ff_tail (tl wmat_list) (tl deriv_list)
        wgrad_list bgrad_list bp_layer.prev_diff_arr
   
-let nn_gradient nn data : nnet =
+let nn_gradient nn data : nnet_data =
 
-  let rec bp_rec nn data bp_grad_acc =
+  let rec bp_rec nn data bp_grad_acc : nnet_data =
     match data with
     | [] -> bp_grad_acc
     | cur_sample::data_tail ->
@@ -165,13 +167,14 @@ let nn_gradient nn data : nnet =
        let res_diff     = Mat.sub ff_res expected_res |>
                             mat_row_to_array 0 in
 
-       let bp_grad = backprop_nn ff_net.res ff_net.wl_ff [] [] res_diff in
+       let bp_grad = backprop_nn ff_net.res ff_net.wl_ff
+                       nn.derivatives [] [] res_diff in
 
        (* Printf.printf "One sample nn" ; *)
        nn_apply mat_add bp_grad bp_grad_acc |> bp_rec nn data_tail
   in
  
-  let newn = nn_zero nn
+  let newn = nn_zero nn.data
             |> bp_rec nn data in
 
   (* print_endline "Full nn"; *)
@@ -237,21 +240,27 @@ let rec learn_rec pool pool_size data epoch_num
        |> List.map @@ Task.await pool in
 
      (* print_string "hello\n"; *)
-     let new_grad =
+     let full_grad =
        grad_list
        |> nn_list_fold_left mat_add
        |> nn_apply mat_add grad_acc
      in
      
      let batch_grad = if cycles_to_batch = cur_domain_num
-                      then nn_zero nn
-                      else new_grad 
+                      then nn_zero grad_acc
+                      else full_grad 
      in
 
-     let new_nn = if cycles_to_batch = cur_domain_num
-                  then
-                    nn_apply mat_sub nn new_grad
-                  else nn
+     let new_nn_data = if cycles_to_batch = cur_domain_num
+                  then nn_apply mat_sub nn.data full_grad
+                  else nn.data
+     in
+
+     let new_nn = {
+         data = new_nn_data;
+         activations = nn.activations;
+         derivatives = nn.derivatives
+       }
      in
 
      (* nn_print new_nn ; *)
@@ -287,14 +296,14 @@ let learn data ?(epoch_num = 11) ?(learning_rate = 1.0) ?(batch_size = 2)
   if batch_size > epoch_num
   then Error "Batch size greater than the number of epochs"
   else
-    match check_nn_geometry nn data with
-    | Ok nn -> 
+    match check_nn_geometry nn.data data with
+    | Ok _ -> 
        let pool = Task.setup_pool ~num_domains: domains_num () in
 
        let learn_task =
          (fun _ -> learn_rec pool domains_num data
                     epoch_num learning_rate batch_size
-                    0 (nn_zero nn) nn)
+                    0 (nn_zero nn.data) nn)
        in
        
        let res = Task.run pool learn_task in

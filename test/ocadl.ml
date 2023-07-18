@@ -75,10 +75,12 @@ let train train_data_fname epochs nn_arch =
   let train_data = read_train_data train_data_fname 1 28 in
   (* List.hd train_data |>  |> Mat.dim2 |> print_int ; *)
   (* let train_data = adder_data in *)
+  let base_nn = make_nn nn_arch in
+  
   let nn =
     if Sys.file_exists !save_file
-    then restore_nn_from_json !save_file
-    else make_nn nn_arch
+    then restore_nn_from_json !save_file base_nn
+    else base_nn
   in
   
   let trained_nn =
@@ -95,7 +97,7 @@ let train train_data_fname epochs nn_arch =
   trained_nn |> cost train_data |> Printf.printf "Trained Cost %f\n";
 
   if not @@ String.equal !save_file ""
-  then save_to_json !save_file trained_nn;
+  then save_to_json !save_file trained_nn.data;
 
   ()
 
@@ -108,7 +110,27 @@ let () =
   else if (List.length !arch) = 0
   then 
        invalid_arg usage_msg
-  else train !train_data_file !epoch_num (List.rev !arch)
-  
+  else train
+         !train_data_file
+         !epoch_num
+         [
+           { ncount = 784;
+             activation = sigmoid;
+             derivative = sigmoid'
+           };
+           { ncount = 16;
+             activation = sigmoid;
+             derivative = sigmoid'
+           };
+           { ncount = 16;
+             activation = sigmoid;
+             derivative = sigmoid'
+           } ;
+           { ncount = 10;
+             activation = sigmoid;
+             derivative = sigmoid'
+           }
+         ]
+
 
 
