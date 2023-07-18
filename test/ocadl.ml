@@ -77,7 +77,7 @@ let train train_data_fname epochs nn_arch =
   in
   
   let trained_nn =
-    match learn train_data ~epoch_num:epochs ~batch_size:8 nn with
+    match learn train_data ~epoch_num:epochs ~batch_size:2 nn with
     | Ok new_nn -> new_nn
     | Error err -> failwith err
   in
