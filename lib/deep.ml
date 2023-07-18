@@ -198,10 +198,9 @@ let check_nn_geometry nn data =
   else Error "Unmatched data geometry: number of input neurons should be equal to number of data inputs."
  
 let rec learn_rec pool pool_size data epoch_num
-          train_rate batch_size pools_per_batch grad_acc nn =
+          learning_rate batch_size pools_per_batch grad_acc nn =
   match epoch_num with
-  | 0 ->
-     nn
+  | 0 -> nn
   | _ ->
 
      let rec spawn_bp_pool i tasks =
@@ -213,7 +212,7 @@ let rec learn_rec pool pool_size data epoch_num
                Task.async pool
                  (fun _ ->
                    nn_gradient nn data
-                   |> nn_map @@ mat_scale train_rate)
+                   |> nn_map @@ mat_scale learning_rate)
           |> spawn_bp_pool (i - 1)
      in
 
@@ -262,22 +261,8 @@ let rec learn_rec pool pool_size data epoch_num
                             else pools_per_batch + 1
      in
 
-     learn_rec pool pool_size data (epoch_num - cur_domain_num) train_rate batch_size
-       next_batch_epoch batch_grad new_nn
-
-     (*
-     let grad_nn = nn_gradient nn data
-                 |> nn_map @@ mat_scale train_rate in
-      let full_grad = nn_apply mat_add grad_acc grad_nn in
-     if epoch_num <= last_batch_epoch - batch_size
-     then
-       let new_nn = nn_apply mat_sub nn full_grad in
-       learn_rec pool data (epoch_num - 1) train_rate batch_size
-         epoch_num (nn_zero nn) new_nn
-     else
-       learn_rec pool data (epoch_num - 1) train_rate batch_size
-         last_batch_epoch full_grad nn
-      *)
+     learn_rec pool pool_size data (epoch_num - cur_domain_num)
+       learning_rate batch_size next_batch_epoch batch_grad new_nn
 
 let recomended_domain_num =
   let rec_dom_cnt = Domain.recommended_domain_count () in
@@ -290,7 +275,8 @@ let (>>=) a f =
   | Ok value -> Ok (f value)
   | Error err -> Error err
 
-let learn data ?(epoch_num = 11) ?(train_rate = 1.0) ?(batch_size = 2) nn =
+let learn data ?(epoch_num = 11) ?(learning_rate = 1.0) ?(batch_size = 2)
+      nn =
   
   let domains_num =
     if batch_size > recomended_domain_num
@@ -307,7 +293,7 @@ let learn data ?(epoch_num = 11) ?(train_rate = 1.0) ?(batch_size = 2) nn =
 
        let learn_task =
          (fun _ -> learn_rec pool domains_num data
-                    epoch_num train_rate batch_size
+                    epoch_num learning_rate batch_size
                     0 (nn_zero nn) nn)
        in
        
@@ -316,7 +302,3 @@ let learn data ?(epoch_num = 11) ?(train_rate = 1.0) ?(batch_size = 2) nn =
        Task.teardown_pool pool ;
        Ok res
     | Error err -> Error err
-  
-  (* check_nn_geometry nn data *)
-  (* >>= learn_rec pool data epoch_num train_rate batch_size epoch_num (nn_zero nn) *)
-

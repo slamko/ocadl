@@ -50,8 +50,11 @@ let rec perform nn data =
      perform nn t
 
 
-let usage_msg = "ocadl -l <train_data_file> -s <save_file> -i <epoch_num> [<arch>] ... "
+let usage_msg = "ocadl -l <train_data_file> -s <save_file> -i <epoch_num>
+                 -b <batch_size> [<arch>] ... "
 let epoch_num = ref 11
+let batch_size = ref 1
+let learning_rate = ref 0.01
 let train_data_file = ref ""
 let save_file = ref ""
 let arch = ref []
@@ -61,7 +64,9 @@ let anon_fun layer =
 
 let speclist =
   [
-    ("-i", Arg.Set_int epoch_num, "Learning iteration count") ;
+    ("-i", Arg.Set_int epoch_num, "Epochs count") ;
+    ("-b", Arg.Set_int batch_size, "Batch size") ;
+    ("-r", Arg.Set_float learning_rate, "Learning rate") ;
     ("-l", Arg.Set_string train_data_file, "Training data file name") ;
     ("-s", Arg.Set_string save_file, "Json file to dump the NN state")
   ]
@@ -77,7 +82,10 @@ let train train_data_fname epochs nn_arch =
   in
   
   let trained_nn =
-    match learn train_data ~epoch_num:epochs ~batch_size:2 nn with
+    match learn train_data
+            ~epoch_num:epochs
+            ~learning_rate:!learning_rate
+            ~batch_size:!batch_size nn with
     | Ok new_nn -> new_nn
     | Error err -> failwith err
   in
