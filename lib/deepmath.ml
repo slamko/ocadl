@@ -13,6 +13,12 @@ let tanh (x : float) : float =
 let tanh' activation =
   1. -. (activation *. activation)
 
+let relu x =
+  if x > 0. then x else 0.
+
+let relu' a =
+  if a > 0. then 1. else 0. 
+
 let make_zero_mat_list mat_list =
   List.fold_right (fun mat mlist ->
       (Mat.make (Mat.dim1 mat) (Mat.dim2 mat) 0.) ::  mlist) mat_list []
@@ -40,6 +46,36 @@ let mat_list_fold_left proc mat_list =
   List.fold_left (fun mat acc ->
       proc mat acc) mat_list []
 
+let mat_list_flaten mlist =
+  List.fold_right (fun lst flat_list_acc ->
+        List.fold_right (fun num acc ->
+            num :: acc) lst flat_list_acc) mlist [] 
+
+let mat_flaten mat =
+  []
+  |> List.cons
+       (mat
+        |> Mat.to_list
+        |> List.flatten)
+  |> Mat.of_list
+
+let mat_reshape mat nrows ncols =
+  let mlist = Mat.to_list mat in
+  let flat_mlist = List.flatten mlist in
+
+  let rec reshape_rec flat_mlist i reshape_acc cur_acc =
+    match flat_mlist with
+    | [] -> reshape_acc
+    | h::t ->
+       let cur_col = h :: cur_acc in
+       if (i mod ncols) = 0
+       then reshape_rec t (i + 1) (cur_col::reshape_acc) []
+       else reshape_rec t (i + 1) reshape_acc cur_col
+  in
+
+  reshape_rec flat_mlist 1 [] []
+  |> Mat.of_list
+  
 let mat_print (mat : mat)  =
    Format.printf
     "\

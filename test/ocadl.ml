@@ -1,37 +1,24 @@
 open Lacaml.D
 open Unix
-open Ocadl.Deep
-open Ocadl.Types
-open Ocadl.Nn
-open Ocadl.Deepmath
+open Ocadl__Deep
+open Ocadl__Types
+open Ocadl__Nn
+open Ocadl__Deepmath
 
 let ident_data =
   [
-    ([| [|0.|] |] |> Mat.of_array , [| [|0.|] |] |> Mat.of_array ) ;
-    ([| [|1.|] |] |> Mat.of_array , [| [|1.|] |] |> Mat.of_array ) ;
-    ([| [|0.|] |] |> Mat.of_array , [| [|0.|] |] |> Mat.of_array ) ;
-    ([| [|1.|] |] |> Mat.of_array , [| [|1.|] |] |> Mat.of_array )
+    (data [|0.|] , data [|0.|]) ;
+    (data [|1.|] , data [|1.|]) ;
+    (data [|0.|] , data [|0.|]) ;
+    (data [|1.|] , data [|1.|])
   ]
 
 let xor_data =
   [
-    ([| [|0.|] |] |> Mat.of_array , [| [|0.; 0.|] |] |> Mat.of_array ) ;
-    ([| [|1.|] |] |> Mat.of_array , [| [|0.; 1.|] |] |> Mat.of_array ) ;
-    ([| [|1.|] |] |> Mat.of_array , [| [|1.; 0.|] |] |> Mat.of_array ) ;
-    ([| [|0.|] |] |> Mat.of_array , [| [|1.; 1.|] |] |> Mat.of_array )
-  ]
-
-
-let adder_data =
-  [
-    ([| [|0.; 0.|] |] |> Mat.of_array , [| [|0.;0.; 0.|] |] |> Mat.of_array ) ;
-    ([| [|0.; 1.|] |] |> Mat.of_array , [| [|0.;0.; 1.|] |] |> Mat.of_array ) ;
-    ([| [|0.; 1.|] |] |> Mat.of_array , [| [|0.;1.; 0.|] |] |> Mat.of_array ) ;
-    ([| [|1.; 0.|] |] |> Mat.of_array , [| [|0.;1.; 1.|] |] |> Mat.of_array ) ;
-    ([| [|0.; 1.|] |] |> Mat.of_array , [| [|1.;0.; 0.|] |] |> Mat.of_array );
-    ([| [|1.; 0.|] |] |> Mat.of_array , [| [|1.;0.; 1.|] |] |> Mat.of_array );
-    ([| [|1.; 0.|] |] |> Mat.of_array , [| [|1.;1.; 0.|] |] |> Mat.of_array );
-    ([| [|1.; 1.|] |] |> Mat.of_array , [| [|1.;1.; 1.|] |] |> Mat.of_array )
+    (one_data 0., data [|0.; 0.|]) ;
+    (one_data 1., data [|0.; 1.|]) ;
+    (one_data 1., data [|1.; 0.|]) ;
+    (one_data 0., data [|1.; 1.|])
   ]
 
 let rec perform nn data =
@@ -47,11 +34,14 @@ let rec perform nn data =
      Printf.printf "Expected result: \n" ;
      mat_print expected ;
 
+     get_data_input sample |> mat_print ;
+     
      perform nn t
 
 
 let usage_msg = "ocadl -l <train_data_file> -s <save_file> -i <epoch_num>
-                 -b <batch_size> [<arch>] ... "
+-b <batch_size> [<arch>] ... "
+
 let epoch_num = ref 11
 let batch_size = ref 1
 let learning_rate = ref 0.01
@@ -71,16 +61,28 @@ let speclist =
     ("-s", Arg.Set_string save_file, "Json file to dump the NN state")
   ]
 
-let train train_data_fname epochs nn_arch =
-  let train_data = read_train_data train_data_fname 1 28 in
+let train train_data_fname epochs =
+  let train_data =
+    (* if Sys.file_exists train_data_fname *)
+    (* then read_train_data train_data_fname 1 28 *)
+    (* else *)
+         xor_data
+  in
   (* List.hd train_data |>  |> Mat.dim2 |> print_int ; *)
   (* let train_data = adder_data in *)
-  let base_nn = make_nn nn_arch in
+  let base_nn =
+    make_input 2
+    |> make_fully_connected ~ncount:2 ~act:sigmoid ~deriv:sigmoid'
+    |> make_fully_connected ~ncount:1 ~act:sigmoid ~deriv:sigmoid'
+    |> make_nn
+  in
+    
   
   let nn =
-    if Sys.file_exists !save_file
-    then restore_nn_from_json !save_file base_nn
-    else base_nn
+    (* if Sys.file_exists !save_file *)
+    (* then restore_nn_from_json !save_file base_nn *)
+    (* else *)
+      base_nn
   in
   
   let trained_nn =
@@ -95,42 +97,46 @@ let train train_data_fname epochs nn_arch =
   (* perform trained_nn train_data ; *)
   cost train_data nn |> Printf.printf "Cost: %f\n" ;
   trained_nn |> cost train_data |> Printf.printf "Trained Cost %f\n";
+  (* mat_flaten (List.hd nn.data.wl) |> mat_print ; *)
+  mat_reshape (snd (List.hd train_data)) 28 28 |> mat_print;
+  (* |> Mat.to_list |> List.length |> Printf.printf "Reshaped mat len %d\n"; *)
 
-  if not @@ String.equal !save_file ""
-  then save_to_json !save_file trained_nn.data;
+  (* if not @@ String.equal !save_file "" *)
+  (* then save_to_json !save_file trained_nn.data; *)
 
   ()
 
 let () =
+  Unix.time () |> int_of_float |> Random.init ;
   Arg.parse speclist anon_fun usage_msg ;
 
-  if String.equal !train_data_file ""
-  then 
-       invalid_arg usage_msg
-  else if (List.length !arch) = 0
+  if (List.length !arch) = 0
   then 
        invalid_arg usage_msg
   else train
          !train_data_file
          !epoch_num
+
+(*
          [
-           { ncount = 784;
+           FullyConnected { ncount = 784;
              activation = sigmoid;
              derivative = sigmoid'
            };
-           { ncount = 16;
+           FullyConnected { ncount = 16;
              activation = sigmoid;
              derivative = sigmoid'
            };
-           { ncount = 16;
+           FullyConnected { ncount = 16;
              activation = sigmoid;
              derivative = sigmoid'
            } ;
-           { ncount = 10;
+           FullyConnected { ncount = 10;
              activation = sigmoid;
              derivative = sigmoid'
            }
          ]
 
+ *)
 
 

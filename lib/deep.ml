@@ -1,5 +1,5 @@
-open List
 open Lacaml.D
+open List
 open Types
 open Nn
 open Domainslib
@@ -12,12 +12,15 @@ type backprop_neuron = {
 
 type backprop_layer = {
     prev_diff_arr : float array;
-    wmat : mat;
-    bmat : mat 
+    grad : layer_grad;
   }
 
-let forward_layer input act wmat bmat =
-  gemm input wmat |> Mat.add bmat |> Mat.map act
+let forward_layer input act = function
+  | FullyConnected fc ->
+     gemm input fc.data.weight_mat
+     |> Mat.add fc.data.bias_mat
+     |> Mat.map act
+  | Conv2D cn -> 
 
 let forward input nn =
 
@@ -69,7 +72,7 @@ let backprop_neuron w_mat_arr fderiv w_row w_col ff_len diffi ai ai_prev_arr
        let wi_grad : float = 2. *. diffi *. ai_deriv *. ai_prev in
       (* Printf.printf "Diff %f\nNeuron WI : %f \nrow %d \ncol %d \nai %f \nai prev %f\n" diffi wi_grad irow w_col ai ai_prev; *)
        
-       let calc_pd = 
+       let calc_pd () = 
          if ff_len > 1
          then
            let cur_w = w_mat_arr.(irow).(w_col) in
@@ -79,6 +82,7 @@ let backprop_neuron w_mat_arr fderiv w_row w_col ff_len diffi ai ai_prev_arr
            (* Printf.printf "calc prev %d\n" ff_len ; *)
        in
 
+       calc_pd ();
        w_mat_arr.(irow).(w_col) <- wi_grad ;
 
        bp_neuron_rec (irow - 1) w_col diffi ai ai_prev_arr
@@ -127,7 +131,7 @@ let rec backprop_nn (ff_list : mat list)
           (deriv_list : deriv list)
           (wgrad_mat_list_acc : weight_list)
           (bgrad_mat_list_acc : bias_list)
-          diff_vec : nnet_data =
+          diff_vec : nnet_grad =
 
   match ff_list with
   | [_] | [] ->

@@ -2,12 +2,21 @@ open Lacaml.D
 open Types
 open Deepmath
 
+let data arr =
+  [| arr |] |> Mat.of_array
+
+let one_data a =
+  data [| a |]
+
+
 let nn_print nn =
   print_string "\nNN print: \n" ;
   Printf.printf "Weights:\n" ;
-  List.iter mat_print nn.wl ;
+
+  (* List.iter mat_print nn.wl ; *)
   Printf.printf "\nBiases:\n" ;
-  List.iter mat_print nn.bl 
+  ()
+  (* List.iter mat_print nn.bl  *)
 
 let list_print lst =
   List.iteri (fun i el -> Printf.printf "List element %d = %f\n" i el) lst
@@ -57,6 +66,7 @@ let read_train_data fname res_len in_cols =
 let to_json_list proc l =
   `List (l |> proc)
 
+(*
 let save_to_json fname nn =
   let open Yojson.Basic.Util in
   let open Yojson.Basic in
@@ -129,64 +139,33 @@ let restore_nn_from_json fname nn =
     derivatives = nn.derivatives
   }
   (* List.hd weights |> List.length |> print_int *)
+ *)
 
-type layer_arch = {
-    ncount : int;
-    activation : activation;
-    derivative : deriv
-  }
+let make_input shape =
+  let in_layer =
+    Input () in
+  { layers = [in_layer, shape] }
 
-let make_nn arch : nnet =
-  Unix.time () |> int_of_float |> Random.init ;
-
-  let rec make_wl_rec arch nn_acc =
-    match arch with
-    | [_] | [] -> nn_acc 
-    | h::t ->
-       make_wl_rec t (Mat.random (List.hd t).ncount h.ncount :: nn_acc)
-  in
-
-  let rec make_bl_rec arch nn_acc =
-    match arch with
-    | [_] | [] -> nn_acc 
-    | h::t ->
-       make_bl_rec t (Mat.random 1 h.ncount :: nn_acc)
-  in
-
-  match arch with
-  | [_] | [] -> failwith "Invalid architecture for neural network.
-                          Expected at least two layers"
-  | _ -> 
-     let rev_arch = List.rev arch in
-
-     { data = {
-         wl = make_wl_rec rev_arch [] ;
-         bl = make_bl_rec rev_arch [] ;
-       };
-       activations = List.map (fun layer -> layer.activation) arch; 
-       derivatives = List.map (fun layer -> layer.derivative) rev_arch; 
-     }
+let make_fully_connected ~ncount:ncount ~act:act ~deriv:deriv nn : nnet =
+  let prev_ncount = (List.hd nn.layers |> snd).ncount in
   
-let nn_apply proc nn1 nn2 =
-  {
-    wl = List.map2 proc nn1.wl nn2.wl ;
-    bl = List.map2 proc nn1.bl nn2.bl ;
-  }
+  let next =
+    FullyConnected
+    { activation = act;
+      derivative = deriv;
+      data = { weight_mat = Mat.random prev_ncount ncount;
+               bias_mat = Mat.random 1 ncount;
+             }
+    }
+  in
 
-let nn_map proc nn =
-  { wl = List.map proc nn.wl ;
-    bl = List.map proc nn.bl ;
-  }
+  let common = { ncount = ncount } in
+  { layers = (next, common)::nn.layers } 
 
-let nn_zero nn =
-  { wl = make_zero_mat_list nn.wl ;
-    bl = make_zero_mat_list nn.bl ;
-  }
 
-let nn_list_fold_left proc nn_list =
-  List.fold_left (fun nn acc ->
-      nn_apply proc nn acc) (nn_zero (List.hd nn_list)) nn_list
- 
+let make_nn (arch : layer layer_data list) : nnet =
+  { layers = List.rev arch; }
+
 let get_data_input sample =
   snd sample
 
