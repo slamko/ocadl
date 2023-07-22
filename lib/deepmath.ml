@@ -1,6 +1,127 @@
 open Lacaml.D
 (* open Types *)
 
+module type Matrix_type = sig
+  type 'a mat
+
+  val size : 'a mat -> int
+
+  val get : int -> int -> 'a mat -> 'a
+
+  val reshape : int -> int -> 'a mat -> 'a mat
+
+  val map : ('a -> 'b) -> 'a mat -> 'b mat
+
+  val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b mat -> 'a
+
+  val fold_right : ('a -> 'b -> 'b) -> 'a mat -> 'b -> 'b
+  
+  val add : float mat -> float mat -> float mat option
+  
+  val sub : float mat -> float mat -> float mat option
+
+  val mult : float mat -> float mat -> float mat option
+  
+end
+
+module Matrix : Matrix_type = struct
+  type 'a mat = {
+      matrix : 'a array;
+      rows : int;
+      cols : int;
+    }
+
+  type shape = {
+      size : int;
+      dim1 : int;
+      dim2 : int;
+    }
+
+  let size mat = mat.matrix |> Array.length
+
+  let get_shape mat =
+    { size = size mat;
+      dim1 = mat.rows;
+      dim2 = mat.cols;
+    }
+
+  let get row col mat =
+    Array.get mat.matrix @@ (row * mat.rows) + col
+
+  let set row col mat value =
+    Array.set mat.matrix ((row * mat.rows) + col) value
+
+
+  let map proc mat =
+    {
+      matrix = Array.map proc mat.matrix;
+      rows = mat.rows;
+      cols = mat.cols;
+    }
+
+  let add mat1 mat2 =
+    if (get_shape mat1 |> compare @@ get_shape mat2) <> 0
+    then None
+    else
+      let res_arr = Array.map2 (+.) mat1.matrix mat2.matrix in
+      Some { matrix = res_arr;
+             rows = mat1.rows;
+             cols = mat1.cols;
+        }
+
+  let sub mat1 mat2 =
+    if (get_shape mat1 |> compare @@ get_shape mat2) <> 0
+    then None
+    else
+      let res_arr = Array.map2 (-.) mat1.matrix mat2.matrix in
+      Some { matrix = res_arr;
+             rows = mat1.rows;
+             cols = mat1.cols;
+        }
+
+  let dim1 mat =
+    mat.rows
+
+  let dim2 mat =
+    mat.cols
+
+  let reshape rows cols mat =
+    { matrix = mat.matrix;
+      rows = rows;
+      cols = cols;
+    }
+
+  let fold_right proc mat init =
+    Array.fold_right proc mat.matrix init
+  
+  let fold_left proc init mat =
+    Array.fold_left proc init mat.matrix
+  
+  let mult mat1 mat2 =
+    if mat1.cols <> mat2.rows
+    then None
+    else
+      let res_mat =
+        { matrix = Array.make (mat1.rows * mat2.cols) 0.;
+          rows = mat1.rows;
+          cols = mat2.cols;
+        } in
+
+      for r = 0 to res_mat.rows
+      do for ac = 0 to mat1.cols
+         do for c = 0 to res_mat.cols
+            do get r ac mat1
+               |> ( *. ) @@ get ac c mat2
+               |> ( +. ) @@ get r c res_mat
+               |> set r c res_mat;
+            done
+         done
+      done ;
+
+      Some res_mat
+  
+end
+
 let sigmoid (x : float) : float =
   1. /. (1. +. exp(-. x))
 
