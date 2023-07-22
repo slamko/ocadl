@@ -1,6 +1,6 @@
-open Lacaml.D
+open Deepmath
 
-type train_data = (Mat.t * Mat.t list) list
+type train_data = (mat * mat list) list
 
 type weight_list = mat list
 type bias_list = mat list

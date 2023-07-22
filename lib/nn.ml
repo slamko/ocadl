@@ -1,19 +1,17 @@
-open Lacaml.D
 open Types
 open Deepmath
 
 let data arr =
-  [| arr |] |> Mat.of_array
+  Mat.of_array 1 (Array.length arr) arr
 
 let one_data a =
   data [| a |]
-
 
 let nn_print nn =
   print_string "\nNN print: \n" ;
   Printf.printf "Weights:\n" ;
 
-  (* List.iter mat_print nn.wl ; *)
+  (* List.iter Mat.print nn.wl ; *)
   Printf.printf "\nBiases:\n" ;
   ()
   (* List.iter mat_print nn.bl  *)
@@ -48,11 +46,12 @@ let list_to_mat n lst =
       (* let col = i mod nrows in *)
       (* res_arr.(row).(col) <- num ; ) lst_arr ; *)
 
-  [lst] |> Mat.of_list
+  Mat.row_mat_of_list lst
 
 let list_parse_train_data in_cols pair_list =
   List.map (fun (res_list, data_list) ->
-      ([res_list] |> Mat.of_list, data_list |> list_to_mat in_cols)) pair_list
+      (res_list |> Mat.of_list 1 (List.length res_list),
+       data_list |> list_to_mat in_cols)) pair_list
 
 let read_train_data fname res_len in_cols =
   let csv = Csv.load fname in
@@ -61,10 +60,10 @@ let read_train_data fname res_len in_cols =
   |> List.map @@ list_split res_len
   |> List.map
        (fun (res_list, data_list) ->
-         let res_mat = Array.make_matrix 1 10 0. in
+         let res_mat = Mat.make 1 10 0. in
          let col = (List.hd res_list |> int_of_float) in
-         res_mat.(0).(col) <- 1. ;
-         (res_mat |> Mat.of_array,
+         Mat.set 0 col res_mat 1.;
+         (res_mat,
           data_list |> list_to_mat in_cols))
   (* |> List.iter (fun (res, inp) -> mat_print inp) *)
 

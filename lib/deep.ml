@@ -1,4 +1,3 @@
-open Lacaml.D
 open List
 open Types
 open Nn
@@ -19,7 +18,7 @@ let forward_layer input = function
   | (InputMeta _, _) -> input
   | (FullyConnectedMeta fc, FullyConnectedParams fcp) ->
      [
-       gemm (hd input) fcp.weight_mat
+       Mat.mult (hd input) fcp.weight_mat
        |> Mat.add fcp.bias_mat
        |> Mat.map fc.activation ]
   | (Conv2DMeta cn, Conv2DParams cnp) ->

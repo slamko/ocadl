@@ -1,31 +1,47 @@
-open Lacaml.D
-(* open Types *)
 
 module type Matrix_type = sig
-  type 'a mat
+  type 'a t
 
-  val size : 'a mat -> int
+  val make : int -> int -> float -> float t
 
-  val get : int -> int -> 'a mat -> 'a
+  val random : int -> int -> float t
 
-  val reshape : int -> int -> 'a mat -> 'a mat
+  val of_array : int -> int -> 'a array -> 'a t
 
-  val map : ('a -> 'b) -> 'a mat -> 'b mat
+  val of_list : int -> int -> 'a list -> 'a t
 
-  val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b mat -> 'a
-
-  val fold_right : ('a -> 'b -> 'b) -> 'a mat -> 'b -> 'b
+  val row_mat_of_list : 'a list -> 'a t
   
-  val add : float mat -> float mat -> float mat option
-  
-  val sub : float mat -> float mat -> float mat option
+  val size : 'a t -> int
 
-  val mult : float mat -> float mat -> float mat option
+  val get : int -> int -> 'a t -> 'a
+
+  val set : int -> int -> 'a t -> 'a -> unit
+
+  val reshape : int -> int -> 'a t -> 'a t
+
+  val map : ('a -> 'b) -> 'a t -> 'b t
+
+  val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
+
+  val fold_right : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+  
+  val add : float t -> float t -> float t option
+  
+  val sub : float t -> float t -> float t option
+
+  val mult : float t -> float t -> float t option
+
+  val dim1 : 'a t -> int
+
+  val dim2 : 'a t -> int
+
+  val print : float t -> unit
   
 end
 
 module Matrix : Matrix_type = struct
-  type 'a mat = {
+  type 'a t = {
       matrix : 'a array;
       rows : int;
       cols : int;
@@ -45,12 +61,26 @@ module Matrix : Matrix_type = struct
       dim2 = mat.cols;
     }
 
+  let make rows cols init_val =
+    { matrix = Array.make (rows * cols) init_val ;
+      rows = rows;
+      cols = cols;
+    }
+
+  let create rows cols finit =
+    { matrix = Array.init (rows * cols) finit;
+      rows = rows;
+      cols = cols;
+    }
+
+  let of_array rows cols matrix =
+    { matrix; rows; cols }
+
   let get row col mat =
     Array.get mat.matrix @@ (row * mat.rows) + col
 
   let set row col mat value =
     Array.set mat.matrix ((row * mat.rows) + col) value
-
 
   let map proc mat =
     {
@@ -58,6 +88,27 @@ module Matrix : Matrix_type = struct
       rows = mat.rows;
       cols = mat.cols;
     }
+
+  let random row col =
+    create row col (fun _ -> (Random.float 2. -. 1.))
+  
+  let of_list rows cols lst =
+    let matrix = Array.of_list lst in
+    { matrix; rows; cols; }
+
+  let row_mat_of_list lst =
+    let arr = Array.of_list lst in
+    { matrix = arr;
+      rows = 1;
+      cols = arr |> Array.length
+    }
+
+  let print mat =
+    Array.iteri (fun i value ->
+        Printf.printf "%f" value;
+        if i mod mat.cols = 0
+        then print_string "\n"
+      ) mat.matrix
 
   let add mat1 mat2 =
     if (get_shape mat1 |> compare @@ get_shape mat2) <> 0
@@ -122,6 +173,9 @@ module Matrix : Matrix_type = struct
   
 end
 
+module Mat = Matrix
+type mat = float Mat.t
+
 let sigmoid (x : float) : float =
   1. /. (1. +. exp(-. x))
 
@@ -147,20 +201,11 @@ let make_zero_mat_list mat_list =
 let arr_get index arr =
   Array.get arr index
 
-let mat_add mat1 mat2 =
-  Mat.add mat1 mat2
-
-let mat_sub mat1 mat2 =
-  Mat.sub mat1 mat2
-
 let mat_add_const cst mat =
-  Mat.add_const cst mat
+  mat |> Mat.map @@ (+.) cst
 
 let mat_scale cst mat =
   mat |> Mat.map @@ ( *. ) cst
-
-let mat_row_to_array col mat =
-  Mat.to_array mat |> arr_get col
 
 let mat_list_fold_left proc mat_list =
   List.fold_left (fun mat acc ->
@@ -173,10 +218,7 @@ let mat_list_flaten mlist =
 
 let mat_sum mat =
   mat
-  |> Mat.fold_cols (fun acc col_vec ->
-         col_vec
-         |> Vec.fold (fun acc num -> acc +. num) 0.
-         |> (+.) acc) 0. 
+  |> Mat.fold_left (fun value acc -> value +. acc) 0. 
 
 (* let mat_list_flaten mat_list = *)
   
@@ -188,9 +230,9 @@ let convolve mat ~stride:stride kernel =
   let mat_rows = Mat.dim1 mat in
   let mat_cols = Mat.dim2 mat in
 
-  let res_arr = Mat.make
+  let res_mat = Mat.make
                   (mat_rows - kern_rows + 1)
-                  (mat_cols - kern_cols + 1) 0. |> Mat.to_array in
+                  (mat_cols - kern_cols + 1) 0. in
 
   let rec convolve_rec kernel stride mat r c =
     if r = mat_rows
@@ -199,54 +241,20 @@ let convolve mat ~stride:stride kernel =
       if c + kern_cols >= mat_cols
       then convolve_rec kernel stride mat (r + stride) 0
       else
-        let dot_mat = gemm ~m:kern_rows ~n:kern_cols ~ar:r ~ac:c mat kernel in
+        let dot_mat = Option.get @@ Mat.mult mat kernel in
         let sum = mat_sum dot_mat in
-        res_arr.(r / stride).(c / stride) <- sum;
+        Mat.set (r / stride) (c / stride) res_mat sum;
         convolve_rec kernel stride mat r (c + stride)
   in
   
   convolve_rec kernel stride mat 0 0;
-  res_arr |> Mat.of_array
-
-let mat_flaten mat =
-  []
-  |> List.cons
-       (mat
-        |> Mat.to_list
-        |> List.flatten)
-  |> Mat.of_list
-
-let mat_reshape mat nrows ncols =
-  let mlist = Mat.to_list mat in
-  let flat_mlist = List.flatten mlist in
-
-  let rec reshape_rec flat_mlist i reshape_acc cur_acc =
-    match flat_mlist with
-    | [] -> reshape_acc
-    | h::t ->
-       let cur_col = h :: cur_acc in
-       if (i mod ncols) = 0
-       then reshape_rec t (i + 1) (cur_col::reshape_acc) []
-       else reshape_rec t (i + 1) reshape_acc cur_col
-  in
-
-  reshape_rec flat_mlist 1 [] []
-  |> Mat.of_list
+  res_mat
 
 let mat_zero mat =
   Mat.make
     (Mat.dim1 mat)
     (Mat.dim2 mat) 0.
   
-let mat_print (mat : mat)  =
-   Format.printf
-    "\
-      @[<2>Matrix :\n\
-        @\n\
-        %a@]\n\
-      @\n"
-    Lacaml.Io.pp_fmat mat
-
 let arr_print arr =
   arr |> Array.iter @@ Printf.printf "El: %f\n"
 
