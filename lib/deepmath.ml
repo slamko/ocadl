@@ -84,7 +84,8 @@ let convolve mat ~stride:stride kernel =
         convolve_rec kernel stride mat r (c + stride)
   in
   
-  convolve_rec kernel stride mat 0 0
+  convolve_rec kernel stride mat 0 0;
+  res_arr |> Mat.of_array
 
 let mat_flaten mat =
   []

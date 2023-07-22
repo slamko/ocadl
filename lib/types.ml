@@ -67,6 +67,12 @@ type nnet = {
     params : nnet_params;
   }
 
+type ff_input_type = [
+  | `Tensor2 of mat
+  | `Tensor3 of mat array
+  | `Tensor4 of mat array array
+  ]
+
 type feed_forward = {
     res : mat list list;
     backprop_nn : nnet;

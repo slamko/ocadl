@@ -31,6 +31,11 @@ let list_split n lst =
 
   split_rec n [] lst
 
+let build_nn meta_list param_list =
+  { meta = { meta_list = meta_list; };
+    params = { param_list = param_list; };
+  }
+
 let list_to_mat n lst =
   (* let lst_arr = lst |> Array.of_list in *)
   (* let data_len = Array.length lst_arr in *)

@@ -12,38 +12,45 @@ type backprop_neuron = {
 
 type backprop_layer = {
     prev_diff_arr : float array;
-    grad : layer_grad;
+    grad : layer_params;
   }
 
 let forward_layer input = function
-  | FullyConnected fc ->
+  | (InputMeta _, _) -> input
+  | (FullyConnectedMeta fc, FullyConnectedParams fcp) ->
      [
-       gemm (hd input) fc.data.weight_mat
-       |> Mat.add fc.data.bias_mat
+       gemm (hd input) fcp.weight_mat
+       |> Mat.add fcp.bias_mat
        |> Mat.map fc.activation ]
-  | Conv2D cn -> List.map2
-                   (fun in_mat kern ->
-                     convolve in_mat ~stride:cn.stride kern)
-                   input cn.data.kernels
-  (* | Pooling pl ->  *)
+  | (Conv2DMeta cn, Conv2DParams cnp) ->
+     List.map2
+       (fun in_mat kern ->
+         convolve in_mat ~stride:cn.stride kern)
+       input cnp.kernels
+  | (PoolingMeta pl, _) -> 
 
 let forward (input : mat list) nn =
 
-  let rec forward_rec layers input acc =
-    match layers with
-    | [] -> acc
-    | lay::t ->
-       let cur_layer = fst lay in
-       let layer_activation = forward_layer input cur_layer in
-       forward_rec t layer_activation
+  let rec forward_rec meta_list param_list input acc =
+    match (meta_list, param_list) with
+    | ([], []) -> Some acc
+    | ([], _::_) | (_ :: _, []) -> None
+    | (meta::meta_tail, param::param_tail) ->
+       let layer_activation = forward_layer input (meta.layer, param) in
+       forward_rec meta_tail param_tail layer_activation
          { res = layer_activation :: acc.res;
-           layers_ff = cur_layer::acc.layers_ff;
+           backprop_nn =
+             build_nn
+               (meta::acc.backprop_nn.meta.meta_list)
+               (param::acc.backprop_nn.params.param_list);
+           
          }
   in
 
-  forward_rec nn.layers input
-    {res = [input];
-     layers_ff = [];
+  forward_rec nn.meta.meta_list nn.params.param_list input
+    {
+      res = [input];
+      backprop_nn = build_nn [] []
     }
 
 let cost (data : train_data) nn =
