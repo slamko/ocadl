@@ -2,7 +2,7 @@ open Types
 open Deepmath
 
 let data arr =
-  Mat.of_array 1 (Array.length arr) arr
+  arr |> Mat.of_array (Row 1) @@ Col (Array.length arr)
 
 let one_data a =
   data [| a |]
@@ -50,7 +50,7 @@ let list_to_mat n lst =
 
 let list_parse_train_data in_cols pair_list =
   List.map (fun (res_list, data_list) ->
-      (res_list |> Mat.of_list 1 (List.length res_list),
+      (res_list |> Mat.of_list (Row 1) @@ Col (List.length res_list),
        data_list |> list_to_mat in_cols)) pair_list
 
 let read_train_data fname res_len in_cols =
@@ -60,9 +60,9 @@ let read_train_data fname res_len in_cols =
   |> List.map @@ list_split res_len
   |> List.map
        (fun (res_list, data_list) ->
-         let res_mat = Mat.make 1 10 0. in
-         let col = (List.hd res_list |> int_of_float) in
-         Mat.set 0 col res_mat 1.;
+         let res_mat = Mat.make (Row 1) (Col 10) 0. in
+         let col = Col (List.hd res_list |> int_of_float) in
+         Mat.set (Row 0) col res_mat 1.;
          (res_mat,
           data_list |> list_to_mat in_cols))
   (* |> List.iter (fun (res, inp) -> mat_print inp) *)
@@ -155,8 +155,8 @@ let make_input shape =
       { param_list = [] };
   }
 
-let make_fully_connected ~ncount:ncount ~act:act ~deriv:deriv nn : nnet =
-  let prev_ncount = (List.hd nn.meta.meta_list).common.ncount in
+let make_fully_connected ~ncount ~act ~deriv nn : nnet =
+  let prev_ncount = Row (List.hd nn.meta.meta_list).common.ncount in
   
   let meta =
     FullyConnectedMeta
@@ -168,7 +168,7 @@ let make_fully_connected ~ncount:ncount ~act:act ~deriv:deriv nn : nnet =
   let params =
     FullyConnectedParams
       { weight_mat = Mat.random prev_ncount ncount;
-        bias_mat = Mat.random 1 ncount;
+        bias_mat = Mat.random (Row 1) ncount;
       } 
   in
 

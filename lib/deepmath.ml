@@ -1,24 +1,29 @@
+type col =
+  | Col of int
 
+type row =
+  | Row of int
+  
 module type Matrix_type = sig
   type 'a t
 
-  val make : int -> int -> float -> float t
+  val make : row -> col -> float -> float t
 
-  val random : int -> int -> float t
+  val random : row -> col -> float t
 
-  val of_array : int -> int -> 'a array -> 'a t
+  val of_array : row -> col -> 'a array -> 'a t
 
-  val of_list : int -> int -> 'a list -> 'a t
+  val of_list : row -> col -> 'a list -> 'a t
 
   val row_mat_of_list : 'a list -> 'a t
   
   val size : 'a t -> int
 
-  val get : int -> int -> 'a t -> 'a
+  val get : row -> col -> 'a t -> 'a
 
-  val set : int -> int -> 'a t -> 'a -> unit
+  val set : row -> col -> 'a t -> 'a -> unit
 
-  val reshape : int -> int -> 'a t -> 'a t
+  val reshape : row -> col -> 'a t -> 'a t
 
   val map : ('a -> 'b) -> 'a t -> 'b t
 
@@ -32,27 +37,30 @@ module type Matrix_type = sig
 
   val mult : float t -> float t -> float t option
 
-  val dim1 : 'a t -> int
+  val sum : float t -> float
 
-  val dim2 : 'a t -> int
+  val convolve : float t -> stride:int -> float t -> float t
+
+  val dim1 : 'a t -> row
+
+  val dim2 : 'a t -> col
 
   val print : float t -> unit
   
 end
 
 module Matrix : Matrix_type = struct
-  type 'a t = {
+   type 'a t = {
       matrix : 'a array;
-      rows : int;
-      cols : int;
+      rows : row;
+      cols : col;
     }
 
   type shape = {
       size : int;
-      dim1 : int;
-      dim2 : int;
+      dim1 : row;
+      dim2 : col;
     }
-
   let size mat = mat.matrix |> Array.length
 
   let get_shape mat =
@@ -61,27 +69,37 @@ module Matrix : Matrix_type = struct
       dim2 = mat.cols;
     }
 
-  let make rows cols init_val =
+  let make (Row rows) (Col cols) init_val =
     { matrix = Array.make (rows * cols) init_val ;
-      rows = rows;
-      cols = cols;
+      rows = Row rows;
+      cols = Col cols;
     }
 
-  let create rows cols finit =
+  let create (Row rows) (Col cols) finit =
     { matrix = Array.init (rows * cols) finit;
-      rows = rows;
-      cols = cols;
+      rows = Row rows;
+      cols = Col cols;
     }
 
   let of_array rows cols matrix =
     { matrix; rows; cols }
 
-  let get row col mat =
-    Array.get mat.matrix @@ (row * mat.rows) + col
+  let get_row (Row row) = row
 
-  let set row col mat value =
-    Array.set mat.matrix ((row * mat.rows) + col) value
+  let get_col (Col col) = col
 
+  let get (Row row) (Col col) mat =
+    Array.get mat.matrix @@ (row * get_row mat.rows) + col
+
+  let get_raw row col mat =
+    get (Row row) (Col col) mat
+
+  let set (Row row) (Col col) mat value =
+    Array.set mat.matrix ((row * get_row mat.rows) + col) value
+
+  let set_raw row col mat value =
+    set (Row row) (Col col) mat value
+  
   let map proc mat =
     {
       matrix = Array.map proc mat.matrix;
@@ -99,14 +117,13 @@ module Matrix : Matrix_type = struct
   let row_mat_of_list lst =
     let arr = Array.of_list lst in
     { matrix = arr;
-      rows = 1;
-      cols = arr |> Array.length
+      rows = Row 1;
+      cols = Col (arr |> Array.length)
     }
-
   let print mat =
     Array.iteri (fun i value ->
         Printf.printf "%f" value;
-        if i mod mat.cols = 0
+        if i mod get_col mat.cols = 0
         then print_string "\n"
       ) mat.matrix
 
@@ -148,29 +165,60 @@ module Matrix : Matrix_type = struct
   let fold_left proc init mat =
     Array.fold_left proc init mat.matrix
   
+  let sum mat =
+    mat
+    |> fold_left (fun value acc -> value +. acc) 0. 
+
   let mult mat1 mat2 =
-    if mat1.cols <> mat2.rows
+    if get_col mat1.cols <> get_row mat2.rows
     then None
     else
       let res_mat =
-        { matrix = Array.make (mat1.rows * mat2.cols) 0.;
+        { matrix = Array.make (get_row mat1.rows * get_col mat2.cols) 0.;
           rows = mat1.rows;
           cols = mat2.cols;
         } in
 
-      for r = 0 to res_mat.rows
-      do for ac = 0 to mat1.cols
-         do for c = 0 to res_mat.cols
-            do get r ac mat1
-               |> ( *. ) @@ get ac c mat2
-               |> ( +. ) @@ get r c res_mat
-               |> set r c res_mat;
+      for r = 0 to get_row res_mat.rows
+      do for ac = 0 to get_col mat1.cols
+         do for c = 0 to get_col res_mat.cols
+            do get_raw r ac mat1
+               |> ( *. ) @@ get_raw ac c mat2
+               |> ( +. ) @@ get_raw r c res_mat
+               |> set_raw r c res_mat;
             done
          done
       done ;
 
       Some res_mat
-  
+
+  let convolve mat ~stride:stride kernel =
+    (* let kern_arr = kernel |> Mat.to_array in *)
+    let kern_rows = dim1 kernel |> get_row in
+    let kern_cols = dim2 kernel |> get_col in
+    let mat_rows = dim1 mat |> get_row in
+    let mat_cols = dim2 mat |> get_col in
+
+    let res_mat = make
+                    (Row (mat_rows - kern_rows + 1))
+                    (Col (mat_cols - kern_cols + 1)) 0. in
+
+    let rec convolve_rec kernel stride mat r c =
+        if r = mat_rows
+        then ()
+        else
+        if c + kern_cols >= mat_cols
+        then convolve_rec kernel stride mat (r + stride) 0
+        else
+            let dot_mat = Option.get @@ mult mat kernel in
+            let sum = sum dot_mat in
+            set_raw (r / stride) (c / stride) res_mat sum;
+            convolve_rec kernel stride mat r (c + stride)
+    in
+
+    convolve_rec kernel stride mat 0 0;
+    res_mat
+
 end
 
 module Mat = Matrix
@@ -216,39 +264,6 @@ let mat_list_flaten mlist =
         List.fold_right (fun num acc ->
             num :: acc) lst flat_list_acc) mlist [] 
 
-let mat_sum mat =
-  mat
-  |> Mat.fold_left (fun value acc -> value +. acc) 0. 
-
-(* let mat_list_flaten mat_list = *)
-  
-
-let convolve mat ~stride:stride kernel =
-  (* let kern_arr = kernel |> Mat.to_array in *)
-  let kern_rows = Mat.dim1 kernel in
-  let kern_cols = Mat.dim2 kernel in
-  let mat_rows = Mat.dim1 mat in
-  let mat_cols = Mat.dim2 mat in
-
-  let res_mat = Mat.make
-                  (mat_rows - kern_rows + 1)
-                  (mat_cols - kern_cols + 1) 0. in
-
-  let rec convolve_rec kernel stride mat r c =
-    if r = mat_rows
-    then ()
-    else
-      if c + kern_cols >= mat_cols
-      then convolve_rec kernel stride mat (r + stride) 0
-      else
-        let dot_mat = Option.get @@ Mat.mult mat kernel in
-        let sum = mat_sum dot_mat in
-        Mat.set (r / stride) (c / stride) res_mat sum;
-        convolve_rec kernel stride mat r (c + stride)
-  in
-  
-  convolve_rec kernel stride mat 0 0;
-  res_mat
 
 let mat_zero mat =
   Mat.make
