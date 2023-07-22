@@ -23,7 +23,6 @@ let make_zero_mat_list mat_list =
   List.fold_right (fun mat mlist ->
       (Mat.make (Mat.dim1 mat) (Mat.dim2 mat) 0.) ::  mlist) mat_list []
 
-
 let arr_get index arr =
   Array.get arr index
 
@@ -37,7 +36,7 @@ let mat_add_const cst mat =
   Mat.add_const cst mat
 
 let mat_scale cst mat =
-  Mat.map (fun v -> v *. cst) mat
+  mat |> Mat.map @@ ( *. ) cst
 
 let mat_row_to_array col mat =
   Mat.to_array mat |> arr_get col
@@ -50,6 +49,42 @@ let mat_list_flaten mlist =
   List.fold_right (fun lst flat_list_acc ->
         List.fold_right (fun num acc ->
             num :: acc) lst flat_list_acc) mlist [] 
+
+let mat_sum mat =
+  mat
+  |> Mat.fold_cols (fun acc col_vec ->
+         col_vec
+         |> Vec.fold (fun acc num -> acc +. num) 0.
+         |> (+.) acc) 0. 
+
+(* let mat_list_flaten mat_list = *)
+  
+
+let convolve mat ~stride:stride kernel =
+  (* let kern_arr = kernel |> Mat.to_array in *)
+  let kern_rows = Mat.dim1 kernel in
+  let kern_cols = Mat.dim2 kernel in
+  let mat_rows = Mat.dim1 mat in
+  let mat_cols = Mat.dim2 mat in
+
+  let res_arr = Mat.make
+                  (mat_rows - kern_rows + 1)
+                  (mat_cols - kern_cols + 1) 0. |> Mat.to_array in
+
+  let rec convolve_rec kernel stride mat r c =
+    if r = mat_rows
+    then ()
+    else
+      if c + kern_cols >= mat_cols
+      then convolve_rec kernel stride mat (r + stride) 0
+      else
+        let dot_mat = gemm ~m:kern_rows ~n:kern_cols ~ar:r ~ac:c mat kernel in
+        let sum = mat_sum dot_mat in
+        res_arr.(r / stride).(c / stride) <- sum;
+        convolve_rec kernel stride mat r (c + stride)
+  in
+  
+  convolve_rec kernel stride mat 0 0
 
 let mat_flaten mat =
   []
@@ -75,6 +110,11 @@ let mat_reshape mat nrows ncols =
 
   reshape_rec flat_mlist 1 [] []
   |> Mat.of_list
+
+let mat_zero mat =
+  Mat.make
+    (Mat.dim1 mat)
+    (Mat.dim2 mat) 0.
   
 let mat_print (mat : mat)  =
    Format.printf

@@ -15,33 +15,36 @@ type backprop_layer = {
     grad : layer_grad;
   }
 
-let forward_layer input act = function
+let forward_layer input = function
   | FullyConnected fc ->
-     gemm input fc.data.weight_mat
-     |> Mat.add fc.data.bias_mat
-     |> Mat.map act
-  | Conv2D cn -> 
+     [
+       gemm (hd input) fc.data.weight_mat
+       |> Mat.add fc.data.bias_mat
+       |> Mat.map fc.activation ]
+  | Conv2D cn -> List.map2
+                   (fun in_mat kern ->
+                     convolve in_mat ~stride:cn.stride kern)
+                   input cn.data.kernels
+  (* | Pooling pl ->  *)
 
-let forward input nn =
+let forward (input : mat list) nn =
 
-  let rec forward_rec wl bl al input acc =
-    match wl with
+  let rec forward_rec layers input acc =
+    match layers with
     | [] -> acc
-    | hw::tw ->
-       let hb = hd bl in
-       let cur_act = hd al in
-       (* mat_print hw ; *)
-       (* mat_print input ; *)
-       let layer_activation = forward_layer input cur_act hw hb in
-       forward_rec tw (tl bl) (tl al) layer_activation
-         { wl_ff = hw :: acc.wl_ff ;
-           bl_ff = hb :: acc.bl_ff ;
-           res = layer_activation :: acc.res
+    | lay::t ->
+       let cur_layer = fst lay in
+       let layer_activation = forward_layer input cur_layer in
+       forward_rec t layer_activation
+         { res = layer_activation :: acc.res;
+           layers_ff = cur_layer::acc.layers_ff;
          }
   in
 
-  forward_rec nn.data.wl nn.data.bl nn.activations input
-    { wl_ff = []; bl_ff = []; res = [input] }
+  forward_rec nn.layers input
+    {res = [input];
+     layers_ff = [];
+    }
 
 let cost (data : train_data) nn =
 
@@ -51,7 +54,7 @@ let cost (data : train_data) nn =
     | sample::data_tail ->
        let ff = forward (get_data_input sample) nn in
        let expected = get_data_out sample in
-       let diff = Mat.sub (hd ff.res) expected
+       let diff = Mat.sub (hd (hd ff.res)) expected
                   |> Mat.as_vec
                   |> Vec.fold (fun res total -> res +. total) 0. in
 
@@ -159,9 +162,9 @@ let rec backprop_nn (ff_list : mat list)
      backprop_nn ff_tail (tl wmat_list) (tl deriv_list)
        wgrad_list bgrad_list bp_layer.prev_diff_arr
   
-let nn_gradient nn data : nnet_data =
+let nn_gradient nn data : nnet_grad=
 
-  let rec bp_rec nn data bp_grad_acc : nnet_data =
+  let rec bp_rec nn data bp_grad_acc : nnet_grad =
     match data with
     | [] -> bp_grad_acc
     | cur_sample::data_tail ->
@@ -178,11 +181,11 @@ let nn_gradient nn data : nnet_data =
        nn_apply mat_add bp_grad bp_grad_acc |> bp_rec nn data_tail
   in
  
-  let newn = nn_zero nn.data
+  let newn = nn_grad_zero  
             |> bp_rec nn data in
 
   (* print_endline "Full nn"; *)
-  newn |> nn_map (mat_scale (List.length data
+  newn |> nn_grad_map (mat_scale (List.length data
              |> float_of_int
              |> (fun x -> 1. /. x)))
 

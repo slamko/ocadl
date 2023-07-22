@@ -142,29 +142,92 @@ let restore_nn_from_json fname nn =
  *)
 
 let make_input shape =
-  let in_layer =
-    Input () in
-  { layers = [in_layer, shape] }
+  let in_layer = { layer = InputMeta ();
+                   common = shape;
+                 } in
+  { meta =
+      { meta_list = [in_layer] };
+    params =
+      { param_list = [] };
+  }
 
 let make_fully_connected ~ncount:ncount ~act:act ~deriv:deriv nn : nnet =
-  let prev_ncount = (List.hd nn.layers |> snd).ncount in
+  let prev_ncount = (List.hd nn.meta.meta_list).common.ncount in
   
-  let next =
-    FullyConnected
+  let meta =
+    FullyConnectedMeta
     { activation = act;
       derivative = deriv;
-      data = { weight_mat = Mat.random prev_ncount ncount;
-               bias_mat = Mat.random 1 ncount;
-             }
     }
   in
 
+  let params =
+    FullyConnectedParams
+      { weight_mat = Mat.random prev_ncount ncount;
+        bias_mat = Mat.random 1 ncount;
+      } 
+  in
+
   let common = { ncount = ncount } in
-  { layers = (next, common)::nn.layers } 
+  let layer = { layer = meta;
+                    common = common;
+                  } in
+
+  {
+    meta = {
+        meta_list = layer::nn.meta.meta_list;
+      };
+    params = {
+        param_list = params::nn.params.param_list;
+      };
+  }
 
 
-let make_nn (arch : layer layer_data list) : nnet =
-  { layers = List.rev arch; }
+let make_nn (arch : nnet) : nnet =
+  {
+    meta = {
+      meta_list = arch.meta.meta_list |> List.rev;
+    };
+    params = {
+        param_list = arch.params.param_list |> List.rev;
+      };
+  }
+
+let fully_connected_map proc layer =
+  FullyConnectedParams
+    { weight_mat = Mat.map proc layer.weight_mat;
+      bias_mat = Mat.map proc layer.bias_mat;
+    }
+
+let conv2d_map proc layer =
+  Conv2DParams
+    { kernels = layer.kernels |> List.map @@ Mat.map proc;
+      bias_mat = Mat.map proc layer.bias_mat
+    }
+
+let nn_params_map proc nn_params =
+  List.map (function
+      | FullyConnectedParams fc -> fully_connected_map proc fc
+      | Conv2DParams cv -> conv2d_map proc cv)
+    nn_params.param_list
+
+let fully_connected_zero layer =
+  FullyConnectedParams
+    { weight_mat = mat_zero layer.weight_mat;
+       bias_mat  = mat_zero layer.bias_mat;
+    }
+
+let conv2d_zero layer =
+  Conv2DParams
+    { kernels  = layer.kernels  |> List.map mat_zero ;
+      bias_mat = layer.bias_mat |> mat_zero ;
+    }
+                    
+let nn_params_zero nn_params =
+   List.map (function
+      | FullyConnectedParams fc -> fully_connected_zero fc
+      | Conv2DParams cv -> conv2d_zero cv)
+     nn_params.param_list
 
 let get_data_input sample =
   snd sample

@@ -1,6 +1,6 @@
 open Lacaml.D
 open Unix
-open Ocadl__Deep
+open Ocadl__Deepmath
 open Ocadl__Types
 open Ocadl__Nn
 open Ocadl__Deepmath
