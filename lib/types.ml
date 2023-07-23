@@ -69,8 +69,8 @@ type nnet = {
 
 type ff_input_type = [
   | `Tensor2 of mat
-  | `Tensor3 of mat array
-  | `Tensor4 of mat array array
+  | `Tensor3 of mat Mat.t
+  | `Tensor4 of mat Mat.t
   ]
 
 type feed_forward = {

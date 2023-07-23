@@ -11,6 +11,8 @@ module type Matrix_type = sig
 
   val random : row -> col -> float t
 
+  val zero : 'a t -> float t
+
   val of_array : row -> col -> 'a array -> 'a t
 
   val of_list : row -> col -> 'a list -> 'a t
@@ -24,6 +26,8 @@ module type Matrix_type = sig
   val set : row -> col -> 'a t -> 'a -> unit
 
   val reshape : row -> col -> 'a t -> 'a t
+
+  val flatten3d : 'a t array -> 'a t
 
   val map : ('a -> 'b) -> 'a t -> 'b t
 
@@ -109,6 +113,9 @@ module Matrix : Matrix_type = struct
 
   let random row col =
     create row col (fun _ -> (Random.float 2. -. 1.))
+
+  let zero mat =
+    make mat.rows mat.cols 0.
   
   let of_list rows cols lst =
     let matrix = Array.of_list lst in
@@ -120,6 +127,7 @@ module Matrix : Matrix_type = struct
       rows = Row 1;
       cols = Col (arr |> Array.length)
     }
+ 
   let print mat =
     Array.iteri (fun i value ->
         Printf.printf "%f" value;
@@ -164,7 +172,15 @@ module Matrix : Matrix_type = struct
   
   let fold_left proc init mat =
     Array.fold_left proc init mat.matrix
-  
+
+  let flatten3d mat_arr = 
+    { matrix = Array.fold_left (fun acc mat ->
+                   Array.append acc mat.matrix) [| |] mat_arr;
+      rows = Row 1;
+      cols = Col (Array.fold_left (fun acc mat ->
+                      get_col mat.cols + acc) 0 mat_arr);
+    }
+   
   let sum mat =
     mat
     |> fold_left (fun value acc -> value +. acc) 0. 
@@ -264,12 +280,7 @@ let mat_list_flaten mlist =
         List.fold_right (fun num acc ->
             num :: acc) lst flat_list_acc) mlist [] 
 
-
-let mat_zero mat =
-  Mat.make
-    (Mat.dim1 mat)
-    (Mat.dim2 mat) 0.
-  
+ 
 let arr_print arr =
   arr |> Array.iter @@ Printf.printf "El: %f\n"
 

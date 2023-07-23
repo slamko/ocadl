@@ -14,17 +14,25 @@ type backprop_layer = {
     grad : layer_params;
   }
 
+let fully_connected_forward meta (params : fully_connected_params) tens =
+  `Tensor2 
+    (Mat.mult tens params.weight_mat
+     |> Option.get
+     |> Mat.add params.bias_mat
+     |> Option.get
+     |> Mat.map meta.activation)
+
 let forward_layer input = function
   | (InputMeta _, _) -> input
   | (FullyConnectedMeta fc, FullyConnectedParams fcp) ->
-     [
-       Mat.mult (hd input) fcp.weight_mat
-       |> Mat.add fcp.bias_mat
-       |> Mat.map fc.activation ]
+     begin match input with
+     | `Tensor2 tens -> fully_connected_forward fc fcp tens
+     | `Tensor3 tens -> fully_connected_forward fc fcp @@
+                          Mat.flatten3d tens end
   | (Conv2DMeta cn, Conv2DParams cnp) ->
      List.map2
        (fun in_mat kern ->
-         convolve in_mat ~stride:cn.stride kern)
+         Mat.convolve in_mat ~stride:cn.stride kern)
        input cnp.kernels
   | (PoolingMeta pl, _) -> 
 
