@@ -31,6 +31,8 @@ module type Matrix_type = sig
 
   val submatrix : row -> col -> row -> col -> 'a t -> 'a t
 
+  val shadow_submatrix : row -> col -> row -> col -> 'a t -> 'a t
+
   val map : ('a -> 'b) -> 'a t -> 'b t
 
   val scale : float -> float t -> float t
@@ -88,23 +90,11 @@ module Matrix : Matrix_type = struct
       dim2 = mat.cols;
     }
 
-  let make (Row rows) (Col cols) init_val =
-    { matrix = Array.make (rows * cols) init_val ;
-      rows = Row rows;
-      cols = Col cols;
-      start_row = Row 0;
-      start_col = Col 0;
-      stride = cols;
-    }
-
-  let create (Row rows) (Col cols) finit =
-    { matrix = Array.init (rows * cols) finit;
-      rows = Row rows;
-      cols = Col cols;
-      start_row = Row 0;
-      start_col = Col 0;
-      stride = cols;
-    }
+  let shape_match mat1 mat2 =
+    let shape = get_shape mat2 in
+    if get_shape mat1 |> compare shape <> 0
+    then None
+    else Some shape
 
   let of_array rows cols matrix =
     let (Col col) = cols in
@@ -113,9 +103,23 @@ module Matrix : Matrix_type = struct
     let start_col = Col 0 in
     { matrix; rows; cols; start_row; start_col; stride }
 
+  let make (Row rows) (Col cols) init_val =
+    Array.make (rows * cols) init_val
+    |> of_array (Row rows) (Col cols)
+    
+  let create (Row rows) (Col cols) finit =
+    Array.init (rows * cols) finit
+    |> of_array (Row rows) (Col cols)
+
   let get_row (Row row) = row
 
   let get_col (Col col) = col
+
+  let get_first mat =
+    (get_row mat.start_row * get_col mat.cols) + get_col mat.start_col
+
+  let get_index row col mat =
+    get_first mat + (row * mat.stride) + col
 
   let get (Row row) (Col col) mat =
     if row >= get_row mat.rows
@@ -124,10 +128,7 @@ module Matrix : Matrix_type = struct
     if col >= get_col mat.cols
     then failwith "matrix col index out of bounds";
 
-    let index = (get_col mat.start_col * get_row mat.start_row)
-                + (row * mat.stride) + col in
-
-    Array.get mat.matrix index
+    get_index row col mat |> Array.get mat.matrix
 
   let get_raw row col mat =
     get (Row row) (Col col) mat
@@ -139,22 +140,67 @@ module Matrix : Matrix_type = struct
     if col >= get_col mat.cols
     then failwith "matrix col index out of bounds";
 
-    let index = (get_col mat.start_col * get_row mat.start_row)
-                + (row * mat.stride) + col in
+    Array.set mat.matrix (get_index row col mat) value
 
-    Array.set mat.matrix index value
+  let iter proc mat =
+    for r = 0 to get_row mat.rows - 1
+    do for c = 0 to get_col mat.cols - 1
+       do proc @@ get (Row r) (Col c) mat;
+       done
+    done
+
+  let iteri proc mat =
+    for r = 0 to get_row mat.rows - 1
+    do for c = 0 to get_col mat.cols - 1
+       do proc (Row r) (Col c) @@ get (Row r) (Col c) mat;
+       done
+    done
+
+  let iter2 proc mat1 mat2 =
+    match shape_match mat1 mat2 with
+    | Some _ ->
+       for r = 0 to get_row mat1.rows - 1
+       do for c = 0 to get_col mat1.cols - 1
+          do proc @@ get (Row r) (Col c) mat1 mat2;
+          done
+       done;
+       Ok ()
+    | None -> Error ()
+
+  let iteri2 proc mat1 mat2 =
+    match shape_match mat1 mat2 with
+    | Some _ ->
+       for r = 0 to get_row mat1.rows - 1
+       do for c = 0 to get_col mat1.cols - 1
+          do get (Row r) (Col c) mat2 |> proc (Row r) (Col c) @@ get (Row r) (Col c) mat1;
+          done
+       done;
+       Ok ()
+    | None -> Error ()
 
   let set_raw row col mat value =
     set (Row row) (Col col) mat value
   
   let map proc mat =
-    of_array mat.rows mat.cols @@ Array.map proc mat.matrix
+    let first = get_first mat in
+    let res_arr = proc mat.matrix.(first) |> Array.make @@ size mat in
+    let res_mat = of_array mat.rows mat.cols res_arr in
+      
+    iteri (fun r c value ->
+        proc value |> set r c res_mat)
+      mat;
+    res_mat
 
   let map2 proc mat1 mat2 =
-    if (get_shape mat1 |> compare @@ get_shape mat2) <> 0
-    then None
-    else Some (of_array mat1.rows mat1.cols @@
-                 Array.map2 proc mat1.matrix mat2.matrix)
+    let first = get_first mat1 in
+    let res_arr = proc mat1.matrix.(first) mat2.matrix.(first) |> Array.make @@ size mat1 in
+    let res_mat = of_array mat1.rows mat1.cols res_arr in
+      
+    match iteri2 (fun r c value1 value2  ->
+              proc value1 value2 |> set r c res_mat)
+            mat1 mat2 with
+    | Ok _ -> Some res_mat
+    | Error _ -> None
 
   let scale value mat =
     mat |> map @@ ( *. ) value
@@ -204,21 +250,30 @@ module Matrix : Matrix_type = struct
 
   let submatrix start_row start_col rows cols mat =
     let res_arr = Array.make (get_row rows * get_col cols) mat.matrix.(0) in
+    let stride (Col col) = col in
+    let res_mat = { matrix = res_arr;
+                    rows = rows;
+                    cols = cols;
+                    start_row = start_row;
+                    start_col = start_col;
+                    stride = stride cols;
+                  }
+    in
 
-    for r = 0 to get_row rows - 1
-    do for c = 0 to get_col cols - 1
-        do let index = (get_col start_col * get_row start_row)
-                       + (r * mat.stride) + c in
-           res_arr.((r * c) + c) <- mat.matrix.(index)
-       done
-    done ;
+    iteri (fun r c value -> set r c res_mat value) mat;
+    res_mat
+
+  let shadow_submatrix start_row start_col rows cols mat =
+    let res_mat = { matrix = mat.matrix;
+                    rows = rows;
+                    cols = cols;
+                    start_row = start_row;
+                    start_col = start_col;
+                    stride = get_col cols;
+                  }
+    in
+    res_mat
     
-    { matrix = res_arr;
-      rows; cols;
-      start_row = Row 0;
-      start_col = Col 0;
-      stride = get_col cols
-    }
 
   let fold_right proc mat init =
     Array.fold_right proc mat.matrix init
@@ -229,14 +284,9 @@ module Matrix : Matrix_type = struct
   let flatten3d mat_arr = 
     let cols = Array.fold_left (fun acc mat ->
                       get_col mat.cols + acc) 0 mat_arr in
-    { matrix = Array.fold_left (fun acc mat ->
-                   Array.append acc mat.matrix) [| |] mat_arr;
-      rows = Row 1;
-      cols = Col cols;
-      start_row = Row 0;
-      start_col = Col 0;
-      stride = cols;
-    }
+    Array.fold_left
+      (fun acc mat -> Array.append acc mat.matrix) [| |] mat_arr
+    |> of_array (Row 1) (Col cols)
 
   let flatten mat_mat =
     flatten3d mat_mat.matrix
