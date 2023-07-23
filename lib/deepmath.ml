@@ -27,7 +27,15 @@ module type Matrix_type = sig
 
   val flatten3d : 'a t array -> 'a t
 
-  (* val map : ('a -> 'b) -> 'a t -> 'b t *)
+  val flatten : 'a t t -> 'a t
+
+  val submatrix : row -> col -> row -> col -> 'a t -> 'a t
+
+  val map : ('a -> 'b) -> 'a t -> 'b t
+
+  val scale : float -> float t -> float t
+
+  val add_const : float -> float t -> float t
 
   val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
 
@@ -46,6 +54,10 @@ module type Matrix_type = sig
   val dim1 : 'a t -> row
 
   val dim2 : 'a t -> col
+
+  val get_row : row -> int
+
+  val get_col : col -> int
 
   val print : float t -> unit
   
@@ -136,39 +148,19 @@ module Matrix : Matrix_type = struct
     set (Row row) (Col col) mat value
   
   let map proc mat =
-    let res_mat =
-        Array.copy mat.matrix
-        |> of_array mat.rows mat.cols
-      in
-
-      for r = 0 to get_row res_mat.rows - 1
-       do for c = 0 to get_col res_mat.cols - 1
-         do get_raw r c mat
-            |> proc
-            |> set_raw r c res_mat;
-         done
-      done ;
-
-      res_mat
+    of_array mat.rows mat.cols @@ Array.map proc mat.matrix
 
   let map2 proc mat1 mat2 =
     if (get_shape mat1 |> compare @@ get_shape mat2) <> 0
     then None
-    else 
-      let res_mat =
-        Array.copy mat1.matrix
-        |> of_array mat1.rows mat1.cols
-      in
-      
-      for r = 0 to get_row res_mat.rows - 1
-      do for c = 0 to get_col res_mat.cols - 1
-         do get_raw r c mat2
-            |> proc @@ get_raw r c mat1
-            |> set_raw r c res_mat;
-         done
-      done ;
-      
-      Some res_mat
+    else Some (of_array mat1.rows mat1.cols @@
+                 Array.map2 proc mat1.matrix mat2.matrix)
+
+  let scale value mat =
+    mat |> map @@ ( *. ) value
+
+  let add_const value mat =
+    mat |> map @@ ( +. ) value
 
   let random row col =
     create row col (fun _ -> (Random.float 2. -. 1.))
@@ -211,9 +203,22 @@ module Matrix : Matrix_type = struct
     of_array rows cols mat.matrix
 
   let submatrix start_row start_col rows cols mat =
-    let matrix = mat.matrix in
-    let stride = get_col mat.cols in
-    { matrix; rows; cols; start_row; start_col; stride }
+    let res_arr = Array.make (get_row rows * get_col cols) mat.matrix.(0) in
+
+    for r = 0 to get_row rows - 1
+    do for c = 0 to get_col cols - 1
+        do let index = (get_col start_col * get_row start_row)
+                       + (r * mat.stride) + c in
+           res_arr.((r * c) + c) <- mat.matrix.(index)
+       done
+    done ;
+    
+    { matrix = res_arr;
+      rows; cols;
+      start_row = Row 0;
+      start_col = Col 0;
+      stride = get_col cols
+    }
 
   let fold_right proc mat init =
     Array.fold_right proc mat.matrix init
@@ -232,6 +237,9 @@ module Matrix : Matrix_type = struct
       start_col = Col 0;
       stride = cols;
     }
+
+  let flatten mat_mat =
+    flatten3d mat_mat.matrix
    
   let sum mat =
     mat
@@ -315,12 +323,6 @@ let make_zero_mat_list mat_list =
 
 let arr_get index arr =
   Array.get arr index
-
-let mat_add_const cst mat =
-  mat |> Mat.map @@ (+.) cst
-
-let mat_scale cst mat =
-  mat |> Mat.map @@ ( *. ) cst
 
 let mat_list_fold_left proc mat_list =
   List.fold_left (fun mat acc ->

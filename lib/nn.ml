@@ -46,7 +46,7 @@ let list_to_mat n lst =
       (* let col = i mod nrows in *)
       (* res_arr.(row).(col) <- num ; ) lst_arr ; *)
 
-  Mat.row_mat_of_list lst
+  lst |> Mat.of_list (Row 1) @@ Col (List.length lst)
 
 let list_parse_train_data in_cols pair_list =
   List.map (fun (res_list, data_list) ->

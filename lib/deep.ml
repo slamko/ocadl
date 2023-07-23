@@ -22,19 +22,44 @@ let fully_connected_forward meta (params : fully_connected_params) tens =
      |> Option.get
      |> Mat.map meta.activation)
 
-let forward_layer input = function
+let pooling_forward meta (tens : mat Mat.t) =
+  let open Mat in
+  let rec pool_rec meta tens (Row cur_row) (Col cur_col) acc =
+    tens
+    |> Mat.submatrix
+         (Row (cur_row * get_row meta.rows))
+         (Col (cur_col * get_col meta.cols)) meta.rows meta.cols
+    |> Mat.fold_left meta.fselect 0.
+    |> pool_rec meta tens (Row (cur_row + 1)) (Col (cur_col + 1))  
+  in
+
+  `Tensor4
+    (tens
+     |> Mat.map (fun mat ->
+            pool_rec meta mat (Row 0) (Col 0)
+              @@ make
+              (Row (get_row mat.rows / get_row meta.rows))
+              (Col (get_col mat.cols / get_col meta.cols)) 0.)
+    )
+
+let forward_layer (input : ff_input_type) = function
   | (InputMeta _, _) -> input
   | (FullyConnectedMeta fc, FullyConnectedParams fcp) ->
      begin match input with
      | `Tensor2 tens -> fully_connected_forward fc fcp tens
      | `Tensor3 tens -> fully_connected_forward fc fcp @@
-                          Mat.flatten3d tens end
-  | (Conv2DMeta cn, Conv2DParams cnp) ->
-     List.map2
-       (fun in_mat kern ->
-         Mat.convolve in_mat ~stride:cn.stride kern)
-       input cnp.kernels
-  | (PoolingMeta pl, _) -> 
+                          Mat.flatten tens end
+
+  | (Conv2DMeta cn, Conv2DParams cnp) -> `Tensor4 ()
+     (* List.map2 *)
+       (* (fun in_mat kern -> *)
+         (* Mat.convolve in_mat ~stride:cn.stride kern) *)
+       (* input cnp.kernels *)
+  | (PoolingMeta pl, _) ->
+     begin match input with
+     (* | `Tensor3 _ *)
+     | `Tensor4 tens -> pooling_forward pl tens
+     end
 
 let forward (input : mat list) nn =
 

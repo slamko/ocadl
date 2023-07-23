@@ -29,8 +29,10 @@ type conv2d_meta = {
   }
 
 type pooling_meta = {
-    fselect : mat -> float;
+    fselect : float -> mat -> float;
     stride : int;
+    rows : row;
+    cols : col;
   }
 
 type input_meta = unit
@@ -77,7 +79,5 @@ type feed_forward = {
     res : mat list list;
     backprop_nn : nnet;
   }
-
-
 
 
