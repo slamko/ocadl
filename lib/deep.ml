@@ -20,49 +20,63 @@ let fully_connected_forward meta (params : fully_connected_params) tens =
     >>| Mat.map meta.activation
     >>| make_tens2
 
-let pooling_forward meta (tens : mat Mat.t) =
+let pooling_forward meta tens =
   let open Mat in
 
-  let rec pool_rec meta mat (Row cur_row) (Col cur_col) (acc : mat) =
-    if cur_row >= get_row acc.rows
-    then acc
-    else if cur_col >= get_col acc.cols
+  let rec pool_rec meta mat (Row cur_row) (Col cur_col) acc =
+    if cur_row >= (dim1 acc |> get_row)
+    then Some acc
+    else if cur_col >= (dim2 acc |> get_col)
     then pool_rec meta mat (Row (cur_row + 1)) (Col 0) acc
     else mat
          |> Mat.shadow_submatrix
-              (Row ((cur_row * get_row meta.filter_rows) + cur_row * meta.stride))
-              (Col ((cur_col * get_col meta.filter_cols) + cur_col * meta.stride))
+              (Row ((cur_row * get_row meta.filter_rows)
+                    + cur_row * meta.stride))
+
+              (Col ((cur_col * get_col meta.filter_cols)
+                    + cur_col * meta.stride))
+
               meta.filter_rows meta.filter_cols
-         |> Mat.fold_left meta.fselect 0.
-         |> set_bind (Row cur_row) (Col cur_col) acc
-         |> pool_rec meta mat (Row cur_row) (Col (cur_col + 1))  
+         >>| Mat.fold_left meta.fselect 0.
+         >>| set_bind (Row cur_row) (Col cur_col) acc
+         >>= pool_rec meta mat (Row cur_row) (Col (cur_col + 1))  
   in
 
-  Tensor4
-    (tens
-     |> Mat.map
-          (fun mat ->
-            pool_rec meta mat (Row 0) (Col 0)
-            @@ make
-                 (Row (get_row mat.rows / get_row meta.filter_rows))
-                 (Col (get_col mat.cols / get_col meta.filter_cols)) 0.)
-    )
+  let mat4 =
+    try
+      Some
+        (Tensor4
+        (tens
+         |>
+           Mat.map
+             (fun mat ->
+               let pool =
+                 make
+                   (Row ((dim1 mat |> get_row) / get_row meta.filter_rows))
+                   (Col ((dim2 mat |> get_col) / get_col meta.filter_cols)) 0.
+                 |> pool_rec meta mat (Row 0) (Col 0) in
+               match pool with
+               | Some pool_res -> pool_res
+               | None -> raise InvalidIndex)))
+    with InvalidIndex -> None in
+
+  mat4
 
 let forward_layer (input : ff_input_type) layer_type : ff_input_type option =
   match layer_type with
-  | (InputMeta _, _) -> Some input
-  | (FullyConnectedMeta fc, FullyConnectedParams fcp) ->
+  | Input -> Some input
+  | FullyConnected (fc, fcp) ->
      begin match input with
      | Tensor2 tens -> fully_connected_forward fc fcp tens
      | Tensor3 tens -> fully_connected_forward fc fcp @@
                           Mat.flatten tens end
 
-  | (Conv2DMeta cn, Conv2DParams cnp) -> `Tensor4 ()
+  | Conv2D (cn, cnp) -> Tensor4 ()
      (* List.map2 *)
        (* (fun in_mat kern -> *)
          (* Mat.convolve in_mat ~stride:cn.stride kern) *)
        (* input cnp.kernels *)
-  | (PoolingMeta pl, _) ->
+  | Pooling pl ->
      begin match input with
      (* | `Tensor3 _ *)
      | Tensor4 tens -> pooling_forward pl tens
@@ -70,26 +84,24 @@ let forward_layer (input : ff_input_type) layer_type : ff_input_type option =
 
 let forward input nn =
 
-  let rec forward_rec meta_list param_list input acc =
-    match (meta_list, param_list) with
-    | ([], []) -> Some acc
-    | ([], _::_) | (_ :: _, []) -> None
-    | (meta::meta_tail, param::param_tail) ->
+  let rec forward_rec layers input acc =
+    match layers with
+    | [] -> Some acc
+    | layer::tail ->
 
-       let layer_activation = forward_layer input (meta.layer, param) in
+       let layer_activation = forward_layer input layer.layer in
        match layer_activation with
        | Some act -> 
-          forward_rec meta_tail param_tail act
+          let upd_acc =
             { res = act::acc.res;
-              backprop_nn =
-                build_nn
-                  (meta::acc.backprop_nn.meta.meta_list)
-                  (param::acc.backprop_nn.params.param_list);
-            }
+              backprop_nn = build_nn (layer::acc.backprop_nn.layers)
+            } in
+          forward_rec tail act upd_acc
+
        | None -> None
   in
 
-  forward_rec nn.meta.meta_list nn.params.param_list input
+  forward_rec nn.layers input
     {
       res = [input];
       backprop_nn = build_nn [] []

@@ -1,3 +1,13 @@
+let (>>|) v f =
+  match v with
+  | Some value -> Some (f value)
+  | None -> None
+
+let (>>=) v f =
+  match v with
+  | Some value -> f value
+  | None -> None
+
 type col =
   | Col of int
 
@@ -6,6 +16,8 @@ type row =
   
 module type Matrix_type = sig
   type 'a t
+
+  exception InvalidIndex
 
   val make : row -> col -> float -> float t
 
@@ -25,6 +37,8 @@ module type Matrix_type = sig
 
   val set_bind : row -> col -> 'a t -> 'a -> 'a t
 
+  val set_option : row -> col -> 'a t -> 'a option -> 'a t option
+
   val reshape : row -> col -> 'a t -> 'a t
 
   val flatten3d : 'a t array -> 'a t
@@ -33,7 +47,7 @@ module type Matrix_type = sig
 
   (* val submatrix : row -> col -> row -> col -> 'a t -> 'a t *)
 
-  val shadow_submatrix : row -> col -> row -> col -> 'a t -> 'a t
+  val shadow_submatrix : row -> col -> row -> col -> 'a t -> 'a t option
 
   val map : ('a -> 'b) -> 'a t -> 'b t
 
@@ -77,6 +91,8 @@ module Matrix : Matrix_type = struct
       start_col : col;
       stride : int;
     }
+
+  exception InvalidIndex
 
   type shape = {
       size : int;
@@ -145,15 +161,13 @@ module Matrix : Matrix_type = struct
     Array.set mat.matrix (get_index row col mat) value;
     mat
 
-  let set (Row row) (Col col) mat value =
-    if row >= get_row mat.rows
-    then failwith "matrix row index out of bounds";
+  let set row col mat value =
+    set_bind row col mat value |> ignore ;
+    ()
 
-    if col >= get_col mat.cols
-    then failwith "matrix col index out of bounds";
-
-    Array.set mat.matrix (get_index row col mat) value
-
+  let set_option row col mat value =
+    value >>| set_bind row col mat
+    
   let iter proc mat =
     for r = 0 to get_row mat.rows - 1
     do for c = 0 to get_col mat.cols - 1
@@ -276,15 +290,20 @@ module Matrix : Matrix_type = struct
     res_mat
 
   let shadow_submatrix start_row start_col rows cols mat =
-    let res_mat = { matrix = mat.matrix;
-                    rows = rows;
-                    cols = cols;
-                    start_row = start_row;
-                    start_col = start_col;
-                    stride = get_col cols;
-                  }
-    in
-    res_mat
+    if get_row start_row + get_row rows >= get_row mat.rows
+    then None
+    else if get_col start_col + get_col cols >= get_col mat.cols
+    then None
+    else
+      let res_mat = { matrix = mat.matrix;
+                      rows = rows;
+                      cols = cols;
+                      start_row = start_row;
+                      start_col = start_col;
+                      stride = get_col cols;
+                    }
+      in
+      Some res_mat
     
 
   let fold_right proc mat init =

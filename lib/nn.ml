@@ -29,9 +29,8 @@ let list_split n lst =
 
   split_rec n [] lst
 
-let build_nn meta_list param_list =
-  { meta = { meta_list = meta_list; };
-    params = { param_list = param_list; };
+let build_nn layer_list =
+  { layers = layer_list;
   }
 
 let list_to_mat n lst =
@@ -146,56 +145,36 @@ let restore_nn_from_json fname nn =
  *)
 
 let make_input shape =
-  let in_layer = { layer = InputMeta ();
-                   common = shape;
+  let in_layer = { layer = Input;
+                   common = { ncount = shape; };
                  } in
-  { meta =
-      { meta_list = [in_layer] };
-    params =
-      { param_list = [] };
+  { layers = [in_layer];
   }
 
 let make_fully_connected ~ncount ~act ~deriv nn : nnet =
-  let prev_ncount = Row (List.hd nn.meta.meta_list).common.ncount in
+  let prev_ncount = Row (List.hd nn.layers).common.ncount in
   
   let meta =
-    FullyConnectedMeta
     { activation = act;
       derivative = deriv;
     }
   in
 
   let params =
-    FullyConnectedParams
       { weight_mat = Mat.random prev_ncount ncount;
         bias_mat = Mat.random (Row 1) ncount;
       } 
   in
 
   let common = { ncount = 0 } in
-  let layer = { layer = meta;
-                    common = common;
-                  } in
+  let layer = { layer = FullyConnected (meta, params);
+                common = common;
+              } in
 
-  {
-    meta = {
-        meta_list = layer::nn.meta.meta_list;
-      };
-    params = {
-        param_list = params::nn.params.param_list;
-      };
-  }
-
+  { layers = layer::nn.layers }
 
 let make_nn (arch : nnet) : nnet =
-  {
-    meta = {
-      meta_list = arch.meta.meta_list |> List.rev;
-    };
-    params = {
-        param_list = arch.params.param_list |> List.rev;
-      };
-  }
+  { layers = List.rev arch.layers }
 
 let fully_connected_map proc layer =
   FullyConnectedParams

@@ -29,7 +29,7 @@ type conv2d_meta = {
   }
 
 type pooling_meta = {
-    fselect : float -> mat -> float;
+    fselect : float -> float -> float;
     stride : int;
     filter_rows : row;
     filter_cols : col;
@@ -46,12 +46,6 @@ type layer_meta =
   | Conv2DMeta of conv2d_meta 
   | PoolingMeta of pooling_meta 
   | InputMeta of input_meta 
-
-type layer_meta_common = {
-    common : common;
-    layer  : layer_meta;
-  }
-
 type layer_params =
   | FullyConnectedParams of fully_connected_params
   | Conv2DParams of conv2d_params
@@ -66,13 +60,13 @@ type nnet_params = {
     param_list : layer_params list;
   }
 
-type nnet_meta = {
-    meta_list : layer_meta_common list;
+type layer_common = {
+    common : common;
+    layer  : layer;
   }
 
 type nnet = {
-    meta : nnet_meta;
-    params : nnet_params;
+    layers : layer_common list;
   }
 
 type ff_input_type =
@@ -83,16 +77,6 @@ type ff_input_type =
 let make_tens2 v = Tensor2 v
 let make_tens3 v = Tensor3 v
 let make_tens4 v = Tensor4 v
-
-let (>>|) v f =
-  match v with
-  | Some value -> Some (f value)
-  | None -> None
-
-let (>>=) v f =
-  match v with
-  | Some value -> f value
-  | None -> None
 
 type feed_forward = {
     res : ff_input_type list;
