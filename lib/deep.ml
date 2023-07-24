@@ -124,24 +124,28 @@ let forward input nn =
       backprop_nn = build_nn [];
     }
 
-(*
 let cost (data : train_data) nn =
 
   let rec cost_rec nn data err = 
     match data with
-    | [] -> err
+    | [] -> Ok err
     | sample::data_tail ->
-       let ff = forward (get_data_input sample) nn in
+       let* ff = forward (get_data_input sample) nn in
        let expected = get_data_out sample in
-       let diff = Mat.sub (hd (hd ff.res)) expected
-                  |> Mat.as_vec
-                  |> Vec.fold (fun res total -> res +. total) 0. in
-
-       cost_rec nn data_tail (err +. (diff *. diff))
+       let res = hd ff.res in
+       match res with
+       | Tensor2 m -> 
+          let* diff = Mat.sub m expected
+                     >>| Mat.fold_left (fun res total -> res +. total) 0. in
+          cost_rec nn data_tail (err +. (diff *. diff))
+       | _ -> Error "Invalid output shape"
+          
   in
 
-  List.length data |> float_of_int |> (/.) @@ cost_rec nn data 0.
+  let* loss = cost_rec nn data 0. in
+  Ok (List.length data |> float_of_int |> (/.) @@ loss)
 
+(*
 let backprop_neuron w_mat_arr fderiv w_row w_col ff_len diffi ai ai_prev_arr
       pd_prev_arr_acc : backprop_neuron =
 

@@ -1,6 +1,5 @@
 open Deepmath
 
-type train_data = (mat * mat list) list
 
 type weight_list = mat list
 type bias_list = mat list
@@ -83,4 +82,4 @@ type feed_forward = {
     backprop_nn : nnet;
   }
 
-
+type train_data = (mat * ff_input_type) list
