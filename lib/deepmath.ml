@@ -47,6 +47,8 @@ module type Matrix_type = sig
 
   val flatten : 'a t t -> 'a t
 
+  val compare : 'a t -> 'a t -> bool
+
   (* val submatrix : row -> col -> row -> col -> 'a t -> 'a t *)
 
   val shadow_submatrix : row -> col -> row -> col -> 'a t -> 'a t option
@@ -61,9 +63,15 @@ module type Matrix_type = sig
 
   val fold_right : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
 
-  val iteri : (row -> col -> 'a -> unit) -> 'a t -> unit
-
   val mapi : (row -> col -> 'a -> 'b) -> 'a t -> 'b t
+
+  val iteri2 : (row -> col -> 'a -> 'b -> unit) -> 'a t -> 'b t
+               -> (unit, unit) result
+
+  val iter2 : ('a -> 'b -> unit) -> 'a t -> 'b t
+              -> (unit, unit) result
+ 
+  val iteri : (row -> col -> 'a -> unit) -> 'a t -> unit
 
   val iter : ('a -> unit) -> 'a t -> unit
   
@@ -108,7 +116,11 @@ module Matrix : Matrix_type = struct
       dim2 : col;
     }
 
-  let size mat = mat.matrix |> Array.length
+  let get_row (Row row) = row
+
+  let get_col (Col col) = col
+
+  let size mat = get_row mat.rows |> ( * ) @@  get_col mat.cols
 
   let get_shape mat =
     { size = size mat;
@@ -118,9 +130,9 @@ module Matrix : Matrix_type = struct
 
   let shape_match mat1 mat2 =
     let shape = get_shape mat2 in
-    if get_shape mat1 |> compare shape <> 0
-    then None
-    else Some shape
+    match get_shape mat1 |> compare shape with
+    | 0 -> Some shape
+    | _ -> None 
 
   let of_array rows cols matrix =
     let (Col col) = cols in
@@ -137,13 +149,8 @@ module Matrix : Matrix_type = struct
     Array.init (rows * cols) (fun i ->
         finit (Row (i / rows)) (Col (i mod cols)))
     |> of_array (Row rows) (Col cols)
-
-  let get_row (Row row) = row
-
-  let get_col (Col col) = col
-
   let get_first mat =
-    (get_row mat.start_row * get_col mat.cols) + get_col mat.start_col
+    (get_row mat.start_row * mat.stride) + get_col mat.start_col
 
   let get_index row col mat =
     get_first mat + (row * mat.stride) + col
@@ -196,7 +203,9 @@ module Matrix : Matrix_type = struct
     | Some _ ->
        for r = 0 to get_row mat1.rows - 1
        do for c = 0 to get_col mat1.cols - 1
-          do proc @@ get (Row r) (Col c) mat1 mat2;
+          do
+            get (Row r) (Col c) mat2
+            |> proc @@ get (Row r) (Col c) mat1 ;
           done
        done;
        Ok ()
@@ -207,7 +216,8 @@ module Matrix : Matrix_type = struct
     | Some _ ->
        for r = 0 to get_row mat1.rows - 1
        do for c = 0 to get_col mat1.cols - 1
-          do get (Row r) (Col c) mat2 |> proc (Row r) (Col c) @@ get (Row r) (Col c) mat1;
+          do get (Row r) (Col c) mat2
+             |> proc (Row r) (Col c) @@ get (Row r) (Col c) mat1;
           done
        done;
        Ok ()
@@ -250,6 +260,16 @@ module Matrix : Matrix_type = struct
     | Ok _ -> Some res_mat
     | Error _ -> None
 
+  exception NotEqual
+
+  let compare mat1 mat2 =
+    try begin
+        match iter2 (fun v1 v2 -> if v1 <> v2 then raise NotEqual) mat1 mat2
+        with
+        | Ok _ -> true
+        | Error _ -> false end
+    with NotEqual -> false
+
   let scale value mat =
     mat |> map @@ ( *. ) value
 
@@ -272,11 +292,14 @@ module Matrix : Matrix_type = struct
     { matrix; rows; cols; start_row; start_col; stride }
 
   let print mat =
-    Array.iteri (fun i value ->
-        Printf.printf "%f   " value;
-        if (i + 1) mod get_col mat.cols = 0
-        then print_string "\n"
-      ) mat.matrix ;
+    iteri (fun (Row r) (Col c) value ->
+        if c = 0
+        then print_string "\n";
+
+        if value >= 0.
+        then Printf.printf " %f   " value
+        else Printf.printf "%f   " value;
+      ) mat ;
       
     print_string "\n"
       
@@ -312,9 +335,9 @@ module Matrix : Matrix_type = struct
     res_mat
 
   let shadow_submatrix start_row start_col rows cols mat =
-    if get_row start_row + get_row rows >= get_row mat.rows
+    if get_row start_row + get_row rows > get_row mat.rows
     then None
-    else if get_col start_col + get_col cols >= get_col mat.cols
+    else if get_col start_col + get_col cols > get_col mat.cols
     then None
     else
       let res_mat = { matrix = mat.matrix;
@@ -322,7 +345,7 @@ module Matrix : Matrix_type = struct
                       cols = cols;
                       start_row = start_row;
                       start_col = start_col;
-                      stride = get_col cols;
+                      stride = get_col mat.cols;
                     }
       in
       Some res_mat
@@ -439,4 +462,28 @@ let mat_list_flaten mlist =
  
 let arr_print arr =
   arr |> Array.iter @@ Printf.printf "El: %f\n"
+
+let opt_to_bool = function
+  | Some b -> b
+  | None -> false
+
+let%test "compare" =
+  let m = Mat.random (Row 3) (Col 4) in
+  Mat.compare m m
+
+let%test "shadow_submatrix" =
+  let open Mat in
+  let m1 = [| 0.1; 0.2; 0.3; 0.4; 0.5; 0.6; 0.7; 0.8; 0.9; 1.;
+              -1.; -0.9; -0.8; -0.7; -0.6; -0.5; -0.4; -0.3; -0.2; -0.1|]
+           |> Mat.of_array (Row 4) (Col 5) in
+
+  let m2 = of_array (Row 2) (Col 2) [| -0.7;-0.6;-0.2;-0.1|] in
+  shadow_submatrix (Row 2) (Col 3) (Row 2) (Col 2) m1
+  (* >>| print |> ignore; *)
+  (* false *)
+  >>| compare m2
+  |> opt_to_bool
+                   
+
+
 

@@ -1,5 +1,7 @@
 open Lacaml.D
 open Unix
+
+(*
 open Ocadl__Deepmath
 open Ocadl__Types
 open Ocadl__Nn
@@ -117,7 +119,6 @@ let () =
          !train_data_file
          !epoch_num
 
-(*
          [
            FullyConnected { ncount = 784;
              activation = sigmoid;
@@ -137,6 +138,10 @@ let () =
            }
          ]
 
+
+
  *)
 
-
+let () =
+  Ocadl__Deep.test ();
+  (* print_endline "hello" *)

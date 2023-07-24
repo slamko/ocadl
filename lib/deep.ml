@@ -126,6 +126,7 @@ let forward input nn =
       backprop_nn = build_nn [];
     }
 
+(*
 let cost (data : train_data) nn =
 
   let rec cost_rec nn data err = 
@@ -287,6 +288,7 @@ let check_nn_geometry nn data =
     else Error "Unmatched data geometry: number of output neurons should be equal to number of expected outputs"
   else Error "Unmatched data geometry: number of input neurons should be equal to number of data inputs."
  
+
 let rec learn_rec pool pool_size data epoch_num
           learning_rate batch_size pools_per_batch grad_acc nn =
   match epoch_num with
@@ -366,11 +368,6 @@ let recomended_domain_num =
   then 1
   else rec_dom_cnt
 
-let (>>=) a f =
-  match a with
-  | Ok value -> Ok (f value)
-  | Error err -> Error err
-
 let learn data ?(epoch_num = 11) ?(learning_rate = 1.0) ?(batch_size = 2)
       nn =
   
@@ -398,3 +395,9 @@ let learn data ?(epoch_num = 11) ?(learning_rate = 1.0) ?(batch_size = 2)
        Task.teardown_pool pool ;
        Ok res
     | Error err -> Error err
+ *)
+
+
+let test () =
+  ()
+  

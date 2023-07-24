@@ -9,4 +9,6 @@
             yojson
             domainslib
             csv)
+ (inline_tests)
+ (preprocess (pps ppx_inline_test))
  (name ocadl))
