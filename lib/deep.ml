@@ -62,24 +62,43 @@ let pooling_forward meta tens =
 
   mat4
 
+let conv3d_forward (meta : conv2d_meta) params tens =
+  let open Mat in
+  let res =
+    mapi (fun _ (Col c) mat ->
+        Mat.convolve mat ~stride:meta.stride params.kernels.(c)) tens in
+  Some (Tensor4 res)
+
+let conv2d_forward (meta : conv2d_meta) params tens =
+  let open Mat in
+  let res_mat = create
+                  (Row (size tens))
+                  (Col (params.kernels |> Array.length))
+                  (fun r _ -> get (Row 0) (Col (get_row r)) tens) in
+
+  conv3d_forward meta params res_mat
+  
 let forward_layer (input : ff_input_type) layer_type : ff_input_type option =
   match layer_type with
   | Input -> Some input
   | FullyConnected (fc, fcp) ->
      begin match input with
-     | Tensor2 tens -> fully_connected_forward fc fcp tens
-     | Tensor3 tens -> fully_connected_forward fc fcp @@
-                          Mat.flatten tens end
-
-  | Conv2D (cn, cnp) -> Tensor4 ()
-     (* List.map2 *)
-       (* (fun in_mat kern -> *)
-         (* Mat.convolve in_mat ~stride:cn.stride kern) *)
-       (* input cnp.kernels *)
+     | Tensor2 tens -> tens
+                       |> fully_connected_forward fc fcp
+     | Tensor3 tens -> Mat.flatten tens
+                       |> fully_connected_forward fc fcp
+     | _ -> None end
+  | Conv2D (cn, cnp) -> 
+     begin match input with
+     | Tensor3 tens -> tens
+                       |> conv2d_forward cn cnp
+     | Tensor4 tens -> tens
+                       |> conv3d_forward cn cnp 
+     | _ -> None end
   | Pooling pl ->
      begin match input with
-     (* | `Tensor3 _ *)
-     | Tensor4 tens -> pooling_forward pl tens
+     | Tensor3 tens | Tensor4 tens -> pooling_forward pl tens
+     | _ -> None
      end
 
 let forward input nn =
@@ -104,7 +123,7 @@ let forward input nn =
   forward_rec nn.layers input
     {
       res = [input];
-      backprop_nn = build_nn [] []
+      backprop_nn = build_nn [];
     }
 
 let cost (data : train_data) nn =

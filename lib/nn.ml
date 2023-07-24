@@ -184,7 +184,7 @@ let fully_connected_map proc layer =
 
 let conv2d_map proc layer =
   Conv2DParams
-    { kernels = layer.kernels |> List.map @@ Mat.map proc;
+    { kernels = layer.kernels |> Array.map @@ Mat.map proc;
       bias_mat = Mat.map proc layer.bias_mat
     }
 
@@ -202,7 +202,7 @@ let fully_connected_zero layer =
 
 let conv2d_zero layer =
   Conv2DParams
-    { kernels  = layer.kernels  |> List.map Mat.zero ;
+    { kernels  = layer.kernels  |> Array.map Mat.zero ;
       bias_mat = layer.bias_mat |> Mat.zero ;
     }
                     

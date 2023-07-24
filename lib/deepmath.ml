@@ -21,6 +21,8 @@ module type Matrix_type = sig
 
   val make : row -> col -> float -> float t
 
+  val create : row -> col -> (row -> col -> 'a) -> 'a t
+
   val random : row -> col -> float t
 
   val zero : 'a t -> float t
@@ -58,6 +60,12 @@ module type Matrix_type = sig
   val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
 
   val fold_right : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+
+  val iteri : (row -> col -> 'a -> unit) -> 'a t -> unit
+
+  val mapi : (row -> col -> 'a -> 'b) -> 'a t -> 'b t
+
+  val iter : ('a -> unit) -> 'a t -> unit
   
   val add : float t -> float t -> float t option
   
@@ -126,7 +134,8 @@ module Matrix : Matrix_type = struct
     |> of_array (Row rows) (Col cols)
     
   let create (Row rows) (Col cols) finit =
-    Array.init (rows * cols) finit
+    Array.init (rows * cols) (fun i ->
+        finit (Row (i / rows)) (Col (i mod cols)))
     |> of_array (Row rows) (Col cols)
 
   let get_row (Row row) = row
@@ -206,10 +215,23 @@ module Matrix : Matrix_type = struct
 
   let set_raw row col mat value =
     set (Row row) (Col col) mat value
-  
+
+  let mapi proc mat =
+    let res_arr = mat
+                  |> get (Row 0) (Col 0)
+                  |> proc (Row 0) (Col 0)
+                  |> Array.make @@ size mat in
+    let res_mat = of_array mat.rows mat.cols res_arr in
+      
+    iteri (fun r c value ->
+        proc r c value |> set r c res_mat)
+      mat;
+    res_mat
+
   let map proc mat =
-    let first = get_first mat in
-    let res_arr = proc mat.matrix.(first) |> Array.make @@ size mat in
+    let res_arr = mat
+                  |> get (Row 0) (Col 0)
+                  |> proc |> Array.make @@ size mat in
     let res_mat = of_array mat.rows mat.cols res_arr in
       
     iteri (fun r c value ->
@@ -235,7 +257,7 @@ module Matrix : Matrix_type = struct
     mat |> map @@ ( +. ) value
 
   let random row col =
-    create row col (fun _ -> (Random.float 2. -. 1.))
+    create row col (fun _ _ -> (Random.float 2. -. 1.))
 
   let zero mat =
     make mat.rows mat.cols 0.

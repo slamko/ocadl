@@ -19,7 +19,7 @@ type fully_connected_meta = {
   }
 
 type conv2d_params = {
-    kernels : mat list;
+    kernels : mat array;
     bias_mat : mat;
   }
 
