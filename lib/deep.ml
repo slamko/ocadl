@@ -15,39 +15,46 @@ type backprop_layer = {
   }
 
 let fully_connected_forward meta (params : fully_connected_params) tens =
-  `Tensor2 
-    (Mat.mult tens params.weight_mat
-     |> Option.get
-     |> Mat.add params.bias_mat
-     |> Option.get
-     |> Mat.map meta.activation)
+    Mat.mult tens params.weight_mat
+    >>= Mat.add params.bias_mat
+    >>| Mat.map meta.activation
+    >>| make_tens2
 
 let pooling_forward meta (tens : mat Mat.t) =
   let open Mat in
-  let rec pool_rec meta tens (Row cur_row) (Col cur_col) acc =
-    tens
-    |> Mat.submatrix
-         (Row (cur_row * get_row meta.rows))
-         (Col (cur_col * get_col meta.cols)) meta.rows meta.cols
-    |> Mat.fold_left meta.fselect 0.
-    |> pool_rec meta tens (Row (cur_row + 1)) (Col (cur_col + 1))  
+
+  let rec pool_rec meta mat (Row cur_row) (Col cur_col) (acc : mat) =
+    if cur_row >= get_row acc.rows
+    then acc
+    else if cur_col >= get_col acc.cols
+    then pool_rec meta mat (Row (cur_row + 1)) (Col 0) acc
+    else mat
+         |> Mat.shadow_submatrix
+              (Row ((cur_row * get_row meta.filter_rows) + cur_row * meta.stride))
+              (Col ((cur_col * get_col meta.filter_cols) + cur_col * meta.stride))
+              meta.filter_rows meta.filter_cols
+         |> Mat.fold_left meta.fselect 0.
+         |> set_bind (Row cur_row) (Col cur_col) acc
+         |> pool_rec meta mat (Row cur_row) (Col (cur_col + 1))  
   in
 
-  `Tensor4
+  Tensor4
     (tens
-     |> Mat.map (fun mat ->
+     |> Mat.map
+          (fun mat ->
             pool_rec meta mat (Row 0) (Col 0)
-              @@ make
-              (Row (get_row mat.rows / get_row meta.rows))
-              (Col (get_col mat.cols / get_col meta.cols)) 0.)
+            @@ make
+                 (Row (get_row mat.rows / get_row meta.filter_rows))
+                 (Col (get_col mat.cols / get_col meta.filter_cols)) 0.)
     )
 
-let forward_layer (input : ff_input_type) = function
-  | (InputMeta _, _) -> input
+let forward_layer (input : ff_input_type) layer_type : ff_input_type option =
+  match layer_type with
+  | (InputMeta _, _) -> Some input
   | (FullyConnectedMeta fc, FullyConnectedParams fcp) ->
      begin match input with
-     | `Tensor2 tens -> fully_connected_forward fc fcp tens
-     | `Tensor3 tens -> fully_connected_forward fc fcp @@
+     | Tensor2 tens -> fully_connected_forward fc fcp tens
+     | Tensor3 tens -> fully_connected_forward fc fcp @@
                           Mat.flatten tens end
 
   | (Conv2DMeta cn, Conv2DParams cnp) -> `Tensor4 ()
@@ -58,25 +65,28 @@ let forward_layer (input : ff_input_type) = function
   | (PoolingMeta pl, _) ->
      begin match input with
      (* | `Tensor3 _ *)
-     | `Tensor4 tens -> pooling_forward pl tens
+     | Tensor4 tens -> pooling_forward pl tens
      end
 
-let forward (input : mat list) nn =
+let forward input nn =
 
   let rec forward_rec meta_list param_list input acc =
     match (meta_list, param_list) with
     | ([], []) -> Some acc
     | ([], _::_) | (_ :: _, []) -> None
     | (meta::meta_tail, param::param_tail) ->
+
        let layer_activation = forward_layer input (meta.layer, param) in
-       forward_rec meta_tail param_tail layer_activation
-         { res = layer_activation :: acc.res;
-           backprop_nn =
-             build_nn
-               (meta::acc.backprop_nn.meta.meta_list)
-               (param::acc.backprop_nn.params.param_list);
-           
-         }
+       match layer_activation with
+       | Some act -> 
+          forward_rec meta_tail param_tail act
+            { res = act::acc.res;
+              backprop_nn =
+                build_nn
+                  (meta::acc.backprop_nn.meta.meta_list)
+                  (param::acc.backprop_nn.params.param_list);
+            }
+       | None -> None
   in
 
   forward_rec nn.meta.meta_list nn.params.param_list input

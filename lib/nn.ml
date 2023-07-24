@@ -172,7 +172,7 @@ let make_fully_connected ~ncount ~act ~deriv nn : nnet =
       } 
   in
 
-  let common = { ncount = ncount } in
+  let common = { ncount = 0 } in
   let layer = { layer = meta;
                     common = common;
                   } in
@@ -217,14 +217,14 @@ let nn_params_map proc nn_params =
 
 let fully_connected_zero layer =
   FullyConnectedParams
-    { weight_mat = mat_zero layer.weight_mat;
-       bias_mat  = mat_zero layer.bias_mat;
+    { weight_mat = Mat.zero layer.weight_mat;
+       bias_mat  = Mat.zero layer.bias_mat;
     }
 
 let conv2d_zero layer =
   Conv2DParams
-    { kernels  = layer.kernels  |> List.map mat_zero ;
-      bias_mat = layer.bias_mat |> mat_zero ;
+    { kernels  = layer.kernels  |> List.map Mat.zero ;
+      bias_mat = layer.bias_mat |> Mat.zero ;
     }
                     
 let nn_params_zero nn_params =

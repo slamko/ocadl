@@ -23,13 +23,15 @@ module type Matrix_type = sig
 
   val set : row -> col -> 'a t -> 'a -> unit
 
+  val set_bind : row -> col -> 'a t -> 'a -> 'a t
+
   val reshape : row -> col -> 'a t -> 'a t
 
   val flatten3d : 'a t array -> 'a t
 
   val flatten : 'a t t -> 'a t
 
-  val submatrix : row -> col -> row -> col -> 'a t -> 'a t
+  (* val submatrix : row -> col -> row -> col -> 'a t -> 'a t *)
 
   val shadow_submatrix : row -> col -> row -> col -> 'a t -> 'a t
 
@@ -132,6 +134,16 @@ module Matrix : Matrix_type = struct
 
   let get_raw row col mat =
     get (Row row) (Col col) mat
+
+  let set_bind (Row row) (Col col) mat value =
+    if row >= get_row mat.rows
+    then failwith "matrix row index out of bounds";
+
+    if col >= get_col mat.cols
+    then failwith "matrix col index out of bounds";
+
+    Array.set mat.matrix (get_index row col mat) value;
+    mat
 
   let set (Row row) (Col col) mat value =
     if row >= get_row mat.rows
