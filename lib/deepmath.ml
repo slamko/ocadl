@@ -5,13 +5,13 @@ let ( let* ) o f =
 
 let (>>|) v f =
   match v with
-  | Some value -> Some (f value)
-  | None -> None
+  | Ok value -> Ok (f value)
+  | Error err -> Error err
 
 let (>>=) v f =
   match v with
-  | Some value -> f value
-  | None -> None
+  | Ok value -> f value
+  | Error err -> Error err
 
 type col =
   | Col of int
@@ -32,7 +32,7 @@ module type Matrix_type = sig
 
   val zero : 'a t -> float t
 
-  val of_array : row -> col -> 'a array -> 'a t option
+  val of_array : row -> col -> 'a array -> ('a t, string) result
 
   val of_list : row -> col -> 'a list -> 'a t
 
@@ -44,13 +44,11 @@ module type Matrix_type = sig
 
   val set_bind : row -> col -> 'a t -> 'a -> 'a t
 
-  val set_option : row -> col -> 'a t -> 'a option -> 'a t option
+  val reshape : row -> col -> 'a t -> ('a t, string) result
 
-  val reshape : row -> col -> 'a t -> 'a t option
+  val flatten3d : 'a t array -> ('a t, string) result
 
-  val flatten3d : 'a t array -> 'a t option
-
-  val flatten : 'a t t -> 'a t option
+  val flatten : 'a t t -> ('a t, string) result
 
   val compare : ('a -> 'b -> bool) -> 'a t -> 'b t -> bool
 
@@ -58,7 +56,7 @@ module type Matrix_type = sig
 
   (* val submatrix : row -> col -> row -> col -> 'a t -> 'a t *)
 
-  val shadow_submatrix : row -> col -> row -> col -> 'a t -> 'a t option
+  val shadow_submatrix : row -> col -> row -> col -> 'a t -> ('a t, string) result
 
 
   val scale : float -> float t -> float t
@@ -74,24 +72,24 @@ module type Matrix_type = sig
   val mapi : (row -> col -> 'a -> 'b) -> 'a t -> 'b t
 
   val iteri2 : (row -> col -> 'a -> 'b -> unit) -> 'a t -> 'b t
-               -> (unit, unit) result
+               -> (unit, string) result
 
   val iter2 : ('a -> 'b -> unit) -> 'a t -> 'b t
-              -> (unit, unit) result
+              -> (unit, string) result
  
   val iteri : (row -> col -> 'a -> unit) -> 'a t -> unit
 
   val iter : ('a -> unit) -> 'a t -> unit
   
-  val add : float t -> float t -> float t option
+  val add : float t -> float t -> (float t, string) result
   
-  val sub : float t -> float t -> float t option
+  val sub : float t -> float t -> (float t, string) result
 
-  val mult : float t -> float t -> float t option
+  val mult : float t -> float t -> (float t, string) result
 
   val sum : float t -> float
 
-  val convolve : float t -> stride:int -> float t -> float t option
+  val convolve : float t -> stride:int -> float t -> (float t, string) result
 
   val dim1 : 'a t -> row
 
@@ -102,6 +100,8 @@ module type Matrix_type = sig
   val get_col : col -> int
 
   val print : float t -> unit
+
+  val print_bind : float t -> float t
   
 end
 
@@ -140,28 +140,28 @@ module Matrix : Matrix_type = struct
     let shape = get_shape mat2 in
     match get_shape mat1 |> compare shape with
     | 0 -> Ok shape
-    | _ -> Error "Matrix shapes do not match" 
+    | _ -> Error "Matrix shapes do not match." 
 
   let of_array rows cols matrix =
     if (get_row rows * get_col cols) > (matrix |> Array.length)
-    then None
+    then Error "Of array: Index out of bounds."
     else
       let (Col col) = cols in
       let stride = col in
       let start_row = Row 0 in
       let start_col = Col 0 in
-      Some { matrix; rows; cols; start_row; start_col; stride }
+      Ok { matrix; rows; cols; start_row; start_col; stride }
   
   let make (Row rows) (Col cols) init_val =
     Array.make (rows * cols) init_val
     |> of_array (Row rows) (Col cols)
-    |> Option.get
+    |> Result.get_ok
     
   let create (Row rows) (Col cols) finit =
     Array.init (rows * cols) (fun i ->
         finit (Row (i / rows)) (Col (i mod cols)))
     |> of_array (Row rows) (Col cols)
-    |> Option.get
+    |> Result.get_ok
 
   let get_first mat =
     (get_row mat.start_row * mat.stride) + get_col mat.start_col
@@ -195,9 +195,6 @@ module Matrix : Matrix_type = struct
     set_bind row col mat value |> ignore ;
     ()
 
-  let set_option row col mat value =
-    value >>| set_bind row col mat
-    
   let iter proc mat =
     for r = 0 to get_row mat.rows - 1
     do for c = 0 to get_col mat.cols - 1
@@ -214,26 +211,24 @@ module Matrix : Matrix_type = struct
 
   let iter2 proc mat1 mat2 =
     let* _ = shape_match mat1 mat2 in
-       for r = 0 to get_row mat1.rows - 1
-       do for c = 0 to get_col mat1.cols - 1
-          do
-            get (Row r) (Col c) mat2
-            |> proc @@ get (Row r) (Col c) mat1 ;
-          done
-       done;
-       Ok ()
+    for r = 0 to get_row mat1.rows - 1
+    do for c = 0 to get_col mat1.cols - 1
+        do
+        get (Row r) (Col c) mat2
+        |> proc @@ get (Row r) (Col c) mat1 ;
+        done
+    done;
+    Ok ()
 
   let iteri2 proc mat1 mat2 =
-    match shape_match mat1 mat2 with
-    | Some _ ->
-       for r = 0 to get_row mat1.rows - 1
-       do for c = 0 to get_col mat1.cols - 1
-          do get (Row r) (Col c) mat2
-             |> proc (Row r) (Col c) @@ get (Row r) (Col c) mat1;
-          done
-       done;
-       Ok ()
-    | None -> Error ()
+    let* _ = shape_match mat1 mat2 in
+    for r = 0 to get_row mat1.rows - 1
+    do for c = 0 to get_col mat1.cols - 1
+        do get (Row r) (Col c) mat2
+            |> proc (Row r) (Col c) @@ get (Row r) (Col c) mat1;
+        done
+    done;
+    Ok ()
 
   let set_raw row col mat value =
     set (Row row) (Col col) mat value
@@ -244,11 +239,10 @@ module Matrix : Matrix_type = struct
                     (mat2 |> get (Row 0) (Col 0))
                   |> make mat1.rows mat1.cols in
 
-    begin match iteri2 (fun r c value1 value2  ->
+    let* _ = iteri2 (fun r c value1 value2  ->
                     proc r c value1 value2 |> set r c res_mat)
-                    mat1 mat2 with
-    | Ok _ -> Some res_mat
-    | Error _ -> None end
+               mat1 mat2 in
+    Ok res_mat
 
   let map2 proc mat1 mat2 =
     mapi2 (fun _ _ -> proc) mat1 mat2
@@ -314,6 +308,9 @@ module Matrix : Matrix_type = struct
       
     print_string "\n"
       
+  let print_bind mat =
+    print mat;
+    mat
 
   let add mat1 mat2 =
     map2 (+.) mat1 mat2
@@ -347,9 +344,8 @@ module Matrix : Matrix_type = struct
 
   let shadow_submatrix start_row start_col rows cols mat =
     if get_row start_row + get_row rows > get_row mat.rows
-    then None
-    else if get_col start_col + get_col cols > get_col mat.cols
-    then None
+      || get_col start_col + get_col cols > get_col mat.cols
+    then Error "Submatrix: Index out of bounds."
     else
       let res_mat = { matrix = mat.matrix;
                       rows = rows;
@@ -359,7 +355,7 @@ module Matrix : Matrix_type = struct
                       stride = get_col mat.cols;
                     }
       in
-      Some res_mat
+      Ok res_mat
 
   let fold_right proc mat init =
     let acc = ref init in
@@ -374,9 +370,8 @@ module Matrix : Matrix_type = struct
   let fold_left2 proc init mat1 mat2 =
     let* _ = shape_match mat1 mat2 in
     let acc = ref init in
-    match iter2 (fun val1 val2-> acc := proc !acc val1 val2) mat1 mat2 with
-    | Ok _ -> Some !acc
-    | Error _ -> None
+    let* _ = iter2 (fun val1 val2-> acc := proc !acc val1 val2) mat1 mat2 in
+    Ok !acc
 
   let flatten3d mat_arr = 
     let cols = Array.fold_left (fun acc mat ->
@@ -394,28 +389,25 @@ module Matrix : Matrix_type = struct
 
   let mult mat1 mat2 =
     if get_col mat1.cols <> get_row mat2.rows
-    then None
+    then Error "Mult: Matrix geometry does not match."
     else
-      let res_mat =
+      let* res_mat =
         Array.make (get_row mat1.rows * get_col mat2.cols) 0.
         |> of_array mat1.rows mat2.cols
       in
 
-      match res_mat with
-      | Some res_mat ->
-         for r = 0 to get_row res_mat.rows - 1
-         do for ac = 0 to get_col mat1.cols - 1 
-            do for c = 0 to get_col res_mat.cols - 1 
-               do get_raw r ac mat1
-                  |> ( *. ) @@ get_raw ac c mat2
-                  |> ( +. ) @@ get_raw r c res_mat
-                  |> set_raw r c res_mat;
-               done
+      for r = 0 to get_row res_mat.rows - 1
+      do for ac = 0 to get_col mat1.cols - 1 
+         do for c = 0 to get_col res_mat.cols - 1 
+            do get_raw r ac mat1
+               |> ( *. ) @@ get_raw ac c mat2
+               |> ( +. ) @@ get_raw r c res_mat
+               |> set_raw r c res_mat;
             done
-         done ;
-         
-         Some res_mat
-      | None -> None
+         done
+      done ;
+      
+      Ok res_mat
 
   let convolve mat ~stride:stride kernel =
     (* let kern_arr = kernel |> Mat.to_array in *)
@@ -429,12 +421,14 @@ module Matrix : Matrix_type = struct
                     (Col (mat_cols - kern_cols + 1)) 0. in
 
     let rec convolve_rec kernel stride mat r c res_mat =
-        if r = mat_rows
-        then Some res_mat
+        if r = mat_rows - kern_rows + 1
+        then Ok res_mat
         else
-        if c + kern_cols >= mat_cols
+        if c + kern_cols > mat_cols
         then convolve_rec kernel stride mat (r + stride) 0 res_mat
         else
+          (* let a = 4 in *)
+          (* Printf.eprintf "r: %d; c: %d\n" r c ; *)
           let* submat = shadow_submatrix (Row r) (Col c)
                           kernel.rows kernel.cols mat in
           let* _ = shape_match kernel submat in
@@ -475,16 +469,6 @@ let make_zero_mat_list mat_list =
 
 let arr_get index arr =
   Array.get arr index
-
-let mat_list_fold_left proc mat_list =
-  List.fold_left (fun mat acc ->
-      proc mat acc) mat_list []
-
-let mat_list_flaten mlist =
-  List.fold_right (fun lst flat_list_acc ->
-        List.fold_right (fun num acc ->
-            num :: acc) lst flat_list_acc) mlist [] 
-
  
 let arr_print arr =
   arr |> Array.iter @@ Printf.printf "El: %f\n"
@@ -492,6 +476,18 @@ let arr_print arr =
 let opt_to_bool = function
   | Some b -> b
   | None -> false
+
+let bool_res_to_bool = function
+  | Ok b -> b
+  | Error err ->
+     Printf.eprintf "error: %s\n" err ;
+     false
+
+let res_to_bool = function
+  | Ok _ -> true
+  | Error err ->
+     Printf.eprintf "error: %s\n" err ;
+     false
 
 let%test "compare" =
   let m = Mat.random (Row 3) (Col 4) in
@@ -503,15 +499,15 @@ let m1 = [| 0.1; 0.2; 0.3; 0.4; 0.5; 0.6; 0.7; 0.8; 0.9; 1.;
 
 let%test "shadow_submatrix" =
   let open Mat in
-  let m2 = of_array (Row 2) (Col 2) [| -0.7;-0.6;-0.2;-0.1|] in
 
-  match m2 with
-  | Some m -> 
-     m1
-     >>= shadow_submatrix (Row 2) (Col 3) (Row 2) (Col 2) 
-     >>| compare_float m
-     |> opt_to_bool
-  | None -> false
+  let test () =
+    let* m2 = of_array (Row 2) (Col 2) [| -0.7;-0.6;-0.2;-0.1|] in
+    m1
+    >>= shadow_submatrix (Row 2) (Col 3) (Row 2) (Col 2) 
+    >>| compare_float m2
+  in
+
+  test () |> bool_res_to_bool
 
 let%test "add" =
   let open Mat in
@@ -523,32 +519,40 @@ let%test "add" =
     >>= add m2
     >>| compare_float res
   in
-  t () |> opt_to_bool
+  t () |> bool_res_to_bool
     
 let%test "sub" =
   let open Mat in
-  let m2 = of_array (Row 2) (Col 2) [| 0.1; 0.2; 0.3; 0.4|] |> Option.get in
-  let res = of_array (Row 2) (Col 2) [| 0.8;0.8;0.5;0.5|] |> Option.get in
 
-  m1
-  >>= shadow_submatrix (Row 2) (Col 3) (Row 2) (Col 2) 
-  >>= sub m2
-  >>| compare_float res
-  |> opt_to_bool
+  let test () = 
+    let* m2 = of_array (Row 2) (Col 2) [| 0.1; 0.2; 0.3; 0.4|] in
+    let* res = of_array (Row 2) (Col 2) [| 0.8;0.8;0.5;0.5|] in
+    
+    m1
+    >>= shadow_submatrix (Row 2) (Col 3) (Row 2) (Col 2) 
+    >>= sub m2
+    >>| compare_float res
+  in
+  
+  test () |> bool_res_to_bool
 
 let%test "flatten" =
   let open Mat in
-  let m4 = of_array (Row 1) (Col 2) [| -0.7; -0.6;|] |> Option.get in
-  let m5 = of_array (Row 1) (Col 2) [| -0.2; -0.1;|] |> Option.get in
-  let res = of_array (Row 2) (Col 1) [| m4; m5|]
-            >>= flatten
-            >>= reshape (Row 2) (Col 2) |> Option.get
-  in
 
-  m1
-  >>= shadow_submatrix (Row 2) (Col 3) (Row 2) (Col 2) 
-  >>| compare_float res
-  |> opt_to_bool
+  let test() =
+    let* m4 = of_array (Row 1) (Col 2) [| -0.7; -0.6;|] in
+    let* m5 = of_array (Row 1) (Col 2) [| -0.2; -0.1;|] in
+    let* res = of_array (Row 2) (Col 1) [| m4; m5|]
+              >>= flatten
+              >>= reshape (Row 2) (Col 2)
+    in
+    
+    m1
+    >>= shadow_submatrix (Row 2) (Col 3) (Row 2) (Col 2) 
+    >>| compare_float res
+  in
+  
+  test() |> bool_res_to_bool
 
 let%test "convolve" =
   let open Mat in
@@ -557,20 +561,25 @@ let%test "convolve" =
               |> of_array (Row 3) (Col 3) in
     let* kern = Array.init 4 (fun i -> float_of_int i +. 10.)
               |> of_array (Row 2) (Col 2) in
+    let* res = [| 145.; 191.; 283.;329.|] |> of_array (Row 2) (Col 2) in
     convolve im ~stride:1 kern
+    >>| compare_float res
   in
 
-  match test () with
-  | Some r ->
-     print r; true
-  | None -> false
+  test () |> bool_res_to_bool
 
 let%test "mult" =
   let open Mat in
-  let m2 = of_array (Row 2) (Col 1) [| 0.1;
-                                       0.2; |] |> Option.get in
-  let res = of_array (Row 2) (Col 1) [| -0.19;-0.04;|] |> Option.get in
-  mult (shadow_submatrix (Row 2) (Col 3) (Row 2) (Col 2) (m1 |> Option.get) |> Option.get) m2
-  >>| compare_float res 
-  |> opt_to_bool
+
+  let test () =
+    let* m2 = of_array (Row 2) (Col 1) [| 0.1;
+                                          0.2; |] in
+    let* res = of_array (Row 2) (Col 1) [| -0.19;-0.04;|] in
+    let* m3 = (m1 >>= shadow_submatrix (Row 2) (Col 3) (Row 2) (Col 2)) in
+
+    mult m3 m2
+    >>| compare_float res 
+  in
+
+  test () |> bool_res_to_bool
 

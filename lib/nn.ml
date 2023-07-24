@@ -2,7 +2,7 @@ open Types
 open Deepmath
 
 let data arr =
-  arr |> Mat.of_array (Row 1) @@ Col (Array.length arr) |> Option.get
+  arr |> Mat.of_array (Row 1) @@ Col (Array.length arr) |> Result.get_ok
 
 let one_data a =
   data [| a |]

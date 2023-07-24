@@ -25,7 +25,7 @@ let pooling_forward meta tens =
 
   let rec pool_rec meta mat (Row cur_row) (Col cur_col) acc =
     if cur_row >= (dim1 acc |> get_row)
-    then Some acc
+    then Ok acc
     else if cur_col >= (dim2 acc |> get_col)
     then pool_rec meta mat (Row (cur_row + 1)) (Col 0) acc
     else mat
@@ -44,7 +44,7 @@ let pooling_forward meta tens =
 
   let mat4 =
     try
-      Some
+      Ok
         (Tensor4
         (tens
          |>
@@ -56,9 +56,9 @@ let pooling_forward meta tens =
                    (Col ((dim2 mat |> get_col) / get_col meta.filter_cols)) 0.
                  |> pool_rec meta mat (Row 0) (Col 0) in
                match pool with
-               | Some pool_res -> pool_res
-               | None -> raise InvalidIndex)))
-    with InvalidIndex -> None in
+               | Ok pool_res -> pool_res
+               | Error err -> failwith err)))
+    with Failure err -> Error err in
 
   mat4
 
@@ -67,9 +67,9 @@ let conv3d_forward (meta : conv2d_meta) params tens =
   let res =
     mapi (fun _ (Col c) mat ->
         match Mat.convolve mat ~stride:meta.stride params.kernels.(c) with
-        | Some res -> res
-        | None -> raise InvalidIndex) tens in
-  Some (Tensor4 res)
+        | Ok res -> res
+        | Error err -> failwith err) tens in
+  Ok (Tensor4 res)
 
 let conv2d_forward (meta : conv2d_meta) params tens =
   let open Mat in
@@ -80,46 +80,42 @@ let conv2d_forward (meta : conv2d_meta) params tens =
 
   conv3d_forward meta params res_mat
   
-let forward_layer (input : ff_input_type) layer_type : ff_input_type option =
+let forward_layer (input : ff_input_type) layer_type =
   match layer_type with
-  | Input -> Some input
+  | Input -> Ok input
   | FullyConnected (fc, fcp) ->
      begin match input with
      | Tensor2 tens -> tens
                        |> fully_connected_forward fc fcp
      | Tensor3 tens -> Mat.flatten tens
                        >>= fully_connected_forward fc fcp
-     | _ -> None end
+     | _ -> Error "Invalid input for fully connected layer" end
   | Conv2D (cn, cnp) -> 
      begin match input with
      | Tensor3 tens -> tens
                        |> conv2d_forward cn cnp
      | Tensor4 tens -> tens
                        |> conv3d_forward cn cnp 
-     | _ -> None end
+     | _ -> Error "Invalid input for convolutional layer." end
   | Pooling pl ->
      begin match input with
      | Tensor3 tens | Tensor4 tens -> pooling_forward pl tens
-     | _ -> None
+     | _ -> Error "Invalid input for pooling layer."
      end
 
 let forward input nn =
 
   let rec forward_rec layers input acc =
     match layers with
-    | [] -> Some acc
+    | [] -> Ok acc
     | layer::tail ->
 
-       let layer_activation = forward_layer input layer.layer in
-       match layer_activation with
-       | Some act -> 
-          let upd_acc =
-            { res = act::acc.res;
-              backprop_nn = build_nn (layer::acc.backprop_nn.layers)
-            } in
-          forward_rec tail act upd_acc
-
-       | None -> None
+       let* act = forward_layer input layer.layer in
+       let upd_acc =
+         { res = act::acc.res;
+           backprop_nn = build_nn (layer::acc.backprop_nn.layers)
+         } in
+       forward_rec tail act upd_acc
   in
 
   forward_rec nn.layers input
