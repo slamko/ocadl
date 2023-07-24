@@ -2,7 +2,7 @@ open Types
 open Deepmath
 
 let data arr =
-  arr |> Mat.of_array (Row 1) @@ Col (Array.length arr)
+  arr |> Mat.of_array (Row 1) @@ Col (Array.length arr) |> Option.get
 
 let one_data a =
   data [| a |]
@@ -62,9 +62,13 @@ let read_train_data fname res_len in_cols =
          let res_mat = Mat.make (Row 1) (Col 10) 0. in
          let col = Col (List.hd res_list |> int_of_float) in
          Mat.set (Row 0) col res_mat 1.;
-         (res_mat,
+         Some (res_mat,
           data_list |> list_to_mat in_cols))
   (* |> List.iter (fun (res, inp) -> mat_print inp) *)
+
+let a () =
+  let a = 5 and b = 6 in
+  a
 
 let to_json_list proc l =
   `List (l |> proc)

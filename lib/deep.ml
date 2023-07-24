@@ -66,7 +66,9 @@ let conv3d_forward (meta : conv2d_meta) params tens =
   let open Mat in
   let res =
     mapi (fun _ (Col c) mat ->
-        Mat.convolve mat ~stride:meta.stride params.kernels.(c)) tens in
+        match Mat.convolve mat ~stride:meta.stride params.kernels.(c) with
+        | Some res -> res
+        | None -> raise InvalidIndex) tens in
   Some (Tensor4 res)
 
 let conv2d_forward (meta : conv2d_meta) params tens =
@@ -86,7 +88,7 @@ let forward_layer (input : ff_input_type) layer_type : ff_input_type option =
      | Tensor2 tens -> tens
                        |> fully_connected_forward fc fcp
      | Tensor3 tens -> Mat.flatten tens
-                       |> fully_connected_forward fc fcp
+                       >>= fully_connected_forward fc fcp
      | _ -> None end
   | Conv2D (cn, cnp) -> 
      begin match input with
