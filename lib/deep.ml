@@ -124,9 +124,9 @@ let forward input nn =
       backprop_nn = build_nn [];
     }
 
-let cost (data : train_data) nn =
+let loss (data : train_data) nn =
 
-  let rec cost_rec nn data err = 
+  let rec loss_rec nn data err = 
     match data with
     | [] -> Ok err
     | sample::data_tail ->
@@ -137,12 +137,12 @@ let cost (data : train_data) nn =
        | Tensor2 m -> 
           let* diff = Mat.sub m expected
                      >>| Mat.fold_left (fun res total -> res +. total) 0. in
-          cost_rec nn data_tail (err +. (diff *. diff))
+          loss_rec nn data_tail (err +. (diff *. diff))
        | _ -> Error "Invalid output shape"
           
   in
 
-  let* loss = cost_rec nn data 0. in
+  let* loss = loss_rec nn data 0. in
   Ok (List.length data |> float_of_int |> (/.) @@ loss)
 
 (*
@@ -399,7 +399,36 @@ let learn data ?(epoch_num = 11) ?(learning_rate = 1.0) ?(batch_size = 2)
     | Error err -> Error err
  *)
 
+let xor_in =
+  [
+    data [|0.; 0.|] ;
+    data [|0.; 1.|] ;
+    data [|1.; 0.|] ;
+    data [|1.; 1.|] ;
+  ]
+
+let xor_data =
+  [
+    (one_data 0., Tensor2 (data [|0.; 0.|])) ;
+    (one_data 1., Tensor2 (data [|0.; 1.|])) ;
+    (one_data 1., Tensor2 (data [|1.; 0.|])) ;
+    (one_data 0., Tensor2 (data [|1.; 1.|]))
+  ]
+
 
 let test () =
-  ()
+  Unix.time () |> int_of_float |> Random.init;
+  let nn =
+    make_input 1 2
+    |> make_fully_connected ~ncount:2 ~act:sigmoid ~deriv:sigmoid'
+    |> make_fully_connected ~ncount:1 ~act:sigmoid ~deriv:sigmoid'
+    |> make_nn in
+
+  let res =
+    nn
+    |> loss xor_data in
+
+  match res with
+  | Ok loss -> Printf.printf "Ok %f\n" loss;
+  | Error err -> Printf.eprintf "error: %s\n" err
   

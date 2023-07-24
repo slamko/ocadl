@@ -148,9 +148,9 @@ let restore_nn_from_json fname nn =
   (* List.hd weights |> List.length |> print_int *)
  *)
 
-let make_input shape =
+let make_input rows cols =
   let in_layer = { layer = Input;
-                   common = { ncount = shape; };
+                   common = { ncount = rows * cols; };
                  } in
   { layers = [in_layer];
   }
@@ -165,12 +165,12 @@ let make_fully_connected ~ncount ~act ~deriv nn : nnet =
   in
 
   let params =
-      { weight_mat = Mat.random prev_ncount ncount;
-        bias_mat = Mat.random (Row 1) ncount;
+      { weight_mat = Mat.random prev_ncount (Col ncount);
+        bias_mat = Mat.random (Row 1) (Col ncount);
       } 
   in
 
-  let common = { ncount = 0 } in
+  let common = { ncount = ncount } in
   let layer = { layer = FullyConnected (meta, params);
                 common = common;
               } in
