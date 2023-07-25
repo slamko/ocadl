@@ -46,9 +46,9 @@ module type Matrix_type = sig
 
   val reshape : row -> col -> 'a t -> ('a t, string) result
 
-  val flatten3d : 'a t array -> ('a t, string) result
+  val flatten3d : 'a t array -> 'a t
 
-  val flatten : 'a t t -> ('a t, string) result
+  val flatten : 'a t t -> 'a t
 
   val compare : ('a -> 'b -> bool) -> 'a t -> 'b t -> bool
 
@@ -156,18 +156,20 @@ module Matrix : Matrix_type = struct
     Array.make (rows * cols) init_val
     |> of_array (Row rows) (Col cols)
     |> Result.get_ok
-    
+
   let create (Row rows) (Col cols) finit =
     Array.init (rows * cols) (fun i ->
         finit (Row (i / rows)) (Col (i mod cols)))
     |> of_array (Row rows) (Col cols)
     |> Result.get_ok
 
-  let get_first mat =
+  let empty () = of_array (Row 0) (Col 0) [| |] |> Result.get_ok
+
+  let get_first_index mat =
     (get_row mat.start_row * mat.stride) + get_col mat.start_col
 
   let get_index row col mat =
-    get_first mat + (row * mat.stride) + col
+    get_first_index mat + (row * mat.stride) + col
 
   let get (Row row) (Col col) mat =
     if row >= get_row mat.rows
@@ -180,6 +182,8 @@ module Matrix : Matrix_type = struct
 
   let get_raw row col mat =
     get (Row row) (Col col) mat
+
+  let get_first mat = get (Row 0) (Col 0) mat
 
   let set_bind (Row row) (Col col) mat value =
     if row >= get_row mat.rows
@@ -374,18 +378,42 @@ module Matrix : Matrix_type = struct
     Ok !acc
 
   let flatten3d mat_arr = 
-    let cols = Array.fold_left (fun acc mat ->
-                      get_col mat.cols + acc) 0 mat_arr in
-    Array.fold_left
-      (fun acc mat -> Array.append acc mat.matrix) [| |] mat_arr
-    |> of_array (Row 1) (Col cols)
+    match mat_arr with
+    | [| |] -> empty ()
+    | mat_arr -> 
+       let size = Array.fold_left (fun acc mat ->
+                      acc + size mat) 0 mat_arr in
+       
+       let first = mat_arr.(0) |> get_first in
+       let res_mat = make (Row 1) (Col size) first in
+       let index = ref 0 in
+       
+       Array.iter (fun mat ->
+           iter (fun value ->
+               res_mat.matrix.(!index) <- value;
+               index := !index + 1) mat) mat_arr;
+       res_mat
 
-  let flatten mat_mat =
-    flatten3d mat_mat.matrix
-   
+  let flatten (mat_mat : 'a t t) =
+    match size mat_mat with
+    | 0 -> empty ()
+    | _ -> 
+       let size = fold_left (fun acc mat ->
+                      acc + size mat) 0 mat_mat in
+       
+       let first = mat_mat |> get_first |> get_first in
+       let res_mat = make (Row 1) (Col size) first in
+       let index = ref 0 in
+       
+       iter (fun  mat ->
+           iter (fun value ->
+               res_mat.matrix.(!index) <- value;
+               index := !index + 1) mat) mat_mat;
+
+       res_mat
+  
   let sum mat =
-    mat
-    |> fold_left (fun value acc -> value +. acc) 0. 
+    mat |> fold_left (+.) 0. 
 
   let mult mat1 mat2 =
     if get_col mat1.cols <> get_row mat2.rows
@@ -543,7 +571,7 @@ let%test "flatten" =
     let* m4 = of_array (Row 1) (Col 2) [| -0.7; -0.6;|] in
     let* m5 = of_array (Row 1) (Col 2) [| -0.2; -0.1;|] in
     let* res = of_array (Row 2) (Col 1) [| m4; m5|]
-              >>= flatten
+              >>| flatten
               >>= reshape (Row 2) (Col 2)
     in
     

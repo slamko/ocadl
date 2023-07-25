@@ -64,12 +64,21 @@ let pooling_forward meta tens =
 
 let conv3d_forward (meta : conv2d_meta) params tens =
   let open Mat in
+
   let res =
-    mapi (fun _ (Col c) mat ->
-        match Mat.convolve mat ~stride:meta.stride params.kernels.(c) with
-        | Ok res -> res
-        | Error err -> failwith err) tens in
-  Ok (Tensor4 res)
+    try
+      Ok (mapi
+          (fun _ (Col c) mat ->
+          begin
+            match Mat.convolve mat ~stride:meta.stride params.kernels.(c) with
+            | Ok res -> res
+            | Error err -> failwith err end) tens
+          |> make_tens4)
+    with
+    | Failure err -> Error err
+  in
+
+  res
 
 let conv2d_forward (meta : conv2d_meta) params tens =
   let open Mat in
@@ -88,7 +97,7 @@ let forward_layer (input : ff_input_type) layer_type =
      | Tensor2 tens -> tens
                        |> fully_connected_forward fc fcp
      | Tensor3 tens -> Mat.flatten tens
-                       >>= fully_connected_forward fc fcp
+                       |> fully_connected_forward fc fcp
      | _ -> Error "Invalid input for fully connected layer" end
   | Conv2D (cn, cnp) -> 
      begin match input with
