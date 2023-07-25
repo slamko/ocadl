@@ -209,6 +209,45 @@ let conv2d_zero layer =
     { kernels  = layer.kernels  |> Array.map Mat.zero ;
       bias_mat = layer.bias_mat |> Mat.zero ;
     }
+
+let nn_params_map proc nn =
+  { param_list =
+      List.map (fun l ->
+          match l with
+          | FullyConnectedParams fc ->
+             FullyConnectedParams {
+                 weight_mat = proc fc.weight_mat;
+                 bias_mat = proc fc.bias_mat;
+               }
+          | Conv2DParams cv ->
+             Conv2DParams {
+                 kernels = Array.map proc cv.kernels;
+                 bias_mat = proc cv.bias_mat;
+               }
+        ) nn.param_list ;
+  } 
+                    
+let nn_params_apply proc nn1 nn2 =
+  try Ok { param_list =
+      List.map2 (fun l1 l2 ->
+          match l1, l2 with
+          | FullyConnectedParams fc1, FullyConnectedParams fc2 ->
+             FullyConnectedParams {
+                 weight_mat =
+                   begin match proc fc1.weight_mat fc2.weight_mat with
+                   | Ok res -> res
+                   | Error err -> failwith err end;
+                 bias_mat = proc fc1.bias_mat fc2.bias_mat;
+               }
+          | Conv2DParams cv1, Conv2DParams cv2 ->
+             Conv2DParams {
+                 kernels = Array.map2 proc cv1.kernels cv2.kernels;
+                 bias_mat = proc cv1.bias_mat cv2.bias_mat;
+               }
+          | _ -> failwith "nn apply: Param lists do not match."
+          ) nn1.param_list nn2.param_list;
+      } with
+  | Failure err -> Error err
                     
 let nn_params_zero nn_params =
    List.map (function

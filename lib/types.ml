@@ -45,6 +45,7 @@ type layer_meta =
   | Conv2DMeta of conv2d_meta 
   | PoolingMeta of pooling_meta 
   | InputMeta of input_meta 
+
 type layer_params =
   | FullyConnectedParams of fully_connected_params
   | Conv2DParams of conv2d_params
@@ -82,4 +83,4 @@ type feed_forward = {
     backprop_nn : nnet;
   }
 
-type train_data = (mat * ff_input_type) list
+type train_data = (ff_input_type * ff_input_type) list

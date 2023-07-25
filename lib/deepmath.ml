@@ -13,6 +13,11 @@ let (>>=) v f =
   | Ok value -> f value
   | Error err -> Error err
 
+let unwrap res =
+  match res with
+  | Ok res -> res
+  | Error err -> failwith err
+
 type col =
   | Col of int
 
@@ -39,6 +44,8 @@ module type Matrix_type = sig
   val size : 'a t -> int
 
   val get : row -> col -> 'a t -> 'a
+
+  val get_first : 'a t -> 'a
 
   val set : row -> col -> 'a t -> 'a -> unit
 
@@ -238,28 +245,34 @@ module Matrix : Matrix_type = struct
     set (Row row) (Col col) mat value
 
   let mapi2 proc mat1 mat2 =
-    let res_mat = proc (Row 0) (Col 0)
-                    (mat1 |> get (Row 0) (Col 0))
-                    (mat2 |> get (Row 0) (Col 0))
-                  |> make mat1.rows mat1.cols in
-
-    let* _ = iteri2 (fun r c value1 value2  ->
+    match size mat1 + size mat2 with
+    | 0 -> Ok (empty ())
+    | _ ->
+       let res_mat = proc (Row 0) (Col 0)
+                       (mat1 |> get (Row 0) (Col 0))
+                       (mat2 |> get (Row 0) (Col 0))
+                     |> make mat1.rows mat1.cols in
+       
+       let* _ = iteri2 (fun r c value1 value2  ->
                     proc r c value1 value2 |> set r c res_mat)
                mat1 mat2 in
-    Ok res_mat
+       Ok res_mat
 
   let map2 proc mat1 mat2 =
     mapi2 (fun _ _ -> proc) mat1 mat2
     
   let mapi proc mat =
-    let res_mat = proc (Row 0) (Col 0) (mat |> get (Row 0) (Col 0))
-                |> make mat.rows mat.cols in
+    match size mat with
+    | 0 -> empty ()
+    | _ ->
+       let res_mat = proc (Row 0) (Col 0) (mat |> get_first)
+                     |> make mat.rows mat.cols in
 
-    iteri (fun r c value1 ->
-        proc r c value1 |> set r c res_mat)
-      mat;
-
-    res_mat
+       iteri (fun r c value1 ->
+           proc r c value1 |> set r c res_mat)
+         mat;
+       
+       res_mat
     
   let map proc mat =
     mapi (fun _ _ -> proc) mat

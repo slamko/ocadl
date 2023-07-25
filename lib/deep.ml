@@ -98,18 +98,21 @@ let forward_layer (input : ff_input_type) layer_type =
                        |> fully_connected_forward fc fcp
      | Tensor3 tens -> Mat.flatten tens
                        |> fully_connected_forward fc fcp
-     | _ -> Error "Invalid input for fully connected layer" end
+     | _
+       -> Error "Invalid input for fully connected layer" end
   | Conv2D (cn, cnp) -> 
      begin match input with
      | Tensor3 tens -> tens
                        |> conv2d_forward cn cnp
      | Tensor4 tens -> tens
                        |> conv3d_forward cn cnp 
-     | _ -> Error "Invalid input for convolutional layer." end
+     | _
+       -> Error "Invalid input for convolutional layer." end
   | Pooling pl ->
      begin match input with
      | Tensor3 tens | Tensor4 tens -> pooling_forward pl tens
-     | _ -> Error "Invalid input for pooling layer."
+     | _
+       -> Error "Invalid input for pooling layer."
      end
 
 let forward input nn =
@@ -221,6 +224,7 @@ let rec backprop_layer w_row w_col (wmat_arr : float array array)
       pd_prev_diff_arr ai_arr diff_arr ai_prev_arr ff_len (i + 1)
       
 
+ *)
 let rec backprop_nn (ff_list : mat list)
           (wmat_list : weight_list)
           (deriv_list : deriv list)
@@ -254,23 +258,25 @@ let rec backprop_nn (ff_list : mat list)
      backprop_nn ff_tail (tl wmat_list) (tl deriv_list)
        wgrad_list bgrad_list bp_layer.prev_diff_arr
   
-let nn_gradient nn data : nnet_grad=
+let nn_gradient nn data  =
 
-  let rec bp_rec nn data bp_grad_acc : nnet_grad =
+  let rec bp_rec nn data bp_grad_acc =
     match data with
-    | [] -> bp_grad_acc
+    | [] -> Ok bp_grad_acc
     | cur_sample::data_tail ->
-       let ff_net       = forward (get_data_input cur_sample) nn in
+       let* ff_net      = forward (get_data_input cur_sample) nn in
        let ff_res       = hd ff_net.res in
        let expected_res = get_data_out cur_sample in
-       let res_diff     = Mat.sub ff_res expected_res |>
-                            mat_row_to_array 0 in
+       match expected_res, ff_res with
+       | (Tensor2 exp , Tensor2 res) ->
+          let res_diff     = Mat.sub res exp in
 
-       let bp_grad = backprop_nn ff_net.res ff_net.wl_ff
-                       nn.derivatives [] [] res_diff in
+          let bp_grad = backprop_nn ff_net.res ff_net.wl_ff
+                          nn.derivatives [] [] res_diff in
 
-       (* Printf.printf "One sample nn" ; *)
-       nn_apply mat_add bp_grad bp_grad_acc |> bp_rec nn data_tail
+          (* Printf.printf "One sample nn" ; *)
+          nn_params_apply Mat.add bp_grad bp_grad_acc >>| bp_rec nn data_tail
+       | _ -> Error "Incompatible output shape."
   in
  
   let newn = nn_grad_zero  
@@ -281,6 +287,7 @@ let nn_gradient nn data : nnet_grad=
              |> float_of_int
              |> (fun x -> 1. /. x)))
 
+(*
 let check_nn_geometry nn data =
   let sample = hd data in
 
