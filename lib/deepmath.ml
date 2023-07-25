@@ -1,6 +1,12 @@
+
 let ( let* ) o f =
   match o with
   | Error err -> Error err
+  | Ok x -> f x
+
+let ( let@ ) o f =
+  match o with
+  | Error err -> failwith err
   | Ok x -> f x
 
 let (>>|) v f =
@@ -19,13 +25,16 @@ let unwrap res =
   | Error err -> failwith err
 
 type col =
-  | Col of int
+  | Col of int [@@deriving show]
 
 type row =
-  | Row of int
+  | Row of int [@@deriving show]
   
 module type Matrix_type = sig
-  type 'a t
+  type 'a t 
+  [@@deriving show]
+
+  type size
 
   exception InvalidIndex
 
@@ -122,6 +131,7 @@ module Matrix : Matrix_type = struct
       start_col : col;
       stride : int;
     }
+   [@@deriving show]
 
   exception InvalidIndex
 
@@ -131,11 +141,20 @@ module Matrix : Matrix_type = struct
       dim2 : col;
     }
 
+  type size =
+    | Empty
+    | Size of int
+
   let get_row (Row row) = row
 
   let get_col (Col col) = col
 
-  let size mat = get_row mat.rows |> ( * ) @@  get_col mat.cols
+  let size mat = get_row mat.rows |> ( * ) @@ get_col mat.cols
+
+  let get_size mat =
+    match size mat with
+    | 0 -> Empty
+    | size -> Size size
 
   let get_shape mat =
     { size = size mat;
@@ -389,28 +408,12 @@ module Matrix : Matrix_type = struct
     let acc = ref init in
     let* _ = iter2 (fun val1 val2-> acc := proc !acc val1 val2) mat1 mat2 in
     Ok !acc
-
-  let flatten3d mat_arr = 
-    match mat_arr with
-    | [| |] -> empty ()
-    | mat_arr -> 
-       let size = Array.fold_left (fun acc mat ->
-                      acc + size mat) 0 mat_arr in
+      
        
-       let first = mat_arr.(0) |> get_first in
-       let res_mat = make (Row 1) (Col size) first in
-       let index = ref 0 in
-       
-       Array.iter (fun mat ->
-           iter (fun value ->
-               res_mat.matrix.(!index) <- value;
-               index := !index + 1) mat) mat_arr;
-       res_mat
-
   let flatten (mat_mat : 'a t t) =
-    match size mat_mat with
-    | 0 -> empty ()
-    | _ -> 
+    match get_size mat_mat with
+    | Empty -> empty ()
+    | Size _ -> 
        let size = fold_left (fun acc mat ->
                       acc + size mat) 0 mat_mat in
        
@@ -424,7 +427,16 @@ module Matrix : Matrix_type = struct
                index := !index + 1) mat) mat_mat;
 
        res_mat
-  
+
+  let flatten3d mat_arr = 
+    match mat_arr with
+    | [| |] -> empty ()
+    | mat_arr ->
+       mat_arr
+       |> of_array (Row 1) (Col (Array.length mat_arr))
+       |> Result.get_ok
+       |> flatten
+   
   let sum mat =
     mat |> fold_left (+.) 0. 
 
@@ -485,6 +497,7 @@ end
 
 module Mat = Matrix
 type mat = float Mat.t
+[@@deriving show]
 
 let sigmoid (x : float) : float =
   1. /. (1. +. exp(-. x))

@@ -1,31 +1,41 @@
 open Deepmath
-
+open Ppxlib
 
 type weight_list = mat list
+[@@deriving show]
+
 type bias_list = mat list
+[@@deriving show]
 
 type activation = float -> float
+[@@deriving show]
+
 type deriv = float -> float
+[@@deriving show]
 
 type fully_connected_params = {
     weight_mat : mat;
     bias_mat : mat;
   }
+[@@deriving show]
 
 type fully_connected_meta = {
     activation : activation;
     derivative : deriv;
   }
+[@@deriving show]
 
 type conv2d_params = {
     kernels : mat array;
     bias_mat : mat;
   }
+[@@deriving show]
 
 type conv2d_meta = {
     padding : int;
     stride : int;
   }
+[@@deriving show]
 
 type pooling_meta = {
     fselect : float -> float -> float;
@@ -33,28 +43,34 @@ type pooling_meta = {
     filter_rows : row;
     filter_cols : col;
   }
+[@@deriving show]
 
 type input_meta = unit
+[@@deriving show]
 
 type common = {
     ncount : int;
   }
+[@@deriving show]
 
 type layer_meta =
   | FullyConnectedMeta of fully_connected_meta 
   | Conv2DMeta of conv2d_meta 
   | PoolingMeta of pooling_meta 
   | InputMeta of input_meta 
+[@@deriving show]
 
 type layer_params =
   | FullyConnectedParams of fully_connected_params
   | Conv2DParams of conv2d_params
+[@@deriving show]
 
 type layer =
   | FullyConnected of (fully_connected_meta * fully_connected_params)
   | Conv2D of (conv2d_meta * conv2d_params)
   | Pooling of pooling_meta
   | Input 
+[@@deriving show]
 
 type nnet_params = {
     param_list : layer_params list;
@@ -64,10 +80,12 @@ type layer_common = {
     common : common;
     layer  : layer;
   }
+[@@deriving show]
 
 type nnet = {
     layers : layer_common list;
   }
+[@@deriving show]
 
 type ff_input_type =
   | Tensor2 of mat
@@ -84,3 +102,5 @@ type feed_forward = {
   }
 
 type train_data = (ff_input_type * ff_input_type) list
+
+

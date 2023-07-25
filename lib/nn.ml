@@ -216,16 +216,36 @@ let nn_params_map proc nn =
           match l with
           | FullyConnectedParams fc ->
              FullyConnectedParams {
-                 weight_mat = proc fc.weight_mat;
-                 bias_mat = proc fc.bias_mat;
+                 weight_mat = proc fc.weight_mat |> unwrap;
+                 bias_mat = proc fc.bias_mat |> unwrap;
                }
           | Conv2DParams cv ->
              Conv2DParams {
-                 kernels = Array.map proc cv.kernels;
-                 bias_mat = proc cv.bias_mat;
+                 kernels = Array.map (fun v -> proc v |> unwrap) cv.kernels;
+                 bias_mat = proc cv.bias_mat |> unwrap;
                }
         ) nn.param_list ;
   } 
+
+let nn_params_zero nn : nnet_params =
+  let zero_layers = nn.layers
+  |> List.filter_map (fun common ->
+      match common.layer with
+      | FullyConnected (_, params) ->
+         Some
+           (FullyConnectedParams
+              { weight_mat = Mat.zero params.weight_mat;
+                bias_mat = Mat.zero params.bias_mat;
+           })
+      | Conv2D (_, params) ->
+         Some
+           (Conv2DParams
+              { kernels = Array.map Mat.zero params.kernels;
+                bias_mat = Mat.zero params.bias_mat;
+              }
+           )
+      | _ -> None) in
+  { param_list = zero_layers; }
                     
 let nn_params_apply proc nn1 nn2 =
   try Ok { param_list =
@@ -233,20 +253,63 @@ let nn_params_apply proc nn1 nn2 =
           match l1, l2 with
           | FullyConnectedParams fc1, FullyConnectedParams fc2 ->
              FullyConnectedParams {
-                 weight_mat =
-                   begin match proc fc1.weight_mat fc2.weight_mat with
-                   | Ok res -> res
-                   | Error err -> failwith err end;
-                 bias_mat = proc fc1.bias_mat fc2.bias_mat;
+                 weight_mat = proc fc1.weight_mat fc2.weight_mat |> unwrap;
+                 bias_mat = proc fc1.bias_mat fc2.bias_mat |> unwrap;
                }
           | Conv2DParams cv1, Conv2DParams cv2 ->
              Conv2DParams {
-                 kernels = Array.map2 proc cv1.kernels cv2.kernels;
-                 bias_mat = proc cv1.bias_mat cv2.bias_mat;
+                 kernels = Array.map2
+                             (fun v1 v2 -> proc v1 v2 |> unwrap)
+                             cv1.kernels cv2.kernels;
+                 bias_mat = proc cv1.bias_mat cv2.bias_mat |> unwrap;
                }
           | _ -> failwith "nn apply: Param lists do not match."
           ) nn1.param_list nn2.param_list;
       } with
+  | Failure err -> Error err
+
+let nn_apply_params proc nn params =
+  let layers () =
+    List.map2
+      (fun lay apply_param ->
+          match lay.layer, apply_param with
+          | FullyConnected (meta, nn_param),
+            FullyConnectedParams apply_param ->
+             let@ wmat = proc nn_param.weight_mat apply_param.weight_mat in
+             let@ bmat = proc nn_param.bias_mat   apply_param.bias_mat   in
+
+             { common = lay.common;
+               layer = FullyConnected
+                         (meta, {
+                              weight_mat = wmat;
+                              bias_mat = bmat;
+                         });
+             }
+          | FullyConnected (_, _), _ ->
+             failwith "nn apply params: Incompatible param list."
+
+          | Conv2D (meta, nn_param), Conv2DParams apply_param ->
+             let kernels = Array.map2
+                              (fun v1 v2 -> proc v1 v2 |> unwrap)
+                              nn_param.kernels apply_param.kernels in
+             let@ bias_mat = proc nn_param.bias_mat apply_param.bias_mat in
+
+             { common = lay.common;
+               layer = Conv2D
+                         (meta, {
+                            kernels;
+                            bias_mat;
+                         });
+             }
+      
+          | Conv2D (_, _), _ -> 
+             failwith "nn apply params: Incompatible param list."
+          | _ -> lay
+
+      ) nn.layers params.param_list in
+
+  try Ok ( { layers = layers ()} )
+  with
   | Failure err -> Error err
                     
 let nn_params_zero nn_params =

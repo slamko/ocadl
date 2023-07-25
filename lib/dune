@@ -5,10 +5,11 @@
 
 (library
  (public_name ocadl)
- (libraries lacaml
-            yojson
+ (libraries yojson
             domainslib
+            ppx_deriving
+            ppxlib
             csv)
  (inline_tests)
- (preprocess (pps ppx_inline_test))
+ (preprocess (pps ppx_deriving.show ppx_inline_test))
  (name ocadl))

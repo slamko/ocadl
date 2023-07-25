@@ -10,7 +10,7 @@ type backprop_neuron = {
   }
 
 type backprop_layer = {
-    prev_diff_arr : float array;
+    prev_diff : mat;
     grad : layer_params;
   }
 
@@ -145,9 +145,9 @@ let loss (data : train_data) nn =
        let* ff = forward (get_data_input sample) nn in
        let expected = get_data_out sample in
        let res = hd ff.res in
-       match res with
-       | Tensor2 m -> 
-          let* diff = Mat.sub m expected
+       match res,expected with
+       | Tensor2 m, Tensor2 exp-> 
+          let* diff = Mat.sub m exp
                      >>| Mat.fold_left (fun res total -> res +. total) 0. in
           loss_rec nn data_tail (err +. (diff *. diff))
        | _ -> Error "Invalid output shape"
@@ -192,73 +192,47 @@ let backprop_neuron w_mat_arr fderiv w_row w_col ff_len diffi ai ai_prev_arr
     pd_prev_arr = pd_prev_arr_acc
   }
   
-let rec backprop_layer w_row w_col (wmat_arr : float array array)
-          (fderiv : deriv)
-          (b_acc_arr : float array)
-          (prev_diff_arr_acc : float array)
-          (ai_arr : float array)
-          (diff_arr : float array)
-          (ai_prev_arr : float array)
-          ff_len i : backprop_layer =
+let rec backprop_layer layer act diff_mat : backprop_layer =
+  match layer with
+  | Input -> params_acc
+  | FullyConnected (meta, params) ->
+     let ai = Array.get ai_arr i in
+     let diff = Array.get diff_arr i in
+     let bp_neuron = backprop_neuron wmat_arr fderiv (w_row - 1) i ff_len
+                       diff ai ai_prev_arr prev_diff_arr_acc in
+     let grad_mat = bp_neuron.wmat_arr in
+     let pd_prev_diff_arr = bp_neuron.pd_prev_arr in
+     let bias_grad = 2. *. diff *. ai *. (1. -. ai) in
+     
+     Array.set b_acc_arr i bias_grad ;
+     (* print_endline "Diff arr"; *)
+     (* arr_print diff_arr ; *)
+     (* print_float @@ Array.get b_acc_arr 0; *)
+     
+     backprop_layer w_row w_col grad_mat fderiv b_acc_arr
+       pd_prev_diff_arr ai_arr diff_arr ai_prev_arr ff_len (i + 1)
+  | Conv2D (meta, params) ->
+  | Pooling _ -> backprop_layer
 
-  if i = w_col
-  then { prev_diff_arr = prev_diff_arr_acc ;
-         wmat = Mat.of_array wmat_arr;
-         bmat = Mat.of_array [|b_acc_arr|]
-       }
-  else
-    let ai = Array.get ai_arr i in
-    let diff = Array.get diff_arr i in
-    let bp_neuron = backprop_neuron wmat_arr fderiv (w_row - 1) i ff_len
-                      diff ai ai_prev_arr prev_diff_arr_acc in
-    let grad_mat = bp_neuron.wmat_arr in
-    let pd_prev_diff_arr = bp_neuron.pd_prev_arr in
-    let bias_grad = 2. *. diff *. ai *. (1. -. ai) in
-
-    Array.set b_acc_arr i bias_grad ;
-    (* print_endline "Diff arr"; *)
-    (* arr_print diff_arr ; *)
-    (* print_float @@ Array.get b_acc_arr 0; *)
-
-    backprop_layer w_row w_col grad_mat fderiv b_acc_arr
-      pd_prev_diff_arr ai_arr diff_arr ai_prev_arr ff_len (i + 1)
-      
-
- *)
-let rec backprop_nn (ff_list : mat list)
-          (wmat_list : weight_list)
-          (deriv_list : deriv list)
-          (wgrad_mat_list_acc : weight_list)
-          (bgrad_mat_list_acc : bias_list)
-          diff_vec : nnet_grad =
+let rec backprop_nn (ff_list : ff_input_type list)
+          (bp_layers : layer_common list) (grad_acc : nnet_params)
+          (diff_mat : mat) : nnet_params =
 
   match ff_list with
   | [_] | [] ->
-     { wl = wgrad_mat_list_acc ;
-       bl = bgrad_mat_list_acc
-     }
+     grad_acc
   | cur_activation::ff_tail ->
-     let wmat = hd wmat_list in
-     let fderiv = hd deriv_list in
-     let wrows = Mat.dim1 wmat in
-     let wcols = Mat.dim2 wmat in
+     let lay = hd bp_layers in
+     let bp_layer = backprop_layer lay cur_activation
+                      diff_mat in
+                      
+     let param_list = bp_layer.grad::grad_acc.param_list in
+     let prev_diff_mat = bp_layer.prev_diff in
 
-     let bp_layer = backprop_layer wrows wcols (Mat.to_array wmat)
-                      fderiv
-                      (Array.make wcols 0.) (Array.make wrows 0.)
-                      (mat_row_to_array 0 cur_activation) diff_vec
-                      (mat_row_to_array 0 (hd ff_tail))
-                      ((List.length ff_list) - 1) 0 in
-     (* print_endline "After"; *)
-     (* mat_print bp_layer.wmat ; *)
-
-     let wgrad_list = bp_layer.wmat :: wgrad_mat_list_acc in
-     let bgrad_list = bp_layer.bmat :: bgrad_mat_list_acc in
-
-     backprop_nn ff_tail (tl wmat_list) (tl deriv_list)
-       wgrad_list bgrad_list bp_layer.prev_diff_arr
+     backprop_nn ff_tail (tl bp_layers) 
+       {param_list} prev_diff_mat
   
-let nn_gradient nn data  =
+let nn_gradient (nn : nnet) data  =
 
   let rec bp_rec nn data bp_grad_acc =
     match data with
@@ -269,24 +243,26 @@ let nn_gradient nn data  =
        let expected_res = get_data_out cur_sample in
        match expected_res, ff_res with
        | (Tensor2 exp , Tensor2 res) ->
-          let res_diff     = Mat.sub res exp in
+          let* res_diff = Mat.sub res exp in
 
-          let bp_grad = backprop_nn ff_net.res ff_net.wl_ff
-                          nn.derivatives [] [] res_diff in
+          let bp_grad = backprop_nn ff_net.res ff_net.backprop_nn.layers
+                          {param_list = []; } res_diff in
 
           (* Printf.printf "One sample nn" ; *)
-          nn_params_apply Mat.add bp_grad bp_grad_acc >>| bp_rec nn data_tail
+          nn_params_apply Mat.add bp_grad bp_grad_acc
+          >>= bp_rec nn data_tail
        | _ -> Error "Incompatible output shape."
   in
  
-  let newn = nn_grad_zero  
-            |> bp_rec nn data in
+  let newn = nn_params_zero nn in
+             (* |> bp_rec nn data in *)
 
   (* print_endline "Full nn"; *)
-  newn |> nn_grad_map (mat_scale (List.length data
+  nn_params_map (Ok (Mat.scale (List.length data
              |> float_of_int
-             |> (fun x -> 1. /. x)))
+             |> (fun x -> 1. /. x)))) newn
 
+ *)
 (*
 let check_nn_geometry nn data =
   let sample = hd data in
@@ -425,10 +401,10 @@ let xor_in =
 
 let xor_data =
   [
-    (one_data 0., Tensor2 (data [|0.; 0.|])) ;
-    (one_data 1., Tensor2 (data [|0.; 1.|])) ;
-    (one_data 1., Tensor2 (data [|1.; 0.|])) ;
-    (one_data 0., Tensor2 (data [|1.; 1.|]))
+    (Tensor2 (one_data 0.), Tensor2 (data [|0.; 0.|])) ;
+    (Tensor2 (one_data 1.), Tensor2 (data [|0.; 1.|])) ;
+    (Tensor2 (one_data 1.), Tensor2 (data [|1.; 0.|])) ;
+    (Tensor2 (one_data 0.), Tensor2 (data [|1.; 1.|]))
   ]
 
 
@@ -439,6 +415,8 @@ let test () =
     |> make_fully_connected ~ncount:2 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:1 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn in
+
+  show_nnet nn |> Printf.printf "nn: %s\n";
 
   let res =
     nn
