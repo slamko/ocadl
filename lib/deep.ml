@@ -3,6 +3,7 @@ open Types
 open Nn
 open Domainslib
 open Deepmath
+open Ppxlib
 
 type backprop_neuron = {
     wmat_arr : float array array;
@@ -407,9 +408,12 @@ let xor_data =
     (Tensor2 (one_data 0.), Tensor2 (data [|1.; 1.|]))
   ]
 
-
 let test () =
   Unix.time () |> int_of_float |> Random.init;
+
+  let matr = [%mat [|1.|]] in
+  arr_print matr;
+
   let nn =
     make_input 1 2
     |> make_fully_connected ~ncount:2 ~act:sigmoid ~deriv:sigmoid'

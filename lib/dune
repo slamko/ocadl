@@ -11,5 +11,5 @@
             ppxlib
             csv)
  (inline_tests)
- (preprocess (pps ppx_deriving.show ppx_inline_test))
+ (preprocess (pps mpp ppx_deriving.show ppx_inline_test))
  (name ocadl))
