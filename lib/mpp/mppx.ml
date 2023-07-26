@@ -5,7 +5,8 @@ let ext_fun ~ctxt arr =
   let loc = Expansion_context.Extension.extension_point_loc ctxt in
   Ast_builder.Default.(pexp_array ~loc arr)
 
-let extracter () = Ast_pattern.(single_expr_payload (ppat_construct __))
+let extracter () = Ast_pattern.(single_expr_payload
+                                  (pexp_array __))
 
 let exten = Extension.V3.declare
               "mat"

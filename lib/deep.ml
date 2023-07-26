@@ -149,7 +149,7 @@ let loss (data : train_data) nn =
        match res,expected with
        | Tensor2 m, Tensor2 exp-> 
           let* diff = Mat.sub m exp
-                     >>| Mat.fold_left (fun res total -> res +. total) 0. in
+                     >>| Mat.sum in
           loss_rec nn data_tail (err +. (diff *. diff))
        | _ -> Error "Invalid output shape"
           
@@ -192,26 +192,50 @@ let backprop_neuron w_mat_arr fderiv w_row w_col ff_len diffi ai ai_prev_arr
     wmat_arr = w_mat_arr;
     pd_prev_arr = pd_prev_arr_acc
   }
-  
-let rec backprop_layer layer act diff_mat : backprop_layer =
+ *) 
+let rec backprop_layer layer act act_prev diff_mat : backprop_layer =
   match layer with
   | Input -> params_acc
   | FullyConnected (meta, params) ->
-     let ai = Array.get ai_arr i in
-     let diff = Array.get diff_arr i in
-     let bp_neuron = backprop_neuron wmat_arr fderiv (w_row - 1) i ff_len
-                       diff ai ai_prev_arr prev_diff_arr_acc in
-     let grad_mat = bp_neuron.wmat_arr in
-     let pd_prev_diff_arr = bp_neuron.pd_prev_arr in
-     let bias_grad = 2. *. diff *. ai *. (1. -. ai) in
-     
-     Array.set b_acc_arr i bias_grad ;
+     (* let rec bp_layer_fc wmat bmat icol wmat_ = *)
+       (* if icol = Mat.dim2 bmat *)
+       (* then  *)
+     begin match act, act_prev with
+     | Tensor1 act, Tensor1 act_prev ->
+        let open Mat in
+
+        let wmat = params.weight_mat in
+        let prev_diff_mat = make (dim1 wmat) (Col 1) 0. in
+
+        let grad_wmat =
+          mapi
+            (fun r c weight ->
+              let ai = get (Row 0) c act in
+              let ai_prev = get r (Col 0) act_prev in
+              let diff  = get (Row 0) c diff_mat in
+              let ai_deriv = meta.activation ai in
+
+              let dw = 2. *. diff *. ai_deriv *. ai_prev in
+              let dprev = 2. *. diff *. ai_deriv *. weight in
+
+              get r (Col 0) prev_diff_mat
+              |> (+.) dprev
+              |> set r (Col 0) prev_diff_mat;
+              dw
+            ) wmat in
+
+        (* (Row 1) (Col (wmat |> dim1 |> get_row)) 0.  *)
+              
+        let grad_mat = bp_neuron.wmat_arr in
+        let pd_prev_diff_arr = bp_neuron.pd_prev_arr in
+        let bias_grad = 2. *. diff *. ai *. (1. -. ai) in
+              
+        Array.set b_acc_arr i bias_grad ;
      (* print_endline "Diff arr"; *)
-     (* arr_print diff_arr ; *)
+            (* arr_print diff_arr ; *)
      (* print_float @@ Array.get b_acc_arr 0; *)
-     
-     backprop_layer w_row w_col grad_mat fderiv b_acc_arr
-       pd_prev_diff_arr ai_arr diff_arr ai_prev_arr ff_len (i + 1)
+        
+     | _ -> Error "bp layer: Incompatible activation type." end
   | Conv2D (meta, params) ->
   | Pooling _ -> backprop_layer
 
@@ -263,7 +287,6 @@ let nn_gradient (nn : nnet) data  =
              |> float_of_int
              |> (fun x -> 1. /. x)))) newn
 
- *)
 (*
 let check_nn_geometry nn data =
   let sample = hd data in

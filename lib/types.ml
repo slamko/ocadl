@@ -88,9 +88,10 @@ type nnet = {
 [@@deriving show]
 
 type ff_input_type =
-  | Tensor2 of mat
-  | Tensor3 of mat Mat.t
-  | Tensor4 of mat Mat.t
+  | Tensor1 of float Mat.t
+  | Tensor2 of float Mat.t
+  | Tensor3 of float Mat.t Mat.t
+  | Tensor4 of float Mat.t Mat.t
 
 let make_tens2 v = Tensor2 v
 let make_tens3 v = Tensor3 v
