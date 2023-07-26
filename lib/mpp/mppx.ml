@@ -7,19 +7,34 @@ let ext_fun ~ctxt arr =
   match expr_desc with
   | Pexp_let (Nonrecursive, bindings, expr) ->
      let eloc = expr.pexp_loc in
-     (* let catch_constr = Ast_builder.Default.ppat_construct *)
-                           (* ~loc *)
-                           (* (Loc.make ~loc (lident "Failure")) *)
-                           (* (Some Ast_pattern.(ppat_var "err")) in *)
-     let catch_pat = Ast_builder.Default.ppat_any ~loc:eloc in
+
+     let err_str_loc = Loc.make ~loc:eloc "err" in
+     let catch_pat = Ast_builder.Default.(ppat_construct
+                           ~loc
+                           (Loc.make ~loc (lident "Failure"))
+                           (Some
+                              (ppat_var
+                                 ~loc:eloc
+                                 err_str_loc ))) in
+
+     let catch_any_pat = Ast_builder.Default.ppat_any ~loc:eloc in
 
                            (* )) in *)
-     let err_res = Ast_builder.Default.(pexp_construct
+     let unknown_err_res = Ast_builder.Default.(pexp_construct
                      ~loc:eloc
                      (Loc.make ~loc:eloc (lident "Error"))
                      (Some (pexp_constant ~loc:eloc
-                              (Pconst_string ("error", eloc, None))))) in
+                              (Pconst_string
+                                 ("unknown error", eloc, None))))) in
+            (* )) in *)
+     let err_res = Ast_builder.Default.(pexp_construct
+                     ~loc:eloc
+                     (Loc.make ~loc:eloc (lident "Error"))
+                     (Some (pexp_ident
+                              ~loc:eloc
+                              (Loc.make ~loc:eloc (lident "err"))))) in
  
+
      let ok_expr =
        (* Ast_builder.Default.pexp_constant ~ *)
        Ast_builder.Default.pexp_construct ~loc:expr.pexp_loc
