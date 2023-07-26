@@ -12,6 +12,6 @@ val nn_gradient : nnet -> train_data -> nnet_params
 
 val loss : train_data -> nnet -> (float, string) result
 
-val test : unit -> unit
+val test : unit -> (unit, string) result
 
 

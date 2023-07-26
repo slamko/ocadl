@@ -1,8 +1,7 @@
-open Lacaml.D
 open Unix
+open Ocadl__Deepmath
 
 (*
-open Ocadl__Deepmath
 open Ocadl__Types
 open Ocadl__Nn
 open Ocadl__Deepmath
@@ -143,5 +142,7 @@ let () =
  *)
 
 let () =
-  Ocadl__Deep.test ();
+  match Ocadl__Deep.test () with
+  | Ok ok -> ok
+  | Error err -> invalid_arg err
   (* print_endline "hello" *)

@@ -197,6 +197,7 @@ let backprop_neuron w_mat_arr fderiv w_row w_col ff_len diffi ai ai_prev_arr
 
  *)
 
+(*
 let bp_fully_connected act act_prev meta params diff_mat =
   match act, act_prev with
      | Tensor1 act, Tensor1 act_prev ->
@@ -299,7 +300,6 @@ let nn_gradient (nn : nnet) data  =
              |> float_of_int
              |> (fun x -> 1. /. x)))) newn
 
-(*
 let check_nn_geometry nn data =
   let sample = hd data in
 
@@ -446,8 +446,9 @@ let xor_data =
 let test () =
   Unix.time () |> int_of_float |> Random.init;
 
-  let matr = [%mat [|1.|]] in
-  arr_print matr;
+  (* let matr = [%mat 1.9] in *)
+  let%mat matr = 2 in
+  failwith "fuck";
 
   let nn =
     make_input 1 2
@@ -456,6 +457,7 @@ let test () =
     |> make_nn in
 
   show_nnet nn |> Printf.printf "nn: %s\n";
+  Printf.printf "Ext: %d\n" matr;
 
   let res =
     nn
