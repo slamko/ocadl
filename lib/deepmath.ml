@@ -30,6 +30,9 @@ type col =
 type row =
   | Row of int [@@deriving show]
   
+
+type 'a res = ('a, string) result
+
 module type Matrix_type = sig
   type 'a t 
   [@@deriving show]
@@ -53,6 +56,10 @@ module type Matrix_type = sig
   val size : 'a t -> int
 
   val get : row -> col -> 'a t -> 'a
+
+  val get_res : row -> col -> 'a t -> 'a res
+
+  val set_res : row -> col -> 'a t -> 'a -> unit res
 
   val get_first : 'a t -> 'a
 
@@ -197,33 +204,41 @@ module Matrix : Matrix_type = struct
   let get_index row col mat =
     get_first_index mat + (row * mat.stride) + col
 
-  let get (Row row) (Col col) mat =
+  let get_res (Row row) (Col col) mat =
     if row >= get_row mat.rows
-    then failwith "matrix row index out of bounds";
-
+    then Error "get: Matrix row index out of bounds"
+    else
     if col >= get_col mat.cols
-    then failwith "matrix col index out of bounds";
+    then Error "get: Matrix col index out of bounds"
+    else
+      Ok (get_index row col mat |> Array.get mat.matrix)
 
-    get_index row col mat |> Array.get mat.matrix
+  let get row col mat =
+    get_res row col mat |> unwrap
 
   let get_raw row col mat =
     get (Row row) (Col col) mat
 
   let get_first mat = get (Row 0) (Col 0) mat
 
-  let set_bind (Row row) (Col col) mat value =
+  let set_bind_res (Row row) (Col col) mat value =
     if row >= get_row mat.rows
-    then failwith "matrix row index out of bounds";
-
+    then Error "set: Matrix row index out of bounds"
+    else
     if col >= get_col mat.cols
-    then failwith "matrix col index out of bounds";
+    then Error "set: Matrix col index out of bounds"
+    else
+      begin Array.set mat.matrix (get_index row col mat) value;
+            Ok (mat) end
 
-    Array.set mat.matrix (get_index row col mat) value;
-    mat
+  let set_res row col mat value =
+    set_bind_res row col mat value >>| ignore
+
+  let set_bind row col mat value =
+    set_bind_res row col mat value |> unwrap
 
   let set row col mat value =
-    set_bind row col mat value |> ignore ;
-    ()
+    set_bind row col mat value |> ignore
 
   let iter proc mat =
     for r = 0 to get_row mat.rows - 1

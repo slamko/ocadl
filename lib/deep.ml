@@ -10,10 +10,12 @@ type backprop_neuron = {
     pd_prev_arr : float array
   }
 
-type backprop_layer = {
-    prev_diff : mat;
-    grad : layer_params;
-  }
+type backprop_layer =
+  | End
+  | LayerGrad of {
+      prev_diff : mat;
+      grad : layer_params;
+    }
 
 let fully_connected_forward meta (params : fully_connected_params) tens =
     Mat.mult tens params.weight_mat
@@ -192,15 +194,11 @@ let backprop_neuron w_mat_arr fderiv w_row w_col ff_len diffi ai ai_prev_arr
     wmat_arr = w_mat_arr;
     pd_prev_arr = pd_prev_arr_acc
   }
- *) 
-let rec backprop_layer layer act act_prev diff_mat : backprop_layer =
-  match layer with
-  | Input -> params_acc
-  | FullyConnected (meta, params) ->
-     (* let rec bp_layer_fc wmat bmat icol wmat_ = *)
-       (* if icol = Mat.dim2 bmat *)
-       (* then  *)
-     begin match act, act_prev with
+
+ *)
+
+let bp_fully_connected act act_prev meta params diff_mat =
+  match act, act_prev with
      | Tensor1 act, Tensor1 act_prev ->
         let open Mat in
 
@@ -224,20 +222,34 @@ let rec backprop_layer layer act act_prev diff_mat : backprop_layer =
               dw
             ) wmat in
 
-        (* (Row 1) (Col (wmat |> dim1 |> get_row)) 0.  *)
-              
-        let grad_mat = bp_neuron.wmat_arr in
-        let pd_prev_diff_arr = bp_neuron.pd_prev_arr in
-        let bias_grad = 2. *. diff *. ai *. (1. -. ai) in
-              
-        Array.set b_acc_arr i bias_grad ;
-     (* print_endline "Diff arr"; *)
-            (* arr_print diff_arr ; *)
-     (* print_float @@ Array.get b_acc_arr 0; *)
-        
-     | _ -> Error "bp layer: Incompatible activation type." end
-  | Conv2D (meta, params) ->
-  | Pooling _ -> backprop_layer
+        let grad_bmat =
+          mapi
+            (fun r c _ ->
+              let ai = get r c act in
+              let diff  = get r c diff_mat in
+              let db = 2. *. diff *. ai *. (1. -. ai) in
+              db
+            ) params.bias_mat in
+
+        let* prev_diff = prev_diff_mat
+                      |> reshape (Row 1) (Col (wmat |> dim1 |> get_row)) in
+        Ok (LayerGrad
+              { prev_diff ;
+                FullyConnectedParams {
+                    weight_mat = grad_wmat;
+                    bias_mat = grad_bmat;
+                  };
+          })
+     | _ -> Error "bp layer: Incompatible activation type."
+
+let backprop_layer layer act act_prev diff_mat :
+          (backprop_layer, string) result  =
+  match layer with
+  | Input -> Ok End
+  | FullyConnected (meta, params) ->
+     bp_fully_connected act act_prev meta params diff_mat
+  | Conv2D (meta, params) -> Ok End
+  | Pooling _ -> Ok End 
 
 let rec backprop_nn (ff_list : ff_input_type list)
           (bp_layers : layer_common list) (grad_acc : nnet_params)
