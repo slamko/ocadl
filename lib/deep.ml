@@ -28,7 +28,7 @@ let pooling_forward meta tens =
 
   let rec pool_rec meta mat (Row cur_row) (Col cur_col) acc =
     if cur_row >= (dim1 acc |> get_row)
-    then Ok acc
+    then acc
     else if cur_col >= (dim2 acc |> get_col)
     then pool_rec meta mat (Row (cur_row + 1)) (Col 0) acc
     else mat
@@ -45,25 +45,17 @@ let pooling_forward meta tens =
          |> pool_rec meta mat (Row cur_row) (Col (cur_col + 1))  
   in
 
-  let mat4 =
-    try
-      Ok
-        (Tensor4
-        (tens
-         |>
-           Mat.map
-             (fun mat ->
-               let pool =
-                 make
-                   (Row ((dim1 mat |> get_row) / get_row meta.filter_rows))
-                   (Col ((dim2 mat |> get_col) / get_col meta.filter_cols)) 0.
-                 |> pool_rec meta mat (Row 0) (Col 0) in
-               match pool with
-               | Ok pool_res -> pool_res
-               | Error err -> failwith err)))
-    with Failure err -> Error err in
+  Tensor4
+    (tens
+     |>
+       Mat.map
+         (fun mat ->
+           make
+             (Row ((dim1 mat |> get_row) / get_row meta.filter_rows))
+             (Col ((dim2 mat |> get_col) / get_col meta.filter_cols)) 0.
+               |> pool_rec meta mat (Row 0) (Col 0)
+    ))
 
-  mat4
 
 let conv3d_forward (meta : conv2d_meta) params tens =
   let open Mat in
@@ -84,43 +76,43 @@ let conv2d_forward (meta : conv2d_meta) params tens =
   
 let forward_layer (input : ff_input_type) layer_type =
   match layer_type with
-  | Input -> Ok input
+  | Input -> input
   | FullyConnected (fc, fcp) ->
      begin match input with
      | Tensor1 tens ->
-        Ok (tens |> fully_connected_forward fc fcp)
+        tens |> fully_connected_forward fc fcp
      | Tensor2 tens ->
-        Ok (tens
+        tens
         |> Mat.flatten2d
-        |> fully_connected_forward fc fcp)
+        |> fully_connected_forward fc fcp
      | Tensor3 tens ->
-        Ok (Mat.flatten tens
-            |> fully_connected_forward fc fcp)
+        Mat.flatten tens
+            |> fully_connected_forward fc fcp
      | _
-       -> Error "Invalid input for fully connected layer" end
+       -> invalid_arg "Invalid input for fully connected layer" end
   | Conv2D (cn, cnp) -> 
      begin match input with
      | Tensor3 tens ->
-        Ok (tens |> conv2d_forward cn cnp)
+        tens |> conv2d_forward cn cnp
      | Tensor4 tens ->
-        Ok (tens |> conv3d_forward cn cnp )
+        tens |> conv3d_forward cn cnp
      | _
-       -> Error "Invalid input for convolutional layer." end
+       -> invalid_arg "Invalid input for convolutional layer." end
   | Pooling pl ->
      begin match input with
      | Tensor3 tens | Tensor4 tens -> pooling_forward pl tens
      | _
-       -> Error "Invalid input for pooling layer."
+       -> invalid_arg "Invalid input for pooling layer."
      end
 
 let forward input nn =
 
   let rec forward_rec layers input acc =
     match layers with
-    | [] -> Ok acc
+    | [] -> acc
     | layer::tail ->
 
-       let* act = forward_layer input layer.layer in
+       let act = forward_layer input layer.layer in
        let upd_acc =
          { res = act::acc.res;
            backprop_nn = build_nn (layer::acc.backprop_nn.layers)
@@ -140,7 +132,7 @@ let loss (data : train_data) nn =
     match data with
     | [] -> Ok err
     | sample::data_tail ->
-       let* ff = forward (get_data_input sample) nn in
+       let ff = forward (get_data_input sample) nn in
        let expected = get_data_out sample in
        let res = hd ff.res in
        match res,expected with
@@ -228,29 +220,27 @@ let bp_fully_connected act act_prev meta params diff_mat =
 
         let prev_diff = prev_diff_mat
                       |> reshape (Row 1) (Col (wmat |> dim1 |> get_row)) in
-        Ok 
           { prev_diff ;
             grad = FullyConnectedParams {
                        weight_mat = grad_wmat;
                        bias_mat = grad_bmat;
                      };
           }
-     | _ -> Error "bp layer: Incompatible activation type."
+     | _ -> invalid_arg "bp layer: Incompatible activation type."
 
-let backprop_layer layer act_list diff_mat :
-          (backprop_layer, string) result  =
+let backprop_layer layer act_list diff_mat =
   match layer with
-  | Input -> Ok { prev_diff = diff_mat;
+  | Input -> { prev_diff = diff_mat;
                   grad = InputParams;
                }
   | FullyConnected (meta, params) ->
      let act = hd act_list in
      let act_prev = tl act_list |> hd in
      bp_fully_connected act act_prev meta params diff_mat
-  | Conv2D (meta, params) -> Ok { prev_diff = diff_mat;
+  | Conv2D (meta, params) -> { prev_diff = diff_mat;
                                   grad = Conv2DParams params;
                                }
-  | Pooling _ -> Ok { prev_diff = diff_mat;
+  | Pooling _ -> { prev_diff = diff_mat;
                       grad = PoolingParams;
                    }
 
@@ -260,10 +250,10 @@ let rec backprop_nn (ff_list : ff_input_type list)
 
   match ff_list with
   | [] | [_] ->
-     Ok grad_acc
+     grad_acc
   | act_list ->
      let lay = hd bp_layers in
-     let* bp_layer = backprop_layer lay.layer act_list
+     let bp_layer = backprop_layer lay.layer act_list
                       diff_mat in
 
      let param_list = bp_layer.grad::grad_acc.param_list in
@@ -276,9 +266,9 @@ let nn_gradient (nn : nnet) data  =
 
   let rec bp_rec nn data bp_grad_acc =
     match data with
-    | [] -> Ok bp_grad_acc
+    | [] -> bp_grad_acc
     | cur_sample::data_tail ->
-       let* ff_net      = forward (get_data_input cur_sample) nn in
+       let ff_net      = forward (get_data_input cur_sample) nn in
        (* show_nnet ff_net.backprop_nn |> print_string; *)
        (* Printf.printf "len %d\n" @@ List.length ff_net.res ; *)
        let ff_res       = hd ff_net.res in
@@ -288,16 +278,16 @@ let nn_gradient (nn : nnet) data  =
        | (Tensor2 exp, Tensor2 res) | (Tensor1 exp, Tensor1 res) ->
           let res_diff = Mat.sub res exp in
 
-          let* bp_grad = backprop_nn ff_net.res ff_net.backprop_nn.layers
+          let bp_grad = backprop_nn ff_net.res ff_net.backprop_nn.layers
                           {param_list = []; } res_diff in
 
           (* Printf.printf "One sample nn" ; *)
           nn_params_apply Mat.add bp_grad bp_grad_acc
-          >>= bp_rec nn data_tail
-       | _ -> Error "Incompatible output shape."
+       |> bp_rec nn data_tail
+       | _ -> invalid_arg "Incompatible output shape."
   in
  
-  let* newn = nn_zero_params nn
+  let newn = nn_zero_params nn
              |> bp_rec nn data in
 
   (* print_endline "Full nn"; *)
@@ -446,7 +436,7 @@ let rec lern data nn epochs =
      (* show_nnet_params grad |> Printf.printf "\n\n\n\n%s\n"; *)
      (* show_nnet nn |> Printf.printf "\n\n\n\n%s\n"; *)
      let rev_grad = {param_list = grad.param_list } in
-     let* new_nn = nn_apply_params Mat.sub nn rev_grad in
+     let new_nn = nn_apply_params Mat.sub nn rev_grad in
      lern data new_nn (epochs - 1)
 
 let xor_in =

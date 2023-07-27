@@ -235,7 +235,7 @@ let nn_zero_params nn : nnet_params =
        ) in
   { param_list = zero_layers; }
                     
-let%catch nn_params_apply proc nn1 nn2 =
+let nn_params_apply proc nn1 nn2 =
   { param_list =
       List.map2 (fun l1 l2 ->
           match l1, l2 with
@@ -257,7 +257,7 @@ let%catch nn_params_apply proc nn1 nn2 =
           ) nn1.param_list nn2.param_list;
       }
 
-let%catch nn_apply_params proc nn params =
+let nn_apply_params proc nn params =
   { layers =
       List.map2
         (fun lay apply_param ->
