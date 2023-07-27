@@ -75,6 +75,7 @@ type layer =
 type nnet_params = {
     param_list : layer_params list;
   }
+[@@deriving show]
 
 type layer_common = {
     common : common;
@@ -93,8 +94,9 @@ type ff_input_type =
   | Tensor3 of float Mat.t Mat.t
   | Tensor4 of float Mat.t Mat.t
 
-let make_tens2 v = Tensor2 v
+let make_tens1 v = Tensor1 v
 let make_tens3 v = Tensor3 v
+let make_tens4 v = Tensor4 v
 let make_tens4 v = Tensor4 v
 
 type feed_forward = {

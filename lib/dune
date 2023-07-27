@@ -9,7 +9,8 @@
             domainslib
             ppx_deriving
             ppxlib
+            ppx_catch
             csv)
  (inline_tests)
- (preprocess (pps mpp ppx_deriving.show ppx_inline_test))
+ (preprocess (pps ppx_catch ppx_deriving.show ppx_inline_test))
  (name ocadl))

@@ -29,7 +29,6 @@ type col =
 
 type row =
   | Row of int [@@deriving show]
-  
 
 type 'a res = ('a, string) result
 
@@ -70,6 +69,8 @@ module type Matrix_type = sig
   val reshape : row -> col -> 'a t -> ('a t, string) result
 
   val flatten3d : 'a t array -> 'a t
+
+  val flatten2d : 'a t -> 'a t
 
   val flatten : 'a t t -> 'a t
 
@@ -246,6 +247,21 @@ module Matrix : Matrix_type = struct
        do proc @@ get (Row r) (Col c) mat;
        done
     done
+
+  let opt_iter proc mat =
+    let rec iter_rec (Row r) (Col c) proc mat =
+      if r >= get_row mat.rows
+      then Ok ()
+      else if c >= get_col mat.cols
+      then iter_rec (Row (r + 1)) (Col 0) proc mat
+      else 
+        match proc get_raw r c mat with
+        | Ok _ -> 
+           iter_rec (Row r) (Col (c + 1)) proc mat
+        | Error err -> Error err
+    in
+
+    iter_rec (Row 0) (Col 0) proc mat
 
   let iteri proc mat =
     for r = 0 to get_row mat.rows - 1
@@ -442,6 +458,9 @@ module Matrix : Matrix_type = struct
                index := !index + 1) mat) mat_mat;
 
        res_mat
+
+  let flatten2d mat =
+    mat |> reshape (Row 1) @@ Col (size mat) |> Result.get_ok
 
   let flatten3d mat_arr = 
     match mat_arr with

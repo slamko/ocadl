@@ -21,7 +21,7 @@ let fully_connected_forward meta (params : fully_connected_params) tens =
     Mat.mult tens params.weight_mat
     >>= Mat.add params.bias_mat
     >>| Mat.map meta.activation
-    >>| make_tens2
+    >>| make_tens1
 
 let pooling_forward meta tens =
   let open Mat in
@@ -97,7 +97,10 @@ let forward_layer (input : ff_input_type) layer_type =
   | Input -> Ok input
   | FullyConnected (fc, fcp) ->
      begin match input with
+     | Tensor1 tens -> tens
+                       |> fully_connected_forward fc fcp
      | Tensor2 tens -> tens
+                       |> Mat.flatten2d
                        |> fully_connected_forward fc fcp
      | Tensor3 tens -> Mat.flatten tens
                        |> fully_connected_forward fc fcp
@@ -149,7 +152,7 @@ let loss (data : train_data) nn =
        let expected = get_data_out sample in
        let res = hd ff.res in
        match res,expected with
-       | Tensor2 m, Tensor2 exp-> 
+       | Tensor2 m, Tensor2 exp | Tensor1 m, Tensor1 exp-> 
           let* diff = Mat.sub m exp
                      >>| Mat.sum in
           loss_rec nn data_tail (err +. (diff *. diff))
@@ -197,7 +200,6 @@ let backprop_neuron w_mat_arr fderiv w_row w_col ff_len diffi ai ai_prev_arr
 
  *)
 
-(*
 let bp_fully_connected act act_prev meta params diff_mat =
   match act, act_prev with
      | Tensor1 act, Tensor1 act_prev ->
@@ -210,7 +212,7 @@ let bp_fully_connected act act_prev meta params diff_mat =
           mapi
             (fun r c weight ->
               let ai = get (Row 0) c act in
-              let ai_prev = get r (Col 0) act_prev in
+              let ai_prev = get (Row 0) (Col (get_row r)) act_prev in
               let diff  = get (Row 0) c diff_mat in
               let ai_deriv = meta.activation ai in
 
@@ -236,7 +238,7 @@ let bp_fully_connected act act_prev meta params diff_mat =
                       |> reshape (Row 1) (Col (wmat |> dim1 |> get_row)) in
         Ok (LayerGrad
               { prev_diff ;
-                FullyConnectedParams {
+                grad = FullyConnectedParams {
                     weight_mat = grad_wmat;
                     bias_mat = grad_bmat;
                   };
@@ -254,21 +256,26 @@ let backprop_layer layer act act_prev diff_mat :
 
 let rec backprop_nn (ff_list : ff_input_type list)
           (bp_layers : layer_common list) (grad_acc : nnet_params)
-          (diff_mat : mat) : nnet_params =
+          (diff_mat : mat) =
 
   match ff_list with
   | [_] | [] ->
-     grad_acc
+     Ok grad_acc
   | cur_activation::ff_tail ->
      let lay = hd bp_layers in
-     let bp_layer = backprop_layer lay cur_activation
-                      diff_mat in
-                      
-     let param_list = bp_layer.grad::grad_acc.param_list in
-     let prev_diff_mat = bp_layer.prev_diff in
+     let prev_act = hd ff_tail in
+     let* bp_layer = backprop_layer lay.layer cur_activation
+                      prev_act diff_mat in
 
-     backprop_nn ff_tail (tl bp_layers) 
-       {param_list} prev_diff_mat
+     match bp_layer with
+     | LayerGrad bp_layer ->
+        let param_list = bp_layer.grad::grad_acc.param_list in
+        let prev_diff_mat = bp_layer.prev_diff in
+        
+        backprop_nn ff_tail (tl bp_layers)
+          {param_list} prev_diff_mat
+
+     | End -> Ok grad_acc
   
 let nn_gradient (nn : nnet) data  =
 
@@ -277,13 +284,14 @@ let nn_gradient (nn : nnet) data  =
     | [] -> Ok bp_grad_acc
     | cur_sample::data_tail ->
        let* ff_net      = forward (get_data_input cur_sample) nn in
+       (* show_nnet ff_net.backprop_nn |> print_string; *)
        let ff_res       = hd ff_net.res in
        let expected_res = get_data_out cur_sample in
        match expected_res, ff_res with
-       | (Tensor2 exp , Tensor2 res) ->
+       | (Tensor2 exp, Tensor2 res) | (Tensor1 exp, Tensor1 res) ->
           let* res_diff = Mat.sub res exp in
 
-          let bp_grad = backprop_nn ff_net.res ff_net.backprop_nn.layers
+          let* bp_grad = backprop_nn ff_net.res ff_net.backprop_nn.layers
                           {param_list = []; } res_diff in
 
           (* Printf.printf "One sample nn" ; *)
@@ -292,14 +300,20 @@ let nn_gradient (nn : nnet) data  =
        | _ -> Error "Incompatible output shape."
   in
  
-  let newn = nn_params_zero nn in
-             (* |> bp_rec nn data in *)
+  let* newn = nn_zero_params nn
+             |> bp_rec nn data in
 
   (* print_endline "Full nn"; *)
-  nn_params_map (Ok (Mat.scale (List.length data
-             |> float_of_int
-             |> (fun x -> 1. /. x)))) newn
+  let param_nn = nn_params_map
+                   (fun mat ->
+                     Ok (Mat.scale
+                           (List.length data
+                            |> float_of_int
+                            |> (fun x -> 1. /. x))
+                           mat)) newn in
+  Ok param_nn
 
+(*
 let check_nn_geometry nn data =
   let sample = hd data in
 
@@ -313,8 +327,8 @@ let check_nn_geometry nn data =
   print_int (get_data_input sample |> single_dim_mat_len);
   if get_data_input sample |> single_dim_mat_len = Mat.dim1 (hd nn.wl)
   then
-    if get_data_out sample |> single_dim_mat_len = Mat.dim2 (hd (rev nn.wl))
     then Ok nn
+    if get_data_out sample |> single_dim_mat_len = Mat.dim2 (hd (rev nn.wl))
     else Error "Unmatched data geometry: number of output neurons should be equal to number of expected outputs"
   else Error "Unmatched data geometry: number of input neurons should be equal to number of data inputs."
  
@@ -427,6 +441,17 @@ let learn data ?(epoch_num = 11) ?(learning_rate = 1.0) ?(batch_size = 2)
     | Error err -> Error err
  *)
 
+let rec lern data nn epochs =
+  match epochs with
+  | 0 -> Ok nn
+  | _ ->
+     let* grad = nn_gradient nn data in
+     (* show_nnet_params grad |> Printf.printf "\n\n\n\n%s\n"; *)
+     (* show_nnet nn |> Printf.printf "\n\n\n\n%s\n"; *)
+     let rev_grad = {param_list = grad.param_list } in
+     let* new_nn = nn_apply_params Mat.sub nn rev_grad in
+     lern data new_nn (epochs - 1)
+
 let xor_in =
   [
     data [|0.; 0.|] ;
@@ -437,33 +462,33 @@ let xor_in =
 
 let xor_data =
   [
-    (Tensor2 (one_data 0.), Tensor2 (data [|0.; 0.|])) ;
-    (Tensor2 (one_data 1.), Tensor2 (data [|0.; 1.|])) ;
-    (Tensor2 (one_data 1.), Tensor2 (data [|1.; 0.|])) ;
-    (Tensor2 (one_data 0.), Tensor2 (data [|1.; 1.|]))
+    (Tensor1 (one_data 0.), Tensor1 (data [|0.; 0.|])) ;
+    (Tensor1 (one_data 1.), Tensor1 (data [|0.; 1.|])) ;
+    (Tensor1 (one_data 1.), Tensor1 (data [|1.; 0.|])) ;
+    (Tensor1 (one_data 0.), Tensor1 (data [|1.; 1.|]))
   ]
 
 let test () =
   Unix.time () |> int_of_float |> Random.init;
 
-  (* let matr = [%mat 1.9] in *)
-  let%mat matr = 2 in
-  failwith "fuck";
-
   let nn =
     make_input 1 2
-    |> make_fully_connected ~ncount:2 ~act:sigmoid ~deriv:sigmoid'
+    |> make_fully_connected ~ncount:3 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:1 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn in
 
-  show_nnet nn |> Printf.printf "nn: %s\n";
-  Printf.printf "Ext: %d\n" matr;
+  (* show_nnet nn |> Printf.printf "nn: %s\n"; *)
 
-  let res =
-    nn
-    |> loss xor_data in
+  let* res = loss xor_data nn in
 
-  match res with
-  | Ok loss -> Printf.printf "Ok %f\n" loss;
-  | Error err -> Printf.eprintf "error: %s\n" err
+  let* tr_nn = lern xor_data nn 100000 in
+  let* new_res = loss xor_data tr_nn in
+
+  Printf.printf "initial loss: %f\n" res ;
+  Printf.printf "trained loss: %f\n" new_res ;
+  Ok ()
+  (* match res with *)
+  (* | Ok loss -> Printf.printf "Ok %f\n" loss *)
+  (* | Error err -> Printf.eprintf "error: %s\n" err *)
+
   

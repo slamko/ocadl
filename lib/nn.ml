@@ -30,8 +30,7 @@ let list_split n lst =
   split_rec n [] lst
 
 let build_nn layer_list =
-  { layers = layer_list;
-  }
+  { layers = layer_list; }
 
 let list_to_mat n lst =
   (* let lst_arr = lst |> Array.of_list in *)
@@ -227,7 +226,7 @@ let nn_params_map proc nn =
         ) nn.param_list ;
   } 
 
-let nn_params_zero nn : nnet_params =
+let nn_zero_params nn : nnet_params =
   let zero_layers = nn.layers
   |> List.filter_map (fun common ->
       match common.layer with
@@ -247,8 +246,8 @@ let nn_params_zero nn : nnet_params =
       | _ -> None) in
   { param_list = zero_layers; }
                     
-let nn_params_apply proc nn1 nn2 =
-  try Ok { param_list =
+let%catch nn_params_apply proc nn1 nn2 =
+  { param_list =
       List.map2 (fun l1 l2 ->
           match l1, l2 with
           | FullyConnectedParams fc1, FullyConnectedParams fc2 ->
@@ -265,16 +264,20 @@ let nn_params_apply proc nn1 nn2 =
                }
           | _ -> failwith "nn apply: Param lists do not match."
           ) nn1.param_list nn2.param_list;
-      } with
-  | Failure err -> Error err
+      }
 
-let nn_apply_params proc nn params =
-  let layers () =
-    List.map2
-      (fun lay apply_param ->
+let%catch nn_apply_params proc nn params =
+  { layers =
+      ((List.hd nn.layers) ::
+         (List.map2
+           (fun lay apply_param ->
           match lay.layer, apply_param with
           | FullyConnected (meta, nn_param),
             FullyConnectedParams apply_param ->
+             let open Mat in
+             (* Printf.eprintf "pr %d pc %d\n" *)
+               (* (get_row (dim1 nn_param.weight_mat)) *)
+               (* (get_col (dim2 nn_param.weight_mat)) ; *)
              let@ wmat = proc nn_param.weight_mat apply_param.weight_mat in
              let@ bmat = proc nn_param.bias_mat   apply_param.bias_mat   in
 
@@ -306,11 +309,8 @@ let nn_apply_params proc nn params =
              failwith "nn apply params: Incompatible param list."
           | _ -> lay
 
-      ) nn.layers params.param_list in
-
-  try Ok ( { layers = layers ()} )
-  with
-  | Failure err -> Error err
+      ) (List.tl nn.layers) params.param_list))
+  }
                     
 let nn_params_zero nn_params =
    List.map (function

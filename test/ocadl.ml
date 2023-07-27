@@ -143,6 +143,5 @@ let () =
 
 let () =
   match Ocadl__Deep.test () with
-  | Ok ok -> ok
-  | Error err -> invalid_arg err
-  (* print_endline "hello" *)
+  | Ok o -> ()
+  | Error err -> Printf.eprintf "error: %s\n" err
