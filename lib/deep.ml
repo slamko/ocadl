@@ -439,22 +439,7 @@ let rec lern data nn epochs =
      let new_nn = nn_apply_params Mat.sub nn rev_grad in
      lern data new_nn (epochs - 1)
 
-let xor_in =
-  [
-    data [|0.; 0.|] ;
-    data [|0.; 1.|] ;
-    data [|1.; 0.|] ;
-    data [|1.; 1.|] ;
-  ]
-
-let xor_data =
-  [
-    (Tensor1 (one_data 0.), Tensor1 (data [|0.; 0.|])) ;
-    (Tensor1 (one_data 1.), Tensor1 (data [|0.; 1.|])) ;
-    (Tensor1 (one_data 1.), Tensor1 (data [|1.; 0.|])) ;
-    (Tensor1 (one_data 0.), Tensor1 (data [|1.; 1.|]))
-  ]
-
+(*
 let test () =
   Unix.time () |> int_of_float |> Random.init;
 
@@ -474,8 +459,5 @@ let test () =
   Printf.printf "initial loss: %f\n" res ;
   Printf.printf "trained loss: %f\n" new_res ;
   Ok ()
-  (* match res with *)
-  (* | Ok loss -> Printf.printf "Ok %f\n" loss *)
-  (* | Error err -> Printf.eprintf "error: %s\n" err *)
 
-  
+  *)  
