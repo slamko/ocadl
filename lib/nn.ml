@@ -1,8 +1,9 @@
 open Types
 open Deepmath
+open Matrix
 
 let data arr =
-  arr |> Mat.of_array (Row 1) @@ Col (Array.length arr) |> Result.get_ok
+  arr |> Mat.of_array (Row 1) @@ Col (Array.length arr)
 
 let one_data a =
   data [| a |]
@@ -33,18 +34,9 @@ let build_nn layer_list =
   { layers = layer_list; }
 
 let list_to_mat n lst =
-  (* let lst_arr = lst |> Array.of_list in *)
-  (* let data_len = Array.length lst_arr in *)
-  (* let nrows = data_len / n in *)
-  (* let res_arr = Array.make_matrix nrows n 0. in *)
-
-  (* Array.iteri *)
-    (* (fun i num -> *)
-      (* let row = i / nrows in *)
-      (* let col = i mod nrows in *)
-      (* res_arr.(row).(col) <- num ; ) lst_arr ; *)
-
-  lst |> Mat.of_list (Row 1) @@ Col (List.length lst)
+  let rows = List.length lst / n in
+  lst
+  |> Mat.of_list (Row rows) @@ Col n 
 
 let list_parse_train_data in_cols pair_list =
   List.map (fun (res_list, data_list) ->
@@ -64,10 +56,6 @@ let read_train_data fname res_len in_cols =
          Some (res_mat,
           data_list |> list_to_mat in_cols))
   (* |> List.iter (fun (res, inp) -> mat_print inp) *)
-
-let a () =
-  let a = 5 and b = 6 in
-  a
 
 let to_json_list proc l =
   `List (l |> proc)
@@ -215,13 +203,13 @@ let nn_params_map proc nn =
           match l with
           | FullyConnectedParams fc ->
              FullyConnectedParams {
-                 weight_mat = proc fc.weight_mat |> unwrap;
-                 bias_mat = proc fc.bias_mat |> unwrap;
+                 weight_mat = proc fc.weight_mat;
+                 bias_mat = proc fc.bias_mat;
                }
           | Conv2DParams cv ->
              Conv2DParams {
-                 kernels = Array.map (fun v -> proc v |> unwrap) cv.kernels;
-                 bias_mat = proc cv.bias_mat |> unwrap;
+                 kernels = Array.map (fun v -> proc v) cv.kernels;
+                 bias_mat = proc cv.bias_mat;
                }
           | PoolingParams -> PoolingParams
           | InputParams -> InputParams
@@ -253,15 +241,15 @@ let%catch nn_params_apply proc nn1 nn2 =
           match l1, l2 with
           | FullyConnectedParams fc1, FullyConnectedParams fc2 ->
              FullyConnectedParams {
-                 weight_mat = proc fc1.weight_mat fc2.weight_mat |> unwrap;
-                 bias_mat = proc fc1.bias_mat fc2.bias_mat |> unwrap;
+                 weight_mat = proc fc1.weight_mat fc2.weight_mat;
+                 bias_mat = proc fc1.bias_mat fc2.bias_mat;
                }
           | Conv2DParams cv1, Conv2DParams cv2 ->
              Conv2DParams {
                  kernels = Array.map2
-                             (fun v1 v2 -> proc v1 v2 |> unwrap)
+                             (fun v1 v2 -> proc v1 v2)
                              cv1.kernels cv2.kernels;
-                 bias_mat = proc cv1.bias_mat cv2.bias_mat |> unwrap;
+                 bias_mat = proc cv1.bias_mat cv2.bias_mat;
                }
           | InputParams, InputParams -> InputParams
           | PoolingParams, PoolingParams -> PoolingParams
@@ -280,8 +268,8 @@ let%catch nn_apply_params proc nn params =
              (* Printf.eprintf "pr %d pc %d\n" *)
                (* (get_row (dim1 nn_param.weight_mat)) *)
                (* (get_col (dim2 nn_param.weight_mat)) ; *)
-             let@ wmat = proc nn_param.weight_mat apply_param.weight_mat in
-             let@ bmat = proc nn_param.bias_mat   apply_param.bias_mat   in
+             let wmat = proc nn_param.weight_mat apply_param.weight_mat in
+             let bmat = proc nn_param.bias_mat   apply_param.bias_mat   in
 
              { common = lay.common;
                layer = FullyConnected
@@ -295,9 +283,9 @@ let%catch nn_apply_params proc nn params =
 
           | Conv2D (meta, nn_param), Conv2DParams apply_param ->
              let kernels = Array.map2
-                              (fun v1 v2 -> proc v1 v2 |> unwrap)
+                              (fun v1 v2 -> proc v1 v2)
                               nn_param.kernels apply_param.kernels in
-             let@ bias_mat = proc nn_param.bias_mat apply_param.bias_mat in
+             let bias_mat = proc nn_param.bias_mat apply_param.bias_mat in
 
              { common = lay.common;
                layer = Conv2D

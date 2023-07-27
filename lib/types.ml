@@ -1,4 +1,5 @@
 open Deepmath
+open Matrix
 open Ppxlib
 
 type weight_list = mat list

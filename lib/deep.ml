@@ -3,7 +3,9 @@ open Types
 open Nn
 open Domainslib
 open Deepmath
+open Common
 open Ppxlib
+open Matrix
 
 type backprop_neuron = {
     wmat_arr : float array array;
@@ -17,9 +19,9 @@ type backprop_layer = {
 
 let fully_connected_forward meta (params : fully_connected_params) tens =
     Mat.mult tens params.weight_mat
-    >>= Mat.add params.bias_mat
-    >>| Mat.map meta.activation
-    >>| make_tens1
+    |> Mat.add params.bias_mat
+    |> Mat.map meta.activation
+    |> make_tens1
 
 let pooling_forward meta tens =
   let open Mat in
@@ -38,9 +40,9 @@ let pooling_forward meta tens =
                     + cur_col * meta.stride))
 
               meta.filter_rows meta.filter_cols
-         >>| Mat.fold_left meta.fselect 0.
-         >>| set_bind (Row cur_row) (Col cur_col) acc
-         >>= pool_rec meta mat (Row cur_row) (Col (cur_col + 1))  
+         |> Mat.fold_left meta.fselect 0.
+         |> set_bind (Row cur_row) (Col cur_col) acc
+         |> pool_rec meta mat (Row cur_row) (Col (cur_col + 1))  
   in
 
   let mat4 =
@@ -65,21 +67,11 @@ let pooling_forward meta tens =
 
 let conv3d_forward (meta : conv2d_meta) params tens =
   let open Mat in
+  mapi
+    (fun _ (Col c) mat ->
+      convolve mat ~stride:meta.stride params.kernels.(c)) tens
+  |> make_tens4
 
-  let res =
-    try
-      Ok (mapi
-          (fun _ (Col c) mat ->
-          begin
-            match Mat.convolve mat ~stride:meta.stride params.kernels.(c) with
-            | Ok res -> res
-            | Error err -> failwith err end) tens
-          |> make_tens4)
-    with
-    | Failure err -> Error err
-  in
-
-  res
 
 let conv2d_forward (meta : conv2d_meta) params tens =
   let open Mat in
@@ -95,21 +87,23 @@ let forward_layer (input : ff_input_type) layer_type =
   | Input -> Ok input
   | FullyConnected (fc, fcp) ->
      begin match input with
-     | Tensor1 tens -> tens
-                       |> fully_connected_forward fc fcp
-     | Tensor2 tens -> tens
-                       |> Mat.flatten2d
-                       |> fully_connected_forward fc fcp
-     | Tensor3 tens -> Mat.flatten tens
-                       |> fully_connected_forward fc fcp
+     | Tensor1 tens ->
+        Ok (tens |> fully_connected_forward fc fcp)
+     | Tensor2 tens ->
+        Ok (tens
+        |> Mat.flatten2d
+        |> fully_connected_forward fc fcp)
+     | Tensor3 tens ->
+        Ok (Mat.flatten tens
+            |> fully_connected_forward fc fcp)
      | _
        -> Error "Invalid input for fully connected layer" end
   | Conv2D (cn, cnp) -> 
      begin match input with
-     | Tensor3 tens -> tens
-                       |> conv2d_forward cn cnp
-     | Tensor4 tens -> tens
-                       |> conv3d_forward cn cnp 
+     | Tensor3 tens ->
+        Ok (tens |> conv2d_forward cn cnp)
+     | Tensor4 tens ->
+        Ok (tens |> conv3d_forward cn cnp )
      | _
        -> Error "Invalid input for convolutional layer." end
   | Pooling pl ->
@@ -151,8 +145,8 @@ let loss (data : train_data) nn =
        let res = hd ff.res in
        match res,expected with
        | Tensor2 m, Tensor2 exp | Tensor1 m, Tensor1 exp-> 
-          let* diff = Mat.sub m exp
-                     >>| Mat.sum in
+          let diff = Mat.sub m exp
+                      |> Mat.sum in
           loss_rec nn data_tail (err +. (diff *. diff))
        | _ -> Error "Invalid output shape"
           
@@ -232,7 +226,7 @@ let bp_fully_connected act act_prev meta params diff_mat =
               db
             ) params.bias_mat in
 
-        let* prev_diff = prev_diff_mat
+        let prev_diff = prev_diff_mat
                       |> reshape (Row 1) (Col (wmat |> dim1 |> get_row)) in
         Ok 
           { prev_diff ;
@@ -292,7 +286,7 @@ let nn_gradient (nn : nnet) data  =
 
        match expected_res, ff_res with
        | (Tensor2 exp, Tensor2 res) | (Tensor1 exp, Tensor1 res) ->
-          let* res_diff = Mat.sub res exp in
+          let res_diff = Mat.sub res exp in
 
           let* bp_grad = backprop_nn ff_net.res ff_net.backprop_nn.layers
                           {param_list = []; } res_diff in
@@ -309,11 +303,11 @@ let nn_gradient (nn : nnet) data  =
   (* print_endline "Full nn"; *)
   let param_nn = nn_params_map
                    (fun mat ->
-                     Ok (Mat.scale
+                     Mat.scale
                            (List.length data
                             |> float_of_int
                             |> (fun x -> 1. /. x))
-                           mat)) newn in
+                           mat) newn in
   Ok param_nn
 
 (*
