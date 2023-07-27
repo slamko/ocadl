@@ -10,12 +10,10 @@ type backprop_neuron = {
     pd_prev_arr : float array
   }
 
-type backprop_layer =
-  | End
-  | LayerGrad of {
-      prev_diff : mat;
-      grad : layer_params;
-    }
+type backprop_layer = {
+    prev_diff : mat;
+    grad : layer_params;
+  }
 
 let fully_connected_forward meta (params : fully_connected_params) tens =
     Mat.mult tens params.weight_mat
@@ -236,46 +234,49 @@ let bp_fully_connected act act_prev meta params diff_mat =
 
         let* prev_diff = prev_diff_mat
                       |> reshape (Row 1) (Col (wmat |> dim1 |> get_row)) in
-        Ok (LayerGrad
-              { prev_diff ;
-                grad = FullyConnectedParams {
-                    weight_mat = grad_wmat;
-                    bias_mat = grad_bmat;
-                  };
-          })
+        Ok 
+          { prev_diff ;
+            grad = FullyConnectedParams {
+                       weight_mat = grad_wmat;
+                       bias_mat = grad_bmat;
+                     };
+          }
      | _ -> Error "bp layer: Incompatible activation type."
 
-let backprop_layer layer act act_prev diff_mat :
+let backprop_layer layer act_list diff_mat :
           (backprop_layer, string) result  =
   match layer with
-  | Input -> Ok End
+  | Input -> Ok { prev_diff = diff_mat;
+                  grad = InputParams;
+               }
   | FullyConnected (meta, params) ->
+     let act = hd act_list in
+     let act_prev = tl act_list |> hd in
      bp_fully_connected act act_prev meta params diff_mat
-  | Conv2D (meta, params) -> Ok End
-  | Pooling _ -> Ok End 
+  | Conv2D (meta, params) -> Ok { prev_diff = diff_mat;
+                                  grad = Conv2DParams params;
+                               }
+  | Pooling _ -> Ok { prev_diff = diff_mat;
+                      grad = PoolingParams;
+                   }
 
 let rec backprop_nn (ff_list : ff_input_type list)
           (bp_layers : layer_common list) (grad_acc : nnet_params)
           (diff_mat : mat) =
 
   match ff_list with
-  | [_] | [] ->
+  | [] | [_] ->
      Ok grad_acc
-  | cur_activation::ff_tail ->
+  | act_list ->
      let lay = hd bp_layers in
-     let prev_act = hd ff_tail in
-     let* bp_layer = backprop_layer lay.layer cur_activation
-                      prev_act diff_mat in
+     let* bp_layer = backprop_layer lay.layer act_list
+                      diff_mat in
 
-     match bp_layer with
-     | LayerGrad bp_layer ->
-        let param_list = bp_layer.grad::grad_acc.param_list in
-        let prev_diff_mat = bp_layer.prev_diff in
-        
-        backprop_nn ff_tail (tl bp_layers)
-          {param_list} prev_diff_mat
-
-     | End -> Ok grad_acc
+     let param_list = bp_layer.grad::grad_acc.param_list in
+     let prev_diff_mat = bp_layer.prev_diff in
+     
+     backprop_nn (tl act_list) (tl bp_layers)
+       {param_list} prev_diff_mat
   
 let nn_gradient (nn : nnet) data  =
 
@@ -285,8 +286,10 @@ let nn_gradient (nn : nnet) data  =
     | cur_sample::data_tail ->
        let* ff_net      = forward (get_data_input cur_sample) nn in
        (* show_nnet ff_net.backprop_nn |> print_string; *)
+       (* Printf.printf "len %d\n" @@ List.length ff_net.res ; *)
        let ff_res       = hd ff_net.res in
        let expected_res = get_data_out cur_sample in
+
        match expected_res, ff_res with
        | (Tensor2 exp, Tensor2 res) | (Tensor1 exp, Tensor1 res) ->
           let* res_diff = Mat.sub res exp in

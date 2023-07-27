@@ -63,6 +63,8 @@ type layer_meta =
 type layer_params =
   | FullyConnectedParams of fully_connected_params
   | Conv2DParams of conv2d_params
+  | PoolingParams
+  | InputParams
 [@@deriving show]
 
 type layer =

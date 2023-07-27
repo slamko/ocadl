@@ -223,27 +223,28 @@ let nn_params_map proc nn =
                  kernels = Array.map (fun v -> proc v |> unwrap) cv.kernels;
                  bias_mat = proc cv.bias_mat |> unwrap;
                }
+          | PoolingParams -> PoolingParams
+          | InputParams -> InputParams
         ) nn.param_list ;
   } 
 
 let nn_zero_params nn : nnet_params =
   let zero_layers = nn.layers
-  |> List.filter_map (fun common ->
+  |> List.map (fun common ->
       match common.layer with
       | FullyConnected (_, params) ->
-         Some
-           (FullyConnectedParams
+           FullyConnectedParams
               { weight_mat = Mat.zero params.weight_mat;
                 bias_mat = Mat.zero params.bias_mat;
-           })
+           }
       | Conv2D (_, params) ->
-         Some
-           (Conv2DParams
+           Conv2DParams
               { kernels = Array.map Mat.zero params.kernels;
                 bias_mat = Mat.zero params.bias_mat;
               }
-           )
-      | _ -> None) in
+      | Pooling _ -> PoolingParams
+      | Input -> InputParams
+       ) in
   { param_list = zero_layers; }
                     
 let%catch nn_params_apply proc nn1 nn2 =
@@ -262,15 +263,16 @@ let%catch nn_params_apply proc nn1 nn2 =
                              cv1.kernels cv2.kernels;
                  bias_mat = proc cv1.bias_mat cv2.bias_mat |> unwrap;
                }
+          | InputParams, InputParams -> InputParams
+          | PoolingParams, PoolingParams -> PoolingParams
           | _ -> failwith "nn apply: Param lists do not match."
           ) nn1.param_list nn2.param_list;
       }
 
 let%catch nn_apply_params proc nn params =
   { layers =
-      ((List.hd nn.layers) ::
-         (List.map2
-           (fun lay apply_param ->
+      List.map2
+        (fun lay apply_param ->
           match lay.layer, apply_param with
           | FullyConnected (meta, nn_param),
             FullyConnectedParams apply_param ->
@@ -309,13 +311,16 @@ let%catch nn_apply_params proc nn params =
              failwith "nn apply params: Incompatible param list."
           | _ -> lay
 
-      ) (List.tl nn.layers) params.param_list))
+      ) nn.layers params.param_list
   }
                     
 let nn_params_zero nn_params =
    List.map (function
       | FullyConnectedParams fc -> fully_connected_zero fc
-      | Conv2DParams cv -> conv2d_zero cv)
+      | Conv2DParams cv -> conv2d_zero cv
+      | PoolingParams -> PoolingParams
+      | InputParams -> InputParams
+     )
      nn_params.param_list
 
 let get_data_input sample =

@@ -82,7 +82,6 @@ module type Matrix_type = sig
 
   val shadow_submatrix : row -> col -> row -> col -> 'a t -> ('a t, string) result
 
-
   val scale : float -> float t -> float t
 
   val add_const : float -> float t -> float t
@@ -94,6 +93,11 @@ module type Matrix_type = sig
   val map : ('a -> 'b) -> 'a t -> 'b t
 
   val mapi : (row -> col -> 'a -> 'b) -> 'a t -> 'b t
+
+  val opt_map : ('a -> ('b, string) result) -> 'a t -> ('b t, string) result
+
+  val opt_mapi : (row -> col -> 'a -> ('b, string) result)
+                 -> 'a t -> ('b t, string) result
 
   val iteri2 : (row -> col -> 'a -> 'b -> unit) -> 'a t -> 'b t
                -> (unit, string) result
@@ -255,7 +259,7 @@ module Matrix : Matrix_type = struct
       else if c >= get_col mat.cols
       then iter_rec (Row (r + 1)) (Col 0) proc mat
       else 
-        match proc get_raw r c mat with
+        match proc @@ get_raw r c mat with
         | Ok _ -> 
            iter_rec (Row r) (Col (c + 1)) proc mat
         | Error err -> Error err
@@ -326,6 +330,28 @@ module Matrix : Matrix_type = struct
     
   let map proc mat =
     mapi (fun _ _ -> proc) mat
+
+  let opt_mapi proc mat =
+    let* res_mat = proc (Row 0) (Col 0) (mat |> get_first)
+                  >>| make mat.rows mat.cols in
+
+    let rec map_rec (Row r) (Col c) proc mat =
+      if r >= get_row mat.rows
+      then Ok res_mat
+      else if c >= get_col mat.cols
+      then map_rec (Row (r + 1)) (Col 0) proc mat
+      else 
+        match proc (Row r) (Col c) @@ get_raw r c mat with
+        | Ok value -> 
+           set_raw r c res_mat value ;
+           map_rec (Row r) (Col (c + 1)) proc mat
+        | Error err -> Error err
+    in
+
+    map_rec (Row 0) (Col 0) proc mat
+
+  let opt_map proc mat =
+    opt_mapi (fun _ _ value -> proc value) mat
   
   exception NotEqual
 
