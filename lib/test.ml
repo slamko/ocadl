@@ -52,7 +52,7 @@ let test train_data_fname save_file epochs =
     |> make_nn in
 
   let conv_nn =
-    make_input {dim1 = (Row 28); dim2 = (Col 28); dim3 = 1 } 
+    make_input @@ make_shape3d (Row 28) (Col 28) 1
     |> make_conv2d ~padding:1 ~stride:1 ~act:relu ~deriv:relu'
          ~kernel_shape:(make_shape (Row 2) (Col 2))
          ~kernel_num:1
@@ -64,8 +64,8 @@ let test train_data_fname save_file epochs =
          ~kernel_shape:(make_shape (Row 3) (Col 3))
          ~kernel_num:1
 
-    |> make_pooling ~stride:3 ~f:pooling_avarage
-         ~filter_shape:(make_shape (Row 3) (Col 3))
+    |> make_pooling ~stride:2 ~f:pooling_avarage
+         ~filter_shape:(make_shape (Row 2) (Col 2))
 
     |> make_flatten
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'

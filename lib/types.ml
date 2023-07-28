@@ -24,7 +24,7 @@ type params = {
 type meta = {
     activation : activation;
     derivative : deriv;
-    ncount : int;
+    out_shape : shape;
   }
 [@@deriving show]
 end

@@ -132,25 +132,28 @@ let restore_nn_from_json fname nn =
   (* List.hd weights |> List.length |> print_int *)
  *)
 
+let get_out_shape = function
+    | FullyConnected (meta, _)  -> meta.out_shape
+    | Conv2D (meta, _)          -> meta.out_shape
+    | Pooling meta              -> meta.out_shape
+    | Flatten meta              -> meta.out_shape
+    | Input meta                -> meta.shape
+
 let make_input shape = 
   let in_layer = Input { shape; } in
   [in_layer]
 
 let make_fully_connected ~ncount ~act ~deriv layers =
   let open Mat in
-  let prev_ncount = match List.hd layers with
-    | FullyConnected (meta, _) -> meta.ncount
-    | Conv2D (meta, _) -> shape_size meta.out_shape
-    | Pooling meta -> shape_size meta.out_shape
-    | Flatten meta -> shape_size meta.out_shape
-    | Input meta -> shape_size meta.shape
-  in
+  let prev_ncount = List.hd layers
+                    |> get_out_shape
+                    |> shape_size in
   
   let meta =
     { Fully_Connected.
       activation = act;
       derivative = deriv;
-      ncount;
+      out_shape  = make_shape (Row 1) (Col ncount);
     }
   in
 
@@ -169,13 +172,9 @@ let make_conv2d ~kernel_shape ~kernel_num
       ~act ~deriv ~padding ~stride layers =
   let open Mat in
 
-  let prev_shape = match List.hd layers with
-    | Conv2D (meta, _) -> meta.out_shape
-    | Pooling meta -> meta.out_shape
-    | Input meta -> meta.shape
-    | _ -> failwith "Unsupported nn configuration."
-  in
-  
+  let prev_shape = List.hd layers
+                   |> get_out_shape in
+
   let new_dim in_dim kern_dim =
     ((in_dim + (2 * padding) - kern_dim)
      / stride) + 1 in
@@ -214,13 +213,7 @@ let make_conv2d ~kernel_shape ~kernel_num
 
 let make_pooling ~filter_shape ~stride ~f layers =
   let open Mat in
-  let prev_shape = match List.hd layers with
-    | FullyConnected (_, _) -> failwith "Unsupported nn configuration."
-    | Conv2D (meta, _) -> meta.out_shape
-    | Pooling meta -> meta.out_shape
-    | Flatten meta -> meta.out_shape
-    | Input meta -> meta.shape
-  in
+  let prev_shape = layers |> List.hd |> get_out_shape in
 
   let new_dim in_dim filt_dim =
     ((in_dim +  - filt_dim)
@@ -245,13 +238,7 @@ let make_pooling ~filter_shape ~stride ~f layers =
 
 let make_flatten layers =
   let open Mat in
-  let prev_shape = match List.hd layers with
-    | FullyConnected (_, _) -> failwith "Unsupported nn configuration."
-    | Conv2D (meta, _) -> meta.out_shape
-    | Pooling meta -> meta.out_shape
-    | Flatten meta -> meta.out_shape
-    | Input meta -> meta.shape
-  in
+  let prev_shape = List.hd layers |> get_out_shape in
 
   let meta = { Flatten.out_shape =
                  make_shape (Row 1) (Col (shape_size prev_shape)) } in
