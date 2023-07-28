@@ -307,8 +307,8 @@ let print mat =
       then print_string "\n";
       
       if value >= 0.
-      then Printf.printf " %f   " value
-      else Printf.printf "%f   " value;
+      then Printf.printf " %.0f " value
+      else Printf.printf "%.0f " value;
     ) mat ;
   
   print_string "\n"

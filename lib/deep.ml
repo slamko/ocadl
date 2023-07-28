@@ -31,29 +31,23 @@ let pooling_forward meta tens =
     if cur_row >= (dim1 acc |> get_row)
     then acc
     else if cur_col >= (dim2 acc |> get_col)
-    then pool_rec meta mat (Row (cur_row + meta.stride)) (Col 0) acc
+    then pool_rec meta mat (Row (cur_row + 1)) (Col 0) acc
     else mat
          |> shadow_submatrix
-              (Row cur_row)
-              (Col cur_col)
+              (Row (cur_row * meta.stride))
+              (Col (cur_col * meta.stride))
               meta.filter_shape.dim1 meta.filter_shape.dim2
          |> (fun subm -> fold_left meta.fselect (get_first subm) subm)
          |> set_bind (Row cur_row) (Col cur_col) acc
-         |> pool_rec meta mat (Row cur_row) (Col (cur_col + meta.stride))  
+         |> pool_rec meta mat (Row cur_row) (Col (cur_col + 1))  
   in
 
   Tensor3
-    (tens
-     |>
-       map
+    (map
          (fun mat ->
-           make
-             (Row ((dim1 mat |> get_row) /
-                     get_row meta.filter_shape.dim1))
-             (Col ((dim2 mat |> get_col) /
-                     get_col meta.filter_shape.dim2)) 0.
-               |> pool_rec meta mat (Row 0) (Col 0)
-    ))
+           zero_of_shape meta.out_shape
+           |> pool_rec meta mat (Row 0) (Col 0))
+         tens )
 
 let conv3d_forward meta params tens =
   let open Mat in

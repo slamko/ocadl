@@ -85,7 +85,18 @@ let test train_data_fname save_file epochs =
   (* Printf.printf "Cost: %f\n" res; *)
   let ff = forward (get_data_input (List.hd train_data)) conv_nn
   in
-  show_ conv_nn |> Printf.printf "\n\nConv nn %s\n";
+  Printf.printf "Res len %d \n\n" (List.length ff.res);
+  List.iter
+    (function
+     | Tensor1 t | Tensor2 t ->
+        Printf.printf "Ten1:\n";
+        Matrix.print t
+     | Tensor3 t | Tensor4 t ->
+        Printf.printf "Ten3:\n";
+        Matrix.iter (fun m ->
+            Printf.printf "Submat\n"; Matrix.print m) t;
+  )
+    ff.res ;
   (* let  *)
 
   (* let* trained_nn = lern train_data nn epochs in *)

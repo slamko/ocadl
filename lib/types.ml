@@ -107,6 +107,7 @@ type ff_input_type =
   | Tensor2 of float Mat.t
   | Tensor3 of float Mat.t Mat.t
   | Tensor4 of float Mat.t Mat.t
+[@@deriving show]
 
 let make_tens1 v = Tensor1 v
 let make_tens3 v = Tensor3 v
