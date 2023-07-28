@@ -53,9 +53,12 @@ open Mat
     }
 
   let make_shape rows cols =
-    { dim1 = rows;
-      dim2 = cols;
-    }
+    if get_row rows < 0 || get_col cols < 0
+    then failwith "Invalid shape."
+    else 
+      { dim1 = rows;
+        dim2 = cols;
+      }
 
   let shape_match mat1 mat2 =
     let shape = get_shape mat2 in
@@ -79,6 +82,15 @@ open Mat
 
   let of_shape init_val shape =
     make shape.dim1 shape.dim2 init_val
+
+  let empty_shape () =
+    { dim1 = Row 0;
+      dim2 = Col 0;
+    }
+
+  let zero_of_shape shape =
+    of_shape 0. shape
+
   let create (Row rows) (Col cols) finit =
     Array.init (rows * cols) (fun i ->
         finit (Row (i / rows)) (Col (i mod cols)))
@@ -151,7 +163,7 @@ open Mat
   let random row col =
     create row col (fun _ _ -> (Random.float 2. -. 1.))
 
-  let of_shape_random shape =
+  let random_of_shape shape =
     random shape.dim1 shape.dim2
 
   let opt_iter proc mat =
@@ -205,8 +217,8 @@ open Mat
     | 0 -> empty ()
     | _ ->
        let res_mat = proc (Row 0) (Col 0)
-                       (mat1 |> get (Row 0) (Col 0))
-                       (mat2 |> get (Row 0) (Col 0))
+                       (mat1 |> get_first)
+                       (mat2 |> get_first)
                      |> make mat1.rows mat1.cols in
        
        let _ = iteri2 (fun r c value1 value2  ->

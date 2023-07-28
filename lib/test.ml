@@ -31,10 +31,8 @@ let rec perform nn data =
      Printf.printf "NN result: \n" ;
 
      Printf.printf "Expected result: \n" ;
-
      
      perform nn t
-
 
 let test train_data_fname save_file epochs =
   let train_data =
@@ -53,12 +51,15 @@ let test train_data_fname save_file epochs =
     |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn in
 
-  let conv_nn = 
+  let conv_nn =
     make_input [| {dim1 = (Row 28); dim2 = (Col 28) } |]
-    |> make_conv2d ~padding:0 ~stride:1
-         ~kernel_shapes:[| {dim1 = (Row 2); dim2 = (Col 2) } |]
+    |> make_conv2d ~padding:0 ~stride:1 ~act:relu ~deriv:relu'
+         ~kernel_shape:{dim1 = (Row 2); dim2 = (Col 2) }
+         ~kernel_num:1
+
     |> make_pooling ~stride:2 ~f:pooling_max
-         ~filter_shape:{dim1 = (Row 2); dim2 = (Col 2) } 
+         ~filter_shape:{dim1 = (Row 2); dim2 = (Col 2) }
+
     |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn
   in

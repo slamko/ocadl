@@ -31,7 +31,7 @@ end
 
 module Conv2D = struct 
 type params = {
-    kernels : mat array;
+    kernels : mat Mat.t;
     bias_mat : mat;
   }
 [@@deriving show]
@@ -39,6 +39,8 @@ type params = {
 type meta = {
     padding : int;
     stride : int;
+    act : activation;
+    deriv : deriv;
     kernel_num : int;
     out_shape_mat : shape Mat.t;
   }

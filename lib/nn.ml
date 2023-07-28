@@ -165,49 +165,59 @@ let make_fully_connected ~ncount ~act ~deriv layers =
 
  layer::layers
 
-let make_conv2d ~kernel_shapes ~padding ~stride layers =
+let make_conv2d ~kernel_shape ~kernel_num
+      ~act ~deriv ~padding ~stride layers =
   let open Mat in
-  let kernel_num = Array.length kernel_shapes in
 
   let out_shape_mat = match List.hd layers with
-    | FullyConnected (meta, _) -> failwith "Unsupported nn configuration."
+    | FullyConnected (_, _) -> failwith "Unsupported nn configuration."
+    | Input _ | Conv2D (_, _) | Pooling _ ->
+       make (Row 1) (Col kernel_num) @@
+         empty_shape () in
+
+  let prev_shape_mat = match List.hd layers with
+    | FullyConnected (_, _) -> failwith "Unsupported nn configuration."
     | Conv2D (meta, _) -> meta.out_shape_mat
     | Pooling meta -> meta.out_shape_mat
     | Input meta ->
-       let rec scale_arr i arr =
-         match i - 1 with
-         | _ when i <= 1 -> arr
-         | i' -> Array.append arr arr
-                |> scale_arr i' in
-       
        meta.shape_arr
-       |> scale_arr kernel_num
-       |> of_array (Row (Array.length meta.shape_arr)) (Col kernel_num) in
+       |> of_array (Row 1) @@ Col (Array.length meta.shape_arr)
+  in
 
-  let meta = { Conv2D.
+  let meta = {
+      Conv2D.
       padding;
       stride;
+      act;
+      deriv;
       kernel_num;
       out_shape_mat =
         mapi (fun (Row r) _ shape ->
-            let kern_shape = kernel_shapes.(r) in
+            (* let kern_shape = kernel_shapes.(r) in *)
             let new_dim in_dim kern_dim =
               ((in_dim + (2 * padding) - kern_dim)
                / stride) + 1 in
             
-            make_shape
+            let s = make_shape
               (Row (new_dim
                       (get_row shape.dim1)
-                      (get_row kern_shape.dim1)))
-                         (Col (new_dim
-                                 (get_col shape.dim2)
-                                 (get_col kern_shape.dim2)));
+                      (get_row kernel_shape.dim1)))
+              (Col (new_dim
+                      (get_col shape.dim2)
+                      (get_col kernel_shape.dim2))) in
+            show_shape s |> Printf.printf "shape: %s\n";
+            s
+
           ) out_shape_mat;
     } in
-  let params = { Conv2D.
-      kernels =
-        Array.map of_shape_random kernel_shapes;
-      bias_mat = of_shape_random
+
+  let kernel_mat = create (Row kernel_num) (dim2 prev_shape_mat)
+                     (fun _ _ -> random_of_shape kernel_shape) in
+
+  let params = {
+      Conv2D.
+      kernels = kernel_mat;
+      bias_mat = random_of_shape
                  @@ get_shape meta.out_shape_mat;
     } in
 
@@ -217,12 +227,12 @@ let make_conv2d ~kernel_shapes ~padding ~stride layers =
 let make_pooling ~filter_shape ~stride ~f layers =
   let open Mat in
   let out_shape_mat = match List.hd layers with
-    | FullyConnected (meta, _) -> failwith "Unsupported nn configuration."
+    | FullyConnected (_, _) -> failwith "Unsupported nn configuration."
     | Conv2D (meta, _) -> meta.out_shape_mat
     | Pooling meta -> meta.out_shape_mat
     | Input meta ->
        meta.shape_arr
-       |> of_array (Row (Array.length meta.shape_arr)) (Col 1) in
+       |> of_array (Row 1) (Col (Array.length meta.shape_arr)) in
 
   let meta = { Pooling.
                fselect = f;
@@ -260,7 +270,7 @@ let fully_connected_map proc layer =
 let conv2d_map proc layer =
   let open Conv2D in
   Conv2DParams
-    { kernels = layer.kernels |> Array.map @@ Mat.map proc;
+    { kernels = layer.kernels |> Mat.map @@ Mat.map proc;
       bias_mat = Mat.map proc layer.bias_mat
     }
 
@@ -280,7 +290,7 @@ let fully_connected_zero layer =
 let conv2d_zero layer =
   let open Conv2D in
   Conv2DParams
-    { kernels  = layer.kernels  |> Array.map Mat.zero ;
+    { kernels  = layer.kernels  |> Mat.map Mat.zero ;
       bias_mat = layer.bias_mat |> Mat.zero ;
     }
 
@@ -295,7 +305,7 @@ let nn_params_map proc nn =
                }
           | Conv2DParams cv ->
              Conv2DParams {
-                 kernels = Array.map (fun v -> proc v) cv.kernels;
+                 kernels = Mat.map (fun v -> proc v) cv.kernels;
                  bias_mat = proc cv.bias_mat;
                }
           | PoolingParams -> PoolingParams
@@ -313,7 +323,7 @@ let nn_zero_params nn : nnet_params =
            }
       | Conv2D (_, params) ->
            Conv2DParams
-              { kernels = Array.map Mat.zero params.kernels;
+              { kernels = Mat.map Mat.zero params.kernels;
                 bias_mat = Mat.zero params.bias_mat;
               }
       | Pooling _ -> PoolingParams
@@ -332,7 +342,7 @@ let nn_params_apply proc nn1 nn2 =
                }
           | Conv2DParams cv1, Conv2DParams cv2 ->
              Conv2DParams {
-                 kernels = Array.map2
+                 kernels = Mat.map2
                              (fun v1 v2 -> proc v1 v2)
                              cv1.kernels cv2.kernels;
                  bias_mat = proc cv1.bias_mat cv2.bias_mat;
@@ -365,7 +375,7 @@ let nn_apply_params proc nn params =
              failwith "nn apply params: Incompatible param list."
 
           | Conv2D (meta, nn_param), Conv2DParams apply_param ->
-             let kernels = Array.map2
+             let kernels = Mat.map2
                               (fun v1 v2 -> proc v1 v2)
                               nn_param.kernels apply_param.kernels in
              let bias_mat = proc nn_param.bias_mat apply_param.bias_mat in

@@ -42,7 +42,7 @@ let pooling_forward meta tens =
          |> pool_rec meta mat (Row cur_row) (Col (cur_col + meta.stride))  
   in
 
-  Tensor4
+  Tensor3
     (tens
      |>
        map
@@ -53,29 +53,30 @@ let pooling_forward meta tens =
                |> pool_rec meta mat (Row 0) (Col 0)
     ))
 
-
-let conv4d_forward meta params tens =
-  let open Mat in
-  let open Conv2D in
-  mapi
-    (fun _ (Col c) mat ->
-      convolve mat ~stride:meta.stride params.kernels.(c)) tens
-  |> make_tens4
-
-
 let conv3d_forward meta params tens =
   let open Mat in
   let open Conv2D in
-  let res_mat = create
-                  (Row (size tens))
-                  (Col (params.kernels |> Array.length))
-                  (fun r _ -> get (Row 0) (Col (get_row r)) tens) in
+  let res_mat = map zero_of_shape meta.out_shape_mat in
 
-  conv4d_forward meta params res_mat
+  mapi
+    (fun _ (Col c) mat ->
+      let kernel = shadow_submatrix (Row c) (Col 0)
+                     (Row 1) (dim2 params.kernels)
+                     params.kernels in
+
+          show_mat mat |> print_string;
+      fold_left2 (fun acc kern in_ch ->
+          let re = convolve in_ch ~stride:meta.stride kern in
+          (* |> add acc in *)
+          re 
+        ) mat kernel tens
+      |> add_const (params.bias_mat |> get (Row 0) (Col c))
+      |> map meta.act 
+    ) res_mat
+  |> make_tens3
 
 let conv2d_forward meta params tens =
-  [| tens |]
-  |> Mat.of_array (Row 1) (Col 1)
+  Mat.make (Row 1) (Col 1) tens
   |> conv3d_forward meta params
   
 let forward_layer (input : ff_input_type) layer_type =
@@ -100,8 +101,6 @@ let forward_layer (input : ff_input_type) layer_type =
         tens |> conv2d_forward cn cnp
      | Tensor3 tens ->
         tens |> conv3d_forward cn cnp
-     | Tensor4 tens ->
-        tens |> conv4d_forward cn cnp
      | _
        -> invalid_arg "Invalid input for convolutional layer." end
   | Pooling pl ->
@@ -127,8 +126,7 @@ let forward input nn =
   in
 
   forward_rec nn.layers input
-    {
-      res = [input];
+    { res = [input];
       backprop_nn = build_nn [];
     }
 
