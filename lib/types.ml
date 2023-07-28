@@ -14,34 +14,39 @@ type activation = float -> float
 type deriv = float -> float
 [@@deriving show]
 
-type fully_connected_params = {
+module Fully_Connected = struct
+type params = {
     weight_mat : mat;
     bias_mat : mat;
   }
 [@@deriving show]
 
-type fully_connected_meta = {
+type meta = {
     activation : activation;
     derivative : deriv;
     ncount : int;
   }
 [@@deriving show]
+end
 
-type conv2d_params = {
+module Conv2D = struct 
+type params = {
     kernels : mat array;
     bias_mat : mat;
   }
 [@@deriving show]
 
-type conv2d_meta = {
+type meta = {
     padding : int;
     stride : int;
     kernel_num : int;
     out_shape_mat : shape Mat.t;
   }
 [@@deriving show]
+end
 
-type pooling_meta = {
+module Pooling = struct 
+type meta = {
     fselect : float -> float -> float;
     stride : int;
     filter_shape : shape;
@@ -49,29 +54,31 @@ type pooling_meta = {
   }
 [@@deriving show]
 
+end
+
 type input_meta = {
     shape_arr : shape array;
   }
 [@@deriving show]
 
 type layer_meta =
-  | FullyConnectedMeta of fully_connected_meta 
-  | Conv2DMeta of conv2d_meta 
-  | PoolingMeta of pooling_meta 
+  | FullyConnectedMeta of Fully_Connected.meta
+  | Conv2DMeta of Conv2D.meta
+  | PoolingMeta of Pooling.meta
   | InputMeta of input_meta 
 [@@deriving show]
 
 type layer_params =
-  | FullyConnectedParams of fully_connected_params
-  | Conv2DParams of conv2d_params
+  | FullyConnectedParams of Fully_Connected.params
+  | Conv2DParams of Conv2D.params
   | PoolingParams
   | InputParams
 [@@deriving show]
 
 type layer =
-  | FullyConnected of (fully_connected_meta * fully_connected_params)
-  | Conv2D of (conv2d_meta * conv2d_params)
-  | Pooling of pooling_meta
+  | FullyConnected of (Fully_Connected.meta * Fully_Connected.params)
+  | Conv2D of (Conv2D.meta * Conv2D.params)
+  | Pooling of Pooling.meta
   | Input of input_meta
 [@@deriving show]
 

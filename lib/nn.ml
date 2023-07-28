@@ -1,6 +1,5 @@
 open Types
 open Deepmath
-open Matrix
 
 let data arr =
   arr |> Mat.of_array (Row 1) @@ Col (Array.length arr)
@@ -33,28 +32,23 @@ let list_split n lst =
 let build_nn layer_list =
   { layers = layer_list; }
 
-let list_to_mat n lst =
-  let rows = List.length lst / n in
-  lst
-  |> Mat.of_list (Row rows) @@ Col n 
-
 let list_parse_train_data in_cols pair_list =
   List.map (fun (res_list, data_list) ->
       (res_list |> Mat.of_list (Row 1) @@ Col (List.length res_list),
-       data_list |> list_to_mat in_cols)) pair_list
+       data_list |> Mat.of_list in_cols)) pair_list
 
-let read_train_data fname res_len in_cols =
+let read_mnist_train_data fname shape =
   let csv = Csv.load fname in
   csv
   |> List.map @@ List.map float_of_string 
-  |> List.map @@ list_split res_len
+  |> List.map @@ list_split 1 
   |> List.map
        (fun (res_list, data_list) ->
          let res_mat = Mat.make (Row 1) (Col 10) 0. in
-         let col = Col (List.hd res_list |> int_of_float) in
+         let col = Mat.Col (List.hd res_list |> int_of_float) in
          Mat.set (Row 0) col res_mat 1.;
          Tensor1 res_mat,
-          Tensor1 (data_list |> list_to_mat in_cols))
+          Tensor2 (data_list |> Mat.of_list shape.Mat.dim1 shape.Mat.dim2))
   (* |> List.iter (fun (res, inp) -> mat_print inp) *)
 
 let to_json_list proc l =
@@ -137,42 +131,45 @@ let restore_nn_from_json fname nn =
 
 let make_input shape_arr = 
   let in_layer = Input { shape_arr } in
-  { layers = [in_layer];
-  }
+  [in_layer]
 
-let make_fully_connected ~ncount ~act ~deriv nn : nnet =
-  let prev_ncount = match List.hd nn.layers with
+let make_fully_connected ~ncount ~act ~deriv layers =
+  let open Mat in
+  let prev_ncount = match List.hd layers with
     | FullyConnected (meta, _) ->
        meta.ncount
     | Conv2D (meta, _) ->
-       Mat.fold_left (fun acc m -> acc + shape_size m) 0 meta.out_shape_mat
+       fold_left (fun acc m -> acc + shape_size m) 0 meta.out_shape_mat
     | Pooling meta -> 
-       Mat.fold_left (fun acc m -> acc + shape_size m) 0 meta.out_shape_mat
+       fold_left (fun acc m -> acc + shape_size m) 0 meta.out_shape_mat
     | Input meta -> 
        Array.fold_left (fun acc m -> acc + shape_size m) 0 meta.shape_arr
   in
   
   let meta =
-    { activation = act;
+    { Fully_Connected.
+      activation = act;
       derivative = deriv;
       ncount;
     }
   in
 
   let params =
-      { weight_mat = Mat.random (Row prev_ncount) (Col ncount);
-        bias_mat = Mat.random (Row 1) (Col ncount);
-      } 
+    { Fully_Connected.
+      weight_mat = random (Row prev_ncount) (Col ncount);
+      bias_mat = random (Row 1) (Col ncount);
+    } 
   in
 
   let layer = FullyConnected (meta, params); in
 
-  { layers = layer::nn.layers }
+ layer::layers
 
-let make_conv2d ~kernel_shapes ~padding ~stride nn =
+let make_conv2d ~kernel_shapes ~padding ~stride layers =
+  let open Mat in
   let kernel_num = Array.length kernel_shapes in
 
-  let out_shape_mat = match List.hd nn.layers with
+  let out_shape_mat = match List.hd layers with
     | FullyConnected (meta, _) -> failwith "Unsupported nn configuration."
     | Conv2D (meta, _) -> meta.out_shape_mat
     | Pooling meta -> meta.out_shape_mat
@@ -185,82 +182,83 @@ let make_conv2d ~kernel_shapes ~padding ~stride nn =
        
        meta.shape_arr
        |> scale_arr kernel_num
-       |> Mat.of_array (Row kernel_num) (Col (Array.length meta.shape_arr)) in
+       |> of_array (Row (Array.length meta.shape_arr)) (Col kernel_num) in
 
-  let meta = { padding;
-               stride;
-               kernel_num;
-               out_shape_mat =
-                 Mat.mapi (fun (Row r) _ shape ->
-                     let kern_shape = kernel_shapes.(r) in
-                     let new_dim in_dim kern_dim =
-                       ((in_dim + (2 * padding) - kern_dim)
-                           / stride) + 1 in
-
-                     { dim1 =
-                         (Row (new_dim
-                                 (get_row shape.dim1)
-                                 (get_row kern_shape.dim1)));
-                       dim2 = (Col (new_dim
+  let meta = { Conv2D.
+      padding;
+      stride;
+      kernel_num;
+      out_shape_mat =
+        mapi (fun (Row r) _ shape ->
+            let kern_shape = kernel_shapes.(r) in
+            let new_dim in_dim kern_dim =
+              ((in_dim + (2 * padding) - kern_dim)
+               / stride) + 1 in
+            
+            make_shape
+              (Row (new_dim
+                      (get_row shape.dim1)
+                      (get_row kern_shape.dim1)))
+                         (Col (new_dim
                                  (get_col shape.dim2)
                                  (get_col kern_shape.dim2)));
-                     }
-                   ) out_shape_mat;
-             } in
-  let params = { kernels =
-                   Array.map Mat.of_shape_random kernel_shapes;
-                 bias_mat = Mat.of_shape_random
-                            @@ Mat.get_shape meta.out_shape_mat;
-               } in
+          ) out_shape_mat;
+    } in
+  let params = { Conv2D.
+      kernels =
+        Array.map of_shape_random kernel_shapes;
+      bias_mat = of_shape_random
+                 @@ get_shape meta.out_shape_mat;
+    } in
 
   let layer = Conv2D (meta, params) in
-  { layers = layer::nn.layers } 
+  layer::layers 
 
-let make_pooling ~filter_shape ~stride ~f nn =
-
-  let out_shape_mat = match List.hd nn.layers with
+let make_pooling ~filter_shape ~stride ~f layers =
+  let open Mat in
+  let out_shape_mat = match List.hd layers with
     | FullyConnected (meta, _) -> failwith "Unsupported nn configuration."
     | Conv2D (meta, _) -> meta.out_shape_mat
     | Pooling meta -> meta.out_shape_mat
     | Input meta ->
-       
        meta.shape_arr
-       |> Mat.of_array (Row 1) (Col (Array.length meta.shape_arr)) in
+       |> of_array (Row (Array.length meta.shape_arr)) (Col 1) in
 
-  let meta = { fselect = f;
+  let meta = { Pooling.
+               fselect = f;
                stride;
                filter_shape;
                out_shape_mat =
-                 Mat.mapi (fun (Row r) _ shape ->
+                 map (fun shape ->
                      let new_dim in_dim filt_dim =
                        ((in_dim +  - filt_dim)
                            / stride) + 1 in
 
-                     { dim1 =
+                     make_shape
                          (Row (new_dim
                                  (get_row shape.dim1)
-                                 (get_row filter_shape.dim1)));
-                       dim2 = (Col (new_dim
+                                 (get_row filter_shape.dim1)))
+                         (Col (new_dim
                                  (get_col shape.dim2)
-                                 (get_col filter_shape.dim2)));
-                     }
+                                 (get_col filter_shape.dim2)))
                    ) out_shape_mat;
              } in
 
   let layer = Pooling meta in
-  { layers = layer::nn.layers } 
+  layer::layers 
 
 
-let make_nn (arch : nnet) : nnet =
-  { layers = List.rev arch.layers }
+let make_nn arch : nnet =
+  { layers = List.rev arch }
 
 let fully_connected_map proc layer =
   FullyConnectedParams
-    { weight_mat = Mat.map proc layer.weight_mat;
-      bias_mat = Mat.map proc layer.bias_mat;
+    { weight_mat = Mat.map proc layer.Fully_Connected.weight_mat;
+      bias_mat = Mat.map proc layer.Fully_Connected.bias_mat;
     }
 
 let conv2d_map proc layer =
+  let open Conv2D in
   Conv2DParams
     { kernels = layer.kernels |> Array.map @@ Mat.map proc;
       bias_mat = Mat.map proc layer.bias_mat
@@ -273,12 +271,14 @@ let nn_params_map proc nn_params =
     nn_params.param_list
 
 let fully_connected_zero layer =
+  let open Fully_Connected in
   FullyConnectedParams
     { weight_mat = Mat.zero layer.weight_mat;
        bias_mat  = Mat.zero layer.bias_mat;
     }
 
 let conv2d_zero layer =
+  let open Conv2D in
   Conv2DParams
     { kernels  = layer.kernels  |> Array.map Mat.zero ;
       bias_mat = layer.bias_mat |> Mat.zero ;
@@ -305,8 +305,7 @@ let nn_params_map proc nn =
 
 let nn_zero_params nn : nnet_params =
   let zero_layers = nn.layers
-  |> List.map (fun common ->
-      match common.layer with
+  |> List.map (function
       | FullyConnected (_, params) ->
            FullyConnectedParams
               { weight_mat = Mat.zero params.weight_mat;
@@ -318,7 +317,7 @@ let nn_zero_params nn : nnet_params =
                 bias_mat = Mat.zero params.bias_mat;
               }
       | Pooling _ -> PoolingParams
-      | Input -> InputParams
+      | Input _ -> InputParams
        ) in
   { param_list = zero_layers; }
                     
@@ -348,7 +347,7 @@ let nn_apply_params proc nn params =
   { layers =
       List.map2
         (fun lay apply_param ->
-          match lay.layer, apply_param with
+          match lay, apply_param with
           | FullyConnected (meta, nn_param),
             FullyConnectedParams apply_param ->
              let open Mat in
@@ -358,13 +357,10 @@ let nn_apply_params proc nn params =
              let wmat = proc nn_param.weight_mat apply_param.weight_mat in
              let bmat = proc nn_param.bias_mat   apply_param.bias_mat   in
 
-             { common = lay.common;
-               layer = FullyConnected
-                         (meta, {
+               FullyConnected (meta, {
                               weight_mat = wmat;
                               bias_mat = bmat;
                          });
-             }
           | FullyConnected (_, _), _ ->
              failwith "nn apply params: Incompatible param list."
 
@@ -374,13 +370,10 @@ let nn_apply_params proc nn params =
                               nn_param.kernels apply_param.kernels in
              let bias_mat = proc nn_param.bias_mat apply_param.bias_mat in
 
-             { common = lay.common;
-               layer = Conv2D
-                         (meta, {
+               Conv2D (meta, {
                             kernels;
                             bias_mat;
                          });
-             }
       
           | Conv2D (_, _), _ -> 
              failwith "nn apply params: Incompatible param list."

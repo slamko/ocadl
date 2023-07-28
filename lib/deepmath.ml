@@ -2,7 +2,7 @@ open Common
 open Matrix
 
 module Mat = Matrix
-type mat = float Mat.t
+type mat = float Mat.Mat.t
 
 [@@deriving show]
 

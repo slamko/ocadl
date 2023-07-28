@@ -6,7 +6,7 @@ type col =
 type row =
   | Row of int [@@deriving show]
 
-
+module Mat = struct 
  type 'a t = {
       matrix : 'a array;
       rows : row;
@@ -17,6 +17,9 @@ type row =
       stride : int;
     }
    [@@deriving show]
+ end
+
+open Mat
 
   exception InvalidIndex
 
@@ -49,9 +52,9 @@ type row =
       dim2 = mat.cols;
     }
 
-  let make_shape (Row rows) (Row cols) =
-    { dim1 = Row rows;
-      dim2 = Col cols;
+  let make_shape rows cols =
+    { dim1 = rows;
+      dim2 = cols;
     }
 
   let shape_match mat1 mat2 =

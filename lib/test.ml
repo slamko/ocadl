@@ -39,22 +39,29 @@ let rec perform nn data =
 let test train_data_fname save_file epochs =
   let train_data =
     if Sys.file_exists train_data_fname
-    then read_train_data train_data_fname 1 784
+    then read_mnist_train_data train_data_fname
+           {dim1 = (Row 28) ; dim2 = (Col 28)}
     else xor_data
   in
   (* List.hd train_data |>  |> Mat.dim2 |> print_int ; *)
   (* let train_data = adder_data in *)
 
   let base_nn =
-    make_input 1 784
+    make_input [| {dim1 = (Row 1); dim2 = (Col 784) } |]
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn in
 
   let conv_nn = 
-    make_input 28 28
-  |> make_
+    make_input [| {dim1 = (Row 28); dim2 = (Col 28) } |]
+    |> make_conv2d ~padding:0 ~stride:1
+         ~kernel_shapes:[| {dim1 = (Row 2); dim2 = (Col 2) } |]
+    |> make_pooling ~stride:2 ~f:pooling_max
+         ~filter_shape:{dim1 = (Row 2); dim2 = (Col 2) } 
+    |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
+    |> make_nn
+  in
   
   let nn =
     (* if Sys.file_exists !save_file *)
@@ -73,13 +80,17 @@ let test train_data_fname save_file epochs =
   in
  *)
 
-  let* res = loss train_data nn in
+  let* res = loss train_data conv_nn in
+  Printf.printf "Cost: %f\n" res;
+  (* show_nnet conv_nn |> print_string; *)
+  (* let ff = forward (get_data_input (List.hd train_data)) conv_nn in *)
+  (* let  *)
 
-  let* trained_nn = lern train_data nn epochs in
-  let* new_res = loss train_data trained_nn in
+  (* let* trained_nn = lern train_data nn epochs in *)
+  (* let* new_res = loss train_data trained_nn in *)
 
-  Printf.printf "initial loss: %f\n" res ;
-  Printf.printf "trained loss: %f\n" new_res ;
+  (* Printf.printf "initial loss: %f\n" res ; *)
+  (* Printf.printf "trained loss: %f\n" new_res ; *)
 
   Ok ()
  

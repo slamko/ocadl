@@ -5,7 +5,6 @@ open Domainslib
 open Deepmath
 open Common
 open Ppxlib
-open Matrix
 
 type backprop_neuron = {
     wmat_arr : float array array;
@@ -17,38 +16,36 @@ type backprop_layer = {
     grad : layer_params;
   }
 
-let fully_connected_forward meta (params : fully_connected_params) tens =
-    Mat.mult tens params.weight_mat
-    |> Mat.add params.bias_mat
-    |> Mat.map meta.activation
-    |> make_tens1
+let fully_connected_forward meta params tens =
+  let open Fully_Connected in
+  Mat.mult tens params.weight_mat
+  |> Mat.add params.bias_mat
+  |> Mat.map meta.activation
+  |> make_tens1
 
 let pooling_forward meta tens =
   let open Mat in
+  let open Pooling in
 
   let rec pool_rec meta mat (Row cur_row) (Col cur_col) acc =
     if cur_row >= (dim1 acc |> get_row)
     then acc
     else if cur_col >= (dim2 acc |> get_col)
-    then pool_rec meta mat (Row (cur_row + 1)) (Col 0) acc
+    then pool_rec meta mat (Row (cur_row + meta.stride)) (Col 0) acc
     else mat
          |> shadow_submatrix
-              (Row ((cur_row * get_row meta.filter_shape.dim1)
-                    + cur_row * meta.stride))
-
-              (Col ((cur_col * get_col meta.filter_shape.dim2)
-                    + cur_col * meta.stride))
-
+              (Row cur_row)
+              (Col cur_col)
               meta.filter_shape.dim1 meta.filter_shape.dim2
-         |> (fun subm -> Mat.fold_left meta.fselect (get_first subm) subm)
+         |> (fun subm -> fold_left meta.fselect (get_first subm) subm)
          |> set_bind (Row cur_row) (Col cur_col) acc
-         |> pool_rec meta mat (Row cur_row) (Col (cur_col + 1))  
+         |> pool_rec meta mat (Row cur_row) (Col (cur_col + meta.stride))  
   in
 
   Tensor4
     (tens
      |>
-       Mat.map
+       map
          (fun mat ->
            make
              (Row ((dim1 mat |> get_row) / get_row meta.filter_shape.dim1))
@@ -57,16 +54,18 @@ let pooling_forward meta tens =
     ))
 
 
-let conv4d_forward (meta : conv2d_meta) params tens =
+let conv4d_forward meta params tens =
   let open Mat in
+  let open Conv2D in
   mapi
     (fun _ (Col c) mat ->
       convolve mat ~stride:meta.stride params.kernels.(c)) tens
   |> make_tens4
 
 
-let conv3d_forward (meta : conv2d_meta) params tens =
+let conv3d_forward meta params tens =
   let open Mat in
+  let open Conv2D in
   let res_mat = create
                   (Row (size tens))
                   (Col (params.kernels |> Array.length))
@@ -74,14 +73,14 @@ let conv3d_forward (meta : conv2d_meta) params tens =
 
   conv4d_forward meta params res_mat
 
-let conv2d_forward (meta : conv2d_meta) params tens =
+let conv2d_forward meta params tens =
   [| tens |]
   |> Mat.of_array (Row 1) (Col 1)
   |> conv3d_forward meta params
   
 let forward_layer (input : ff_input_type) layer_type =
   match layer_type with
-  | Input -> input
+  | Input _ -> input
   | FullyConnected (fc, fcp) ->
      begin match input with
      | Tensor1 tens ->
@@ -90,7 +89,7 @@ let forward_layer (input : ff_input_type) layer_type =
         tens
         |> Mat.flatten2d
         |> fully_connected_forward fc fcp
-     | Tensor3 tens ->
+     | Tensor3 tens | Tensor4 tens ->
         Mat.flatten tens
             |> fully_connected_forward fc fcp
      | _
@@ -119,7 +118,7 @@ let forward input nn =
     | [] -> acc
     | layer::tail ->
 
-       let act = forward_layer input layer.layer in
+       let act = forward_layer input layer in
        let upd_acc =
          { res = act::acc.res;
            backprop_nn = build_nn (layer::acc.backprop_nn.layers)
@@ -192,6 +191,7 @@ let backprop_neuron w_mat_arr fderiv w_row w_col ff_len diffi ai ai_prev_arr
  *)
 
 let bp_fully_connected act act_prev meta params diff_mat =
+  let open Fully_Connected in
   match act, act_prev with
      | Tensor1 act, Tensor1 act_prev ->
         let open Mat in
@@ -237,7 +237,7 @@ let bp_fully_connected act act_prev meta params diff_mat =
 
 let backprop_layer layer act_list diff_mat =
   match layer with
-  | Input -> { prev_diff = diff_mat;
+  | Input _ -> { prev_diff = diff_mat;
                   grad = InputParams;
                }
   | FullyConnected (meta, params) ->
@@ -252,7 +252,7 @@ let backprop_layer layer act_list diff_mat =
                    }
 
 let rec backprop_nn (ff_list : ff_input_type list)
-          (bp_layers : layer_common list) (grad_acc : nnet_params)
+          (bp_layers : layer list) (grad_acc : nnet_params)
           (diff_mat : mat) =
 
   match ff_list with
@@ -260,7 +260,7 @@ let rec backprop_nn (ff_list : ff_input_type list)
      grad_acc
   | act_list ->
      let lay = hd bp_layers in
-     let bp_layer = backprop_layer lay.layer act_list
+     let bp_layer = backprop_layer lay act_list
                       diff_mat in
 
      let param_list = bp_layer.grad::grad_acc.param_list in
