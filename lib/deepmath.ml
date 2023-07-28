@@ -24,6 +24,12 @@ let relu x =
 let relu' a =
   if a > 0. then 1. else 0. 
 
+let pooling_max a b =
+  if a > b then a else b
+
+let pooling_avarage a b =
+  (a +. b) /. 2.
+
 let make_zero_mat_list mat_list =
   List.fold_right (fun mat mlist ->
       (Mat.make (Mat.dim1 mat) (Mat.dim2 mat) 0.) ::  mlist) mat_list []

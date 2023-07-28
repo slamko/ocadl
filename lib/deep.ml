@@ -32,15 +32,15 @@ let pooling_forward meta tens =
     else if cur_col >= (dim2 acc |> get_col)
     then pool_rec meta mat (Row (cur_row + 1)) (Col 0) acc
     else mat
-         |> Mat.shadow_submatrix
-              (Row ((cur_row * get_row meta.filter_rows)
+         |> shadow_submatrix
+              (Row ((cur_row * get_row meta.filter_shape.dim1)
                     + cur_row * meta.stride))
 
-              (Col ((cur_col * get_col meta.filter_cols)
+              (Col ((cur_col * get_col meta.filter_shape.dim2)
                     + cur_col * meta.stride))
 
-              meta.filter_rows meta.filter_cols
-         |> Mat.fold_left meta.fselect 0.
+              meta.filter_shape.dim1 meta.filter_shape.dim2
+         |> (fun subm -> Mat.fold_left meta.fselect (get_first subm) subm)
          |> set_bind (Row cur_row) (Col cur_col) acc
          |> pool_rec meta mat (Row cur_row) (Col (cur_col + 1))  
   in
@@ -51,8 +51,8 @@ let pooling_forward meta tens =
        Mat.map
          (fun mat ->
            make
-             (Row ((dim1 mat |> get_row) / get_row meta.filter_rows))
-             (Col ((dim2 mat |> get_col) / get_col meta.filter_cols)) 0.
+             (Row ((dim1 mat |> get_row) / get_row meta.filter_shape.dim1))
+             (Col ((dim2 mat |> get_col) / get_col meta.filter_shape.dim2)) 0.
                |> pool_rec meta mat (Row 0) (Col 0)
     ))
 

@@ -195,7 +195,7 @@ let make_conv2d ~kernel_shapes ~padding ~stride nn =
                      let kern_shape = kernel_shapes.(r) in
                      let new_dim in_dim kern_dim =
                        ((in_dim + (2 * padding) - kern_dim)
-                           / stride) + stride - 1 in
+                           / stride) + 1 in
 
                      { dim1 =
                          (Row (new_dim
@@ -215,6 +215,41 @@ let make_conv2d ~kernel_shapes ~padding ~stride nn =
 
   let layer = Conv2D (meta, params) in
   { layers = layer::nn.layers } 
+
+let make_pooling ~filter_shape ~stride ~f nn =
+
+  let out_shape_mat = match List.hd nn.layers with
+    | FullyConnected (meta, _) -> failwith "Unsupported nn configuration."
+    | Conv2D (meta, _) -> meta.out_shape_mat
+    | Pooling meta -> meta.out_shape_mat
+    | Input meta ->
+       
+       meta.shape_arr
+       |> Mat.of_array (Row 1) (Col (Array.length meta.shape_arr)) in
+
+  let meta = { fselect = f;
+               stride;
+               filter_shape;
+               out_shape_mat =
+                 Mat.mapi (fun (Row r) _ shape ->
+                     let new_dim in_dim filt_dim =
+                       ((in_dim +  - filt_dim)
+                           / stride) + 1 in
+
+                     { dim1 =
+                         (Row (new_dim
+                                 (get_row shape.dim1)
+                                 (get_row filter_shape.dim1)));
+                       dim2 = (Col (new_dim
+                                 (get_col shape.dim2)
+                                 (get_col filter_shape.dim2)));
+                     }
+                   ) out_shape_mat;
+             } in
+
+  let layer = Pooling meta in
+  { layers = layer::nn.layers } 
+
 
 let make_nn (arch : nnet) : nnet =
   { layers = List.rev arch.layers }

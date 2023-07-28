@@ -44,8 +44,7 @@ type conv2d_meta = {
 type pooling_meta = {
     fselect : float -> float -> float;
     stride : int;
-    filter_rows : row;
-    filter_cols : col;
+    filter_shape : shape;
     out_shape_mat : shape Mat.t;
   }
 [@@deriving show]
