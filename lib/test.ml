@@ -45,7 +45,7 @@ let test train_data_fname save_file epochs =
   (* let train_data = adder_data in *)
 
   let base_nn =
-    make_input {dim1 = (Row 1); dim2 = (Col 784); dim3 = 1 } 
+    make_input @@ make_shape3d (Row 28) (Col 28) 1
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
@@ -53,12 +53,12 @@ let test train_data_fname save_file epochs =
 
   let conv_nn =
     make_input {dim1 = (Row 28); dim2 = (Col 28); dim3 = 1 } 
-    |> make_conv2d ~padding:0 ~stride:1 ~act:relu ~deriv:relu'
-         ~kernel_shape:{dim1 = (Row 2); dim2 = (Col 2); dim3 = 1 }
+    |> make_conv2d ~padding:1 ~stride:1 ~act:relu ~deriv:relu'
+         ~kernel_shape:(make_shape (Row 2) (Col 2))
          ~kernel_num:1
 
     |> make_pooling ~stride:2 ~f:pooling_max
-         ~filter_shape:{dim1 = (Row 2); dim2 = (Col 2); dim3 = 1}
+         ~filter_shape:(make_shape (Row 2) (Col 2))
 
     |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn
@@ -81,10 +81,11 @@ let test train_data_fname save_file epochs =
   in
  *)
 
-  let* res = loss train_data conv_nn in
-  Printf.printf "Cost: %f\n" res;
-  (* show_nnet conv_nn |> print_string; *)
-  (* let ff = forward (get_data_input (List.hd train_data)) conv_nn in *)
+  (* let* res = loss train_data conv_nn in *)
+  (* Printf.printf "Cost: %f\n" res; *)
+  let ff = forward (get_data_input (List.hd train_data)) conv_nn
+  in
+  show_ conv_nn |> Printf.printf "\n\nConv nn %s\n";
   (* let  *)
 
   (* let* trained_nn = lern train_data nn epochs in *)

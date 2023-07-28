@@ -68,9 +68,12 @@ let conv3d_forward meta params tens =
                      (Row 1) (dim2 params.kernels)
                      params.kernels in
 
-          show_mat mat |> print_string;
+          (* show_mat mat |> print_string; *)
       fold_left2 (fun acc kern in_ch ->
-          let re = convolve in_ch ~stride:meta.stride kern
+          let re = convolve in_ch
+                     ~stride:meta.stride
+                     ~padding:meta.padding
+                     meta.out_shape kern
           |> add acc in
           re 
         ) mat kernel tens

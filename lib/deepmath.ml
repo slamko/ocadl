@@ -129,11 +129,11 @@ let%test "convolve" =
     let kern = Array.init 4 (fun i -> float_of_int i +. 10.)
               |> of_array (Row 2) (Col 2) in
     let res = [| 145.; 191.; 283.;329.|] |> of_array (Row 2) (Col 2) in
-    convolve im ~stride:1 kern
+    convolve im ~stride:1 ~padding:0 (make_shape (Row 2) (Col 2)) kern
     |> compare_float res
   in
 
-  test () 
+  test ()
 
 let%test "mult" =
   let open Mat in

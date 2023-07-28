@@ -17,6 +17,11 @@ module Mat = struct
       stride : int;
     }
    [@@deriving show]
+
+type size =
+  | Empty
+  | Size of int
+
 end
 
 type shape = {
@@ -24,11 +29,6 @@ type shape = {
     dim2 : col;
     dim3 : int;
   } [@@deriving show]
-
-type size =
-  | Empty
-  | Size of int
-
 
 open Mat
 
@@ -50,20 +50,18 @@ let get_size mat =
   | 0 -> Empty
   | size -> Size size
 
-let get_shape mat =
-  { dim1 = mat.rows;
-    dim2 = mat.cols;
-    dim3 = 1;
-  }
-
-let make_shape rows cols =
-  if get_row rows < 0 || get_col cols < 0
+let make_shape3d dim1 dim2 dim3 = 
+  if get_row dim1 < 0 || get_col dim2 < 0 || dim3 < 0
   then failwith "Invalid shape."
-  else 
-    { dim1 = rows;
-      dim2 = cols;
-      dim3 = 1;
-    }
+  else { dim1;
+         dim2;
+         dim3;
+       }
+
+let make_shape rows cols = make_shape3d rows cols 1
+
+let get_shape mat =
+  make_shape mat.rows mat.cols
 
 let shape_match mat1 mat2 =
   let shape = get_shape mat2 in
@@ -99,7 +97,7 @@ let zero_of_shape shape =
 
 let create (Row rows) (Col cols) finit =
   Array.init (rows * cols) (fun i ->
-      finit (Row (i / rows)) (Col (i mod cols)))
+      finit (Row (i / cols)) (Col (i mod cols)))
   |> of_array (Row rows) (Col cols)
 
 let empty () = of_array (Row 0) (Col 0) [| |]
@@ -434,34 +432,47 @@ let mult mat1 mat2 =
     
     res_mat
 
-let convolve mat ~stride:stride kernel =
+let convolve mat ~padding ~stride out_shape kernel =
   (* let kern_arr = kernel |> Mat.to_array in *)
   let kern_rows = dim1 kernel |> get_row in
   let kern_cols = dim2 kernel |> get_col in
+
   let mat_rows = dim1 mat |> get_row in
   let mat_cols = dim2 mat |> get_col in
   
-  let res_mat = make
-                  (Row (mat_rows - kern_rows + 1))
-                  (Col (mat_cols - kern_cols + 1)) 0. in
+  let base = create
+               (Row (mat_rows + (2 * padding)))
+               (Col (mat_cols + (2 * padding)))
+               (fun (Row r) (Col c) ->
+                 if r >= padding && c >= padding
+                    && r < mat_rows + padding
+                    && c < mat_cols + padding
+                 then get_raw (r - padding) (c - padding) mat
+                 else 0.
+               ) in
+
+  let base_rows = dim1 base |> get_row in
+  let base_cols = dim2 base |> get_col in
+  let res_mat = zero_of_shape out_shape in
   
-  let rec convolve_rec kernel stride mat r c res_mat =
-    if r = mat_rows - kern_rows + 1
+  let rec convolve_rec kernel mat r c res_mat =
+    if r + kern_rows > base_rows 
     then res_mat
     else
-      if c + kern_cols > mat_cols
-      then convolve_rec kernel stride mat (r + stride) 0 res_mat
+      if c + kern_cols > base_cols
+      then convolve_rec kernel mat (r + stride) 0 res_mat
       else
         (* let a = 4 in *)
         (* Printf.eprintf "r: %d; c: %d\n" r c ; *)
         let submat = shadow_submatrix (Row r) (Col c)
-                       kernel.rows kernel.cols mat in
+                       kernel.rows kernel.cols base in
         let@ _ = shape_match kernel submat in
         let conv = fold_left2
                      (fun acc val1 val2 -> acc +. (val1 *. val2))
                      0. submat kernel in
         set_raw (r / stride) (c / stride) res_mat conv;
-        convolve_rec kernel stride mat r (c + stride) res_mat
+        convolve_rec kernel mat r (c + stride) res_mat
     in
 
-    convolve_rec kernel stride mat 0 0 res_mat
+    convolve_rec kernel mat 0 0 res_mat
+
