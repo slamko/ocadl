@@ -63,10 +63,19 @@ type input_meta = {
   }
 [@@deriving show]
 
+module Flatten = struct
+type meta = {
+    out_shape : shape;
+  }
+[@@deriving show]
+end
+
+
 type layer_meta =
   | FullyConnectedMeta of Fully_Connected.meta
   | Conv2DMeta of Conv2D.meta
   | PoolingMeta of Pooling.meta
+  | FlattenMeta of Flatten.meta
   | InputMeta of input_meta 
 [@@deriving show]
 
@@ -74,6 +83,7 @@ type layer_params =
   | FullyConnectedParams of Fully_Connected.params
   | Conv2DParams of Conv2D.params
   | PoolingParams
+  | FlattenParams
   | InputParams
 [@@deriving show]
 
@@ -81,6 +91,7 @@ type layer =
   | FullyConnected of (Fully_Connected.meta * Fully_Connected.params)
   | Conv2D of (Conv2D.meta * Conv2D.params)
   | Pooling of Pooling.meta
+  | Flatten of Flatten.meta
   | Input of input_meta
 [@@deriving show]
 

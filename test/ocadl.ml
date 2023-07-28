@@ -1,11 +1,3 @@
-open Unix
-open Ocadl__Deepmath
-
-open Ocadl__Matrix
-open Ocadl__Types
-open Ocadl__Nn
-open Ocadl__Deepmath
-open Ocadl__Deep
 
 let usage_msg = "ocadl -l <train_data_file> -s <save_file> -i <epoch_num> -b <batch_size>"
 

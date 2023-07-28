@@ -60,6 +60,15 @@ let test train_data_fname save_file epochs =
     |> make_pooling ~stride:2 ~f:pooling_max
          ~filter_shape:(make_shape (Row 2) (Col 2))
 
+    |> make_conv2d ~padding:2 ~stride:1 ~act:relu ~deriv:relu'
+         ~kernel_shape:(make_shape (Row 3) (Col 3))
+         ~kernel_num:1
+
+    |> make_pooling ~stride:3 ~f:pooling_avarage
+         ~filter_shape:(make_shape (Row 3) (Col 3))
+
+    |> make_flatten
+    |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn
   in

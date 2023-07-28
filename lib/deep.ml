@@ -79,7 +79,7 @@ let conv3d_forward meta params tens =
 let conv2d_forward meta params tens =
   Mat.make (Row 1) (Col 1) tens
   |> conv3d_forward meta params
-  
+
 let forward_layer (input : ff_input_type) layer_type =
   match layer_type with
   | Input _ -> input
@@ -87,6 +87,8 @@ let forward_layer (input : ff_input_type) layer_type =
      begin match input with
      | Tensor1 tens ->
         tens |> fully_connected_forward fc fcp
+     | _ -> failwith "Invalid input shape for fully connected layer" end
+           (*
      | Tensor2 tens ->
         tens
         |> Mat.flatten2d
@@ -94,6 +96,7 @@ let forward_layer (input : ff_input_type) layer_type =
      | Tensor3 tens | Tensor4 tens ->
         Mat.flatten tens
             |> fully_connected_forward fc fcp end
+            *)
   | Conv2D (cn, cnp) -> 
      begin match input with
      | Tensor2 tens ->
@@ -102,6 +105,14 @@ let forward_layer (input : ff_input_type) layer_type =
         tens |> conv3d_forward cn cnp
      | _
        -> invalid_arg "Invalid input for convolutional layer." end
+  | Flatten _ ->
+     begin match input with
+     | Tensor3 tens | Tensor4 tens ->
+        Mat.flatten tens
+        |> make_tens1
+     | Tensor1 tens | Tensor2 tens ->
+        Mat.flatten2d tens
+        |> make_tens1 end
   | Pooling pl ->
      begin match input with
      | Tensor3 tens | Tensor4 tens -> pooling_forward pl tens
@@ -234,19 +245,26 @@ let bp_fully_connected act act_prev meta params diff_mat =
 
 let backprop_layer layer act_list diff_mat =
   match layer with
-  | Input _ -> { prev_diff = diff_mat;
-                  grad = InputParams;
-               }
+  | Input _ ->
+     { prev_diff = diff_mat;
+       grad = InputParams;
+     }
   | FullyConnected (meta, params) ->
      let act = hd act_list in
      let act_prev = tl act_list |> hd in
      bp_fully_connected act act_prev meta params diff_mat
-  | Conv2D (meta, params) -> { prev_diff = diff_mat;
-                                  grad = Conv2DParams params;
-                               }
-  | Pooling _ -> { prev_diff = diff_mat;
-                      grad = PoolingParams;
-                   }
+  | Conv2D (meta, params) ->
+     { prev_diff = diff_mat;
+       grad = Conv2DParams params;
+     }
+  | Pooling _ ->
+     { prev_diff = diff_mat;
+       grad = PoolingParams;
+     }
+  | Flatten _ -> 
+     { prev_diff = diff_mat;
+       grad = FlattenParams;
+     }
 
 let rec backprop_nn (ff_list : ff_input_type list)
           (bp_layers : layer list) (grad_acc : nnet_params)

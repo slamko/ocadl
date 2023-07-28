@@ -70,7 +70,8 @@ let shape_match mat1 mat2 =
   | _ -> Error "Matrix shapes do not match."
 
 let of_array rows cols matrix =
-  if (get_row rows * get_col cols) > (matrix |> Array.length)
+  if (get_row rows * get_col cols) > (matrix |> Array.length) ||
+       (get_row rows) < 0 || (get_col cols) < 0
   then invalid_arg "Of array: Index out of bounds."
   else
     let (Col col) = cols in

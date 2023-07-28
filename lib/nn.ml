@@ -142,6 +142,7 @@ let make_fully_connected ~ncount ~act ~deriv layers =
     | FullyConnected (meta, _) -> meta.ncount
     | Conv2D (meta, _) -> shape_size meta.out_shape
     | Pooling meta -> shape_size meta.out_shape
+    | Flatten meta -> shape_size meta.out_shape
     | Input meta -> shape_size meta.shape
   in
   
@@ -169,10 +170,10 @@ let make_conv2d ~kernel_shape ~kernel_num
   let open Mat in
 
   let prev_shape = match List.hd layers with
-    | FullyConnected (_, _) -> failwith "Unsupported nn configuration."
     | Conv2D (meta, _) -> meta.out_shape
     | Pooling meta -> meta.out_shape
     | Input meta -> meta.shape
+    | _ -> failwith "Unsupported nn configuration."
   in
   
   let new_dim in_dim kern_dim =
@@ -217,7 +218,9 @@ let make_pooling ~filter_shape ~stride ~f layers =
     | FullyConnected (_, _) -> failwith "Unsupported nn configuration."
     | Conv2D (meta, _) -> meta.out_shape
     | Pooling meta -> meta.out_shape
-    | Input meta -> meta.shape in
+    | Flatten meta -> meta.out_shape
+    | Input meta -> meta.shape
+  in
 
   let new_dim in_dim filt_dim =
     ((in_dim +  - filt_dim)
@@ -240,6 +243,21 @@ let make_pooling ~filter_shape ~stride ~f layers =
   let layer = Pooling meta in
   layer::layers 
 
+let make_flatten layers =
+  let open Mat in
+  let prev_shape = match List.hd layers with
+    | FullyConnected (_, _) -> failwith "Unsupported nn configuration."
+    | Conv2D (meta, _) -> meta.out_shape
+    | Pooling meta -> meta.out_shape
+    | Flatten meta -> meta.out_shape
+    | Input meta -> meta.shape
+  in
+
+  let meta = { Flatten.out_shape =
+                 make_shape (Row 1) (Col (shape_size prev_shape)) } in
+  let layer = Flatten meta in
+  layer::layers
+
 let make_nn arch : nnet =
   { layers = List.rev arch }
 
@@ -260,8 +278,7 @@ let nn_params_map proc nn_params =
   List.map (function
       | FullyConnectedParams fc -> fully_connected_map proc fc
       | Conv2DParams cv -> conv2d_map proc cv
-      | PoolingParams -> PoolingParams
-      | InputParams -> InputParams
+      | empty -> empty
     )
     nn_params.param_list
 
@@ -293,8 +310,7 @@ let nn_params_map proc nn =
                  kernels = Mat.map (fun v -> proc v) cv.kernels;
                  bias_mat = proc cv.bias_mat;
                }
-          | PoolingParams -> PoolingParams
-          | InputParams -> InputParams
+          | empty -> empty
         ) nn.param_list ;
   } 
 
@@ -313,6 +329,7 @@ let nn_zero_params nn : nnet_params =
               }
       | Pooling _ -> PoolingParams
       | Input _ -> InputParams
+      | Flatten _ -> FlattenParams
        ) in
   { param_list = zero_layers; }
                     
@@ -334,6 +351,7 @@ let nn_params_apply proc nn1 nn2 =
                }
           | InputParams, InputParams -> InputParams
           | PoolingParams, PoolingParams -> PoolingParams
+          | FlattenParams, FlattenParams -> FlattenParams
           | _ -> failwith "nn apply: Param lists do not match."
           ) nn1.param_list nn2.param_list;
       }
@@ -381,8 +399,7 @@ let nn_params_zero nn_params =
    List.map (function
       | FullyConnectedParams fc -> fully_connected_zero fc
       | Conv2DParams cv -> conv2d_zero cv
-      | PoolingParams -> PoolingParams
-      | InputParams -> InputParams
+      | empty -> empty
      )
      nn_params.param_list
 
