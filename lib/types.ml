@@ -23,6 +23,7 @@ type fully_connected_params = {
 type fully_connected_meta = {
     activation : activation;
     derivative : deriv;
+    ncount : int;
   }
 [@@deriving show]
 
@@ -35,6 +36,8 @@ type conv2d_params = {
 type conv2d_meta = {
     padding : int;
     stride : int;
+    kernel_num : int;
+    out_shape_mat : shape Mat.t;
   }
 [@@deriving show]
 
@@ -43,14 +46,12 @@ type pooling_meta = {
     stride : int;
     filter_rows : row;
     filter_cols : col;
+    out_shape_mat : shape Mat.t;
   }
 [@@deriving show]
 
-type input_meta = unit
-[@@deriving show]
-
-type common = {
-    ncount : int;
+type input_meta = {
+    shape_arr : shape array;
   }
 [@@deriving show]
 
@@ -72,7 +73,7 @@ type layer =
   | FullyConnected of (fully_connected_meta * fully_connected_params)
   | Conv2D of (conv2d_meta * conv2d_params)
   | Pooling of pooling_meta
-  | Input 
+  | Input of input_meta
 [@@deriving show]
 
 type nnet_params = {
@@ -80,14 +81,16 @@ type nnet_params = {
   }
 [@@deriving show]
 
+(*
 type layer_common = {
     common : common;
     layer  : layer;
   }
 [@@deriving show]
+*)
 
 type nnet = {
-    layers : layer_common list;
+    layers : layer list;
   }
 [@@deriving show]
 

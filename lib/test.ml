@@ -36,20 +36,25 @@ let rec perform nn data =
      perform nn t
 
 
-let test train_data_fname epochs =
+let test train_data_fname save_file epochs =
   let train_data =
-    (* if Sys.file_exists train_data_fname *)
-    (* then read_train_data train_data_fname 1 28 *)
-    (* else *) xor_data
+    if Sys.file_exists train_data_fname
+    then read_train_data train_data_fname 1 784
+    else xor_data
   in
   (* List.hd train_data |>  |> Mat.dim2 |> print_int ; *)
   (* let train_data = adder_data in *)
 
   let base_nn =
-    make_input 1 2
-    |> make_fully_connected ~ncount:3 ~act:sigmoid ~deriv:sigmoid'
-    |> make_fully_connected ~ncount:1 ~act:sigmoid ~deriv:sigmoid'
+    make_input 1 784
+    |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
+    |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
+    |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn in
+
+  let conv_nn = 
+    make_input 28 28
+  |> make_
   
   let nn =
     (* if Sys.file_exists !save_file *)

@@ -57,7 +57,7 @@ let pooling_forward meta tens =
     ))
 
 
-let conv3d_forward (meta : conv2d_meta) params tens =
+let conv4d_forward (meta : conv2d_meta) params tens =
   let open Mat in
   mapi
     (fun _ (Col c) mat ->
@@ -65,14 +65,19 @@ let conv3d_forward (meta : conv2d_meta) params tens =
   |> make_tens4
 
 
-let conv2d_forward (meta : conv2d_meta) params tens =
+let conv3d_forward (meta : conv2d_meta) params tens =
   let open Mat in
   let res_mat = create
                   (Row (size tens))
                   (Col (params.kernels |> Array.length))
                   (fun r _ -> get (Row 0) (Col (get_row r)) tens) in
 
-  conv3d_forward meta params res_mat
+  conv4d_forward meta params res_mat
+
+let conv2d_forward (meta : conv2d_meta) params tens =
+  [| tens |]
+  |> Mat.of_array (Row 1) (Col 1)
+  |> conv3d_forward meta params
   
 let forward_layer (input : ff_input_type) layer_type =
   match layer_type with
@@ -92,10 +97,12 @@ let forward_layer (input : ff_input_type) layer_type =
        -> invalid_arg "Invalid input for fully connected layer" end
   | Conv2D (cn, cnp) -> 
      begin match input with
-     | Tensor3 tens ->
+     | Tensor2 tens ->
         tens |> conv2d_forward cn cnp
-     | Tensor4 tens ->
+     | Tensor3 tens ->
         tens |> conv3d_forward cn cnp
+     | Tensor4 tens ->
+        tens |> conv4d_forward cn cnp
      | _
        -> invalid_arg "Invalid input for convolutional layer." end
   | Pooling pl ->

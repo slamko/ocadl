@@ -21,10 +21,10 @@ type row =
   exception InvalidIndex
 
   type shape = {
-      size : int;
       dim1 : row;
       dim2 : col;
     }
+   [@@deriving show]
 
   type size =
     | Empty
@@ -34,6 +34,9 @@ type row =
 
   let get_col (Col col) = col
 
+  let shape_size shape =
+    get_row shape.dim1 |> ( * ) @@ get_col shape.dim2 
+  
   let size mat = get_row mat.rows |> ( * ) @@ get_col mat.cols
 
   let get_size mat =
@@ -42,9 +45,13 @@ type row =
     | size -> Size size
 
   let get_shape mat =
-    { size = size mat;
-      dim1 = mat.rows;
+    { dim1 = mat.rows;
       dim2 = mat.cols;
+    }
+
+  let make_shape (Row rows) (Row cols) =
+    { dim1 = Row rows;
+      dim2 = Col cols;
     }
 
   let shape_match mat1 mat2 =
@@ -67,6 +74,8 @@ type row =
     Array.make (rows * cols) init_val
     |> of_array (Row rows) (Col cols)
 
+  let of_shape init_val shape =
+    make shape.dim1 shape.dim2 init_val
   let create (Row rows) (Col cols) finit =
     Array.init (rows * cols) (fun i ->
         finit (Row (i / rows)) (Col (i mod cols)))
@@ -135,6 +144,12 @@ type row =
        do proc @@ get (Row r) (Col c) mat;
        done
     done
+
+  let random row col =
+    create row col (fun _ _ -> (Random.float 2. -. 1.))
+
+  let of_shape_random shape =
+    random shape.dim1 shape.dim2
 
   let opt_iter proc mat =
     let rec iter_rec (Row r) (Col c) proc mat =
@@ -255,10 +270,6 @@ type row =
 
   let add_const value mat =
     mat |> map @@ ( +. ) value
-
-  let random row col =
-    create row col (fun _ _ -> (Random.float 2. -. 1.))
-
   let zero mat =
     make mat.rows mat.cols 0.
   

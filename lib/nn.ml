@@ -53,8 +53,8 @@ let read_train_data fname res_len in_cols =
          let res_mat = Mat.make (Row 1) (Col 10) 0. in
          let col = Col (List.hd res_list |> int_of_float) in
          Mat.set (Row 0) col res_mat 1.;
-         Some (res_mat,
-          data_list |> list_to_mat in_cols))
+         Tensor1 res_mat,
+          Tensor1 (data_list |> list_to_mat in_cols))
   (* |> List.iter (fun (res, inp) -> mat_print inp) *)
 
 let to_json_list proc l =
@@ -135,34 +135,86 @@ let restore_nn_from_json fname nn =
   (* List.hd weights |> List.length |> print_int *)
  *)
 
-let make_input rows cols =
-  let in_layer = { layer = Input;
-                   common = { ncount = rows * cols; };
-                 } in
+let make_input shape_arr = 
+  let in_layer = Input { shape_arr } in
   { layers = [in_layer];
   }
 
 let make_fully_connected ~ncount ~act ~deriv nn : nnet =
-  let prev_ncount = Row (List.hd nn.layers).common.ncount in
+  let prev_ncount = match List.hd nn.layers with
+    | FullyConnected (meta, _) ->
+       meta.ncount
+    | Conv2D (meta, _) ->
+       Mat.fold_left (fun acc m -> acc + shape_size m) 0 meta.out_shape_mat
+    | Pooling meta -> 
+       Mat.fold_left (fun acc m -> acc + shape_size m) 0 meta.out_shape_mat
+    | Input meta -> 
+       Array.fold_left (fun acc m -> acc + shape_size m) 0 meta.shape_arr
+  in
   
   let meta =
     { activation = act;
       derivative = deriv;
+      ncount;
     }
   in
 
   let params =
-      { weight_mat = Mat.random prev_ncount (Col ncount);
+      { weight_mat = Mat.random (Row prev_ncount) (Col ncount);
         bias_mat = Mat.random (Row 1) (Col ncount);
       } 
   in
 
-  let common = { ncount = ncount } in
-  let layer = { layer = FullyConnected (meta, params);
-                common = common;
-              } in
+  let layer = FullyConnected (meta, params); in
 
   { layers = layer::nn.layers }
+
+let make_conv2d ~kernel_shapes ~padding ~stride nn =
+  let kernel_num = Array.length kernel_shapes in
+
+  let out_shape_mat = match List.hd nn.layers with
+    | FullyConnected (meta, _) -> failwith "Unsupported nn configuration."
+    | Conv2D (meta, _) -> meta.out_shape_mat
+    | Pooling meta -> meta.out_shape_mat
+    | Input meta ->
+       let rec scale_arr i arr =
+         match i - 1 with
+         | _ when i <= 1 -> arr
+         | i' -> Array.append arr arr
+                |> scale_arr i' in
+       
+       meta.shape_arr
+       |> scale_arr kernel_num
+       |> Mat.of_array (Row kernel_num) (Col (Array.length meta.shape_arr)) in
+
+  let meta = { padding;
+               stride;
+               kernel_num;
+               out_shape_mat =
+                 Mat.mapi (fun (Row r) _ shape ->
+                     let kern_shape = kernel_shapes.(r) in
+                     let new_dim in_dim kern_dim =
+                       ((in_dim + (2 * padding) - kern_dim)
+                           / stride) + stride - 1 in
+
+                     { dim1 =
+                         (Row (new_dim
+                                 (get_row shape.dim1)
+                                 (get_row kern_shape.dim1)));
+                       dim2 = (Col (new_dim
+                                 (get_col shape.dim2)
+                                 (get_col kern_shape.dim2)));
+                     }
+                   ) out_shape_mat;
+             } in
+  let params = { kernels =
+                   Array.map Mat.of_shape_random kernel_shapes;
+                 bias_mat = Mat.of_shape_random
+                            @@ Mat.get_shape meta.out_shape_mat;
+               } in
+
+  let layer = Conv2D (meta, params) in
+  { layers = layer::nn.layers } 
 
 let make_nn (arch : nnet) : nnet =
   { layers = List.rev arch.layers }
