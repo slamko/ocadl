@@ -42,7 +42,7 @@ type meta = {
     act : activation;
     deriv : deriv;
     kernel_num : int;
-    out_shape_mat : shape Mat.t;
+    out_shape : shape;
   }
 [@@deriving show]
 end
@@ -52,14 +52,16 @@ type meta = {
     fselect : float -> float -> float;
     stride : int;
     filter_shape : shape;
-    out_shape_mat : shape Mat.t;
+    out_shape : shape;
+    out_size : int;
   }
 [@@deriving show]
 
 end
 
 type input_meta = {
-    shape_arr : shape array;
+    shape : shape;
+    dimension : int;
   }
 [@@deriving show]
 

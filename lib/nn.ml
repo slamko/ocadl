@@ -129,8 +129,8 @@ let restore_nn_from_json fname nn =
   (* List.hd weights |> List.length |> print_int *)
  *)
 
-let make_input shape_arr = 
-  let in_layer = Input { shape_arr } in
+let make_input shape dimension = 
+  let in_layer = Input { shape; dimension } in
   [in_layer]
 
 let make_fully_connected ~ncount ~act ~deriv layers =
@@ -139,11 +139,11 @@ let make_fully_connected ~ncount ~act ~deriv layers =
     | FullyConnected (meta, _) ->
        meta.ncount
     | Conv2D (meta, _) ->
-       fold_left (fun acc m -> acc + shape_size m) 0 meta.out_shape_mat
+       shape_size meta.out_shape * meta.kernel_num
     | Pooling meta -> 
-       fold_left (fun acc m -> acc + shape_size m) 0 meta.out_shape_mat
+       shape_size meta.out_shape * meta.out_size
     | Input meta -> 
-       Array.fold_left (fun acc m -> acc + shape_size m) 0 meta.shape_arr
+       shape_size meta.shape * meta.dimension
   in
   
   let meta =
@@ -169,21 +169,27 @@ let make_conv2d ~kernel_shape ~kernel_num
       ~act ~deriv ~padding ~stride layers =
   let open Mat in
 
-  let out_shape_mat = match List.hd layers with
+  let prev_shape = match List.hd layers with
     | FullyConnected (_, _) -> failwith "Unsupported nn configuration."
-    | Input _ | Conv2D (_, _) | Pooling _ ->
-       make (Row 1) (Col kernel_num) @@
-         empty_shape () in
-
-  let prev_shape_mat = match List.hd layers with
-    | FullyConnected (_, _) -> failwith "Unsupported nn configuration."
-    | Conv2D (meta, _) -> meta.out_shape_mat
-    | Pooling meta -> meta.out_shape_mat
-    | Input meta ->
-       meta.shape_arr
-       |> of_array (Row 1) @@ Col (Array.length meta.shape_arr)
+    | Conv2D (meta, _) -> meta.out_shape
+    | Pooling meta -> meta.out_shape
+    | Input meta -> meta.shape
   in
+  
+  let new_dim in_dim kern_dim =
+    ((in_dim + (2 * padding) - kern_dim)
+     / stride) + 1 in
+  
+  let out_shape =
+    make_shape
+      (Row (new_dim
+              (get_row prev_shape.dim1)
+              (get_row kernel_shape.dim1)))
+      (Col (new_dim
+              (get_col prev_shape.dim2)
+              (get_col kernel_shape.dim2))) in
 
+  
   let meta = {
       Conv2D.
       padding;
@@ -191,25 +197,8 @@ let make_conv2d ~kernel_shape ~kernel_num
       act;
       deriv;
       kernel_num;
-      out_shape_mat =
-        mapi (fun (Row r) _ shape ->
-            (* let kern_shape = kernel_shapes.(r) in *)
-            let new_dim in_dim kern_dim =
-              ((in_dim + (2 * padding) - kern_dim)
-               / stride) + 1 in
-            
-            let s = make_shape
-              (Row (new_dim
-                      (get_row shape.dim1)
-                      (get_row kernel_shape.dim1)))
-              (Col (new_dim
-                      (get_col shape.dim2)
-                      (get_col kernel_shape.dim2))) in
-            show_shape s |> Printf.printf "shape: %s\n";
-            s
-
-          ) out_shape_mat;
-    } in
+      out_shape;
+   } in
 
   let kernel_mat = create (Row kernel_num) (dim2 prev_shape_mat)
                      (fun _ _ -> random_of_shape kernel_shape) in
