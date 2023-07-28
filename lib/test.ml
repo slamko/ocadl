@@ -38,27 +38,27 @@ let test train_data_fname save_file epochs =
   let train_data =
     if Sys.file_exists train_data_fname
     then read_mnist_train_data train_data_fname
-           {dim1 = (Row 28) ; dim2 = (Col 28)}
+           {dim1 = (Row 28) ; dim2 = (Col 28); dim3 = 1}
     else xor_data
   in
   (* List.hd train_data |>  |> Mat.dim2 |> print_int ; *)
   (* let train_data = adder_data in *)
 
   let base_nn =
-    make_input [| {dim1 = (Row 1); dim2 = (Col 784) } |]
+    make_input {dim1 = (Row 1); dim2 = (Col 784); dim3 = 1 } 
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn in
 
   let conv_nn =
-    make_input [| {dim1 = (Row 28); dim2 = (Col 28) } |]
+    make_input {dim1 = (Row 28); dim2 = (Col 28); dim3 = 1 } 
     |> make_conv2d ~padding:0 ~stride:1 ~act:relu ~deriv:relu'
-         ~kernel_shape:{dim1 = (Row 2); dim2 = (Col 2) }
+         ~kernel_shape:{dim1 = (Row 2); dim2 = (Col 2); dim3 = 1 }
          ~kernel_num:1
 
     |> make_pooling ~stride:2 ~f:pooling_max
-         ~filter_shape:{dim1 = (Row 2); dim2 = (Col 2) }
+         ~filter_shape:{dim1 = (Row 2); dim2 = (Col 2); dim3 = 1}
 
     |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn

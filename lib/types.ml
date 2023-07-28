@@ -53,7 +53,6 @@ type meta = {
     stride : int;
     filter_shape : shape;
     out_shape : shape;
-    out_size : int;
   }
 [@@deriving show]
 
@@ -61,7 +60,6 @@ end
 
 type input_meta = {
     shape : shape;
-    dimension : int;
   }
 [@@deriving show]
 

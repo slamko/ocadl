@@ -48,7 +48,10 @@ let read_mnist_train_data fname shape =
          let col = Mat.Col (List.hd res_list |> int_of_float) in
          Mat.set (Row 0) col res_mat 1.;
          Tensor1 res_mat,
-          Tensor2 (data_list |> Mat.of_list shape.Mat.dim1 shape.Mat.dim2))
+         Tensor2 (data_list
+                  |> Mat.of_list
+                       shape.Mat.dim1
+                       shape.Mat.dim2))
   (* |> List.iter (fun (res, inp) -> mat_print inp) *)
 
 let to_json_list proc l =
@@ -129,21 +132,17 @@ let restore_nn_from_json fname nn =
   (* List.hd weights |> List.length |> print_int *)
  *)
 
-let make_input shape dimension = 
-  let in_layer = Input { shape; dimension } in
+let make_input shape = 
+  let in_layer = Input { shape; } in
   [in_layer]
 
 let make_fully_connected ~ncount ~act ~deriv layers =
   let open Mat in
   let prev_ncount = match List.hd layers with
-    | FullyConnected (meta, _) ->
-       meta.ncount
-    | Conv2D (meta, _) ->
-       shape_size meta.out_shape * meta.kernel_num
-    | Pooling meta -> 
-       shape_size meta.out_shape * meta.out_size
-    | Input meta -> 
-       shape_size meta.shape * meta.dimension
+    | FullyConnected (meta, _) -> meta.ncount
+    | Conv2D (meta, _) -> shape_size meta.out_shape
+    | Pooling meta -> shape_size meta.out_shape
+    | Input meta -> shape_size meta.shape
   in
   
   let meta =
@@ -200,14 +199,13 @@ let make_conv2d ~kernel_shape ~kernel_num
       out_shape;
    } in
 
-  let kernel_mat = create (Row kernel_num) (dim2 prev_shape_mat)
+  let kernels = create (Row kernel_num) (Col prev_shape.dim3) 
                      (fun _ _ -> random_of_shape kernel_shape) in
 
   let params = {
       Conv2D.
-      kernels = kernel_mat;
-      bias_mat = random_of_shape
-                 @@ get_shape meta.out_shape_mat;
+      kernels;
+      bias_mat = random (Row 1) kernels.cols
     } in
 
   let layer = Conv2D (meta, params) in
@@ -215,37 +213,32 @@ let make_conv2d ~kernel_shape ~kernel_num
 
 let make_pooling ~filter_shape ~stride ~f layers =
   let open Mat in
-  let out_shape_mat = match List.hd layers with
+  let prev_shape = match List.hd layers with
     | FullyConnected (_, _) -> failwith "Unsupported nn configuration."
-    | Conv2D (meta, _) -> meta.out_shape_mat
-    | Pooling meta -> meta.out_shape_mat
-    | Input meta ->
-       meta.shape_arr
-       |> of_array (Row 1) (Col (Array.length meta.shape_arr)) in
+    | Conv2D (meta, _) -> meta.out_shape
+    | Pooling meta -> meta.out_shape
+    | Input meta -> meta.shape in
 
+  let new_dim in_dim filt_dim =
+    ((in_dim +  - filt_dim)
+     / stride) + 1 in
+  
   let meta = { Pooling.
                fselect = f;
                stride;
                filter_shape;
-               out_shape_mat =
-                 map (fun shape ->
-                     let new_dim in_dim filt_dim =
-                       ((in_dim +  - filt_dim)
-                           / stride) + 1 in
-
-                     make_shape
-                         (Row (new_dim
-                                 (get_row shape.dim1)
-                                 (get_row filter_shape.dim1)))
-                         (Col (new_dim
-                                 (get_col shape.dim2)
-                                 (get_col filter_shape.dim2)))
-                   ) out_shape_mat;
+               out_shape =
+                 make_shape
+                   (Row (new_dim
+                           (get_row prev_shape.dim1)
+                           (get_row filter_shape.dim1)))
+                   (Col (new_dim
+                           (get_col prev_shape.dim2)
+                           (get_col filter_shape.dim2)))
              } in
 
   let layer = Pooling meta in
   layer::layers 
-
 
 let make_nn arch : nnet =
   { layers = List.rev arch }
@@ -266,7 +259,10 @@ let conv2d_map proc layer =
 let nn_params_map proc nn_params =
   List.map (function
       | FullyConnectedParams fc -> fully_connected_map proc fc
-      | Conv2DParams cv -> conv2d_map proc cv)
+      | Conv2DParams cv -> conv2d_map proc cv
+      | PoolingParams -> PoolingParams
+      | InputParams -> InputParams
+    )
     nn_params.param_list
 
 let fully_connected_zero layer =

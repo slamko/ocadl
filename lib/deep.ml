@@ -48,15 +48,19 @@ let pooling_forward meta tens =
        map
          (fun mat ->
            make
-             (Row ((dim1 mat |> get_row) / get_row meta.filter_shape.dim1))
-             (Col ((dim2 mat |> get_col) / get_col meta.filter_shape.dim2)) 0.
+             (Row ((dim1 mat |> get_row) /
+                     get_row meta.filter_shape.dim1))
+             (Col ((dim2 mat |> get_col) /
+                     get_col meta.filter_shape.dim2)) 0.
                |> pool_rec meta mat (Row 0) (Col 0)
     ))
 
 let conv3d_forward meta params tens =
   let open Mat in
   let open Conv2D in
-  let res_mat = map zero_of_shape meta.out_shape_mat in
+  let res_mat = map
+                  (fun _ -> zero_of_shape meta.out_shape)
+                  params.kernels in
 
   mapi
     (fun _ (Col c) mat ->
@@ -66,8 +70,8 @@ let conv3d_forward meta params tens =
 
           show_mat mat |> print_string;
       fold_left2 (fun acc kern in_ch ->
-          let re = convolve in_ch ~stride:meta.stride kern in
-          (* |> add acc in *)
+          let re = convolve in_ch ~stride:meta.stride kern
+          |> add acc in
           re 
         ) mat kernel tens
       |> add_const (params.bias_mat |> get (Row 0) (Col c))
@@ -92,9 +96,7 @@ let forward_layer (input : ff_input_type) layer_type =
         |> fully_connected_forward fc fcp
      | Tensor3 tens | Tensor4 tens ->
         Mat.flatten tens
-            |> fully_connected_forward fc fcp
-     | _
-       -> invalid_arg "Invalid input for fully connected layer" end
+            |> fully_connected_forward fc fcp end
   | Conv2D (cn, cnp) -> 
      begin match input with
      | Tensor2 tens ->
