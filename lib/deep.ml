@@ -12,7 +12,7 @@ type backprop_neuron = {
   }
 
 type backprop_layer = {
-    prev_diff : mat;
+    prev_diff : ff_input_type;
     grad : layer_params;
   }
 
@@ -198,10 +198,10 @@ let backprop_neuron w_mat_arr fderiv w_row w_col ff_len diffi ai ai_prev_arr
 
  *)
 
-let bp_fully_connected act act_prev meta params diff_mat =
+let bp_fully_connected act act_prev meta params diff =
   let open Fully_Connected in
-  match act, act_prev with
-     | Tensor1 act, Tensor1 act_prev ->
+  match diff, act, act_prev with
+     | Tensor1 diff_mat, Tensor1 act, Tensor1 act_prev ->
         let open Mat in
 
         let wmat = params.weight_mat in
@@ -234,7 +234,9 @@ let bp_fully_connected act act_prev meta params diff_mat =
             ) params.bias_mat in
 
         let prev_diff = prev_diff_mat
-                      |> reshape (Row 1) (Col (wmat |> dim1 |> get_row)) in
+                        |> reshape (Row 1) (Col (wmat |> dim1 |> get_row))
+                        |> make_tens1
+        in
           { prev_diff ;
             grad = FullyConnectedParams {
                        weight_mat = grad_wmat;
@@ -242,6 +244,29 @@ let bp_fully_connected act act_prev meta params diff_mat =
                      };
           }
      | _ -> invalid_arg "bp layer: Incompatible activation type."
+
+let flatten_bp act_prev diff =
+  match diff, act_prev with
+  | Tensor1 diff_mat, Tensor1 _ ->
+     { prev_diff = make_tens1 diff_mat;
+       grad = FlattenParams;
+     }
+  | Tensor1 diff_mat, Tensor2 tens ->
+     { prev_diff =
+       tens
+       |> Mat.get_shape
+       |> Mat.reshape_of_shape diff_mat
+       |> make_tens2;
+      grad = FlattenParams;
+    }
+  | Tensor1 diff_mat, Tensor3 tens ->
+     { prev_diff =
+         diff_mat
+         |> Mat.reshape3d tens
+         |> make_tens3;
+       grad = FlattenParams;
+     }
+  | _ -> failwith "No to tensor4 (flatten)."
 
 let backprop_layer layer act_list diff_mat =
   match layer with
@@ -262,13 +287,12 @@ let backprop_layer layer act_list diff_mat =
        grad = PoolingParams;
      }
   | Flatten _ -> 
-     { prev_diff = diff_mat;
-       grad = FlattenParams;
-     }
-
-let rec backprop_nn (ff_list : ff_input_type list)
+     let act_prev = tl act_list |> hd in
+     flatten_bp act_prev diff_mat
+     
+ let rec backprop_nn (ff_list : ff_input_type list)
           (bp_layers : layer list) (grad_acc : nnet_params)
-          (diff_mat : mat) =
+          diff_mat =
 
   match ff_list with
   | [] | [_] ->
@@ -296,17 +320,21 @@ let nn_gradient (nn : nnet) data  =
        let ff_res       = hd ff_net.res in
        let expected_res = get_data_out cur_sample in
 
-       match expected_res, ff_res with
-       | (Tensor2 exp, Tensor2 res) | (Tensor1 exp, Tensor1 res) ->
-          let res_diff = Mat.sub res exp in
+       let res_diff =
+         match expected_res, ff_res with
+         | (Tensor1 exp, Tensor1 res) ->
+            Mat.sub res exp |> make_tens1
+         | (Tensor2 exp, Tensor2 res) ->
+            Mat.sub res exp |> make_tens2
+         | _ -> invalid_arg "Incompatible output shape." in
 
-          let bp_grad = backprop_nn ff_net.res ff_net.backprop_nn.layers
-                          {param_list = []; } res_diff in
-
-          (* Printf.printf "One sample nn" ; *)
-          nn_params_apply Mat.add bp_grad bp_grad_acc
+       let bp_grad = backprop_nn ff_net.res ff_net.backprop_nn.layers
+                       {param_list = []; } res_diff in
+       
+       (* Printf.printf "One sample nn" ; *)
+       nn_params_apply Mat.add bp_grad bp_grad_acc
        |> bp_rec nn data_tail
-       | _ -> invalid_arg "Incompatible output shape."
+   
   in
  
   let newn = nn_zero_params nn

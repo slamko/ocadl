@@ -215,6 +215,9 @@ let make_pooling ~filter_shape ~stride ~f layers =
   let open Mat in
   let prev_shape = layers |> List.hd |> get_out_shape in
 
+  (* match List.hd layers with *)
+  (* |  *)
+
   let new_dim in_dim filt_dim =
     ((in_dim +  - filt_dim)
      / stride) + 1 in

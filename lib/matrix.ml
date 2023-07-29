@@ -63,6 +63,9 @@ let make_shape rows cols = make_shape3d rows cols 1
 let get_shape mat =
   make_shape mat.rows mat.cols
 
+let get_shape3d mat =
+  make_shape3d 
+
 let shape_match mat1 mat2 =
   let shape = get_shape mat2 in
   match get_shape mat1 |> compare shape with
@@ -238,11 +241,14 @@ let mapi proc mat =
   match size mat with
   | 0 -> empty ()
   | _ ->
-     let res_mat = proc (Row 0) (Col 0) (mat |> get_first)
+     let res_mat = mat
+                   |> get_first
+                   |> proc (Row 0) (Col 0) 
                    |> make mat.rows mat.cols in
      
      iteri (fun r c value1 ->
-         proc r c value1 |> set r c res_mat)
+         proc r c value1
+         |> set r c res_mat)
        mat;
      
      res_mat
@@ -333,7 +339,15 @@ let dim2 mat =
 let reshape rows cols mat =
   of_array rows cols mat.matrix
 
+let reshape_of_shape mat shape  =
+  reshape shape.dim1 shape.dim2 mat
+
 let submatrix start_row start_col rows cols mat =
+  if get_row start_row + get_row rows > get_row mat.rows
+     || get_col start_col + get_col cols > get_col mat.cols
+  then invalid_arg "Submatrix: Index out of bounds."
+  else
+  
   let res_arr = Array.make (get_row rows * get_col cols) mat.matrix.(0) in
   let stride (Col col) = col in
   let res_mat = { matrix = res_arr;
@@ -348,10 +362,20 @@ let submatrix start_row start_col rows cols mat =
   iteri (fun r c value -> set r c res_mat value) mat;
   res_mat
 
+let reshape3d base mat =
+  let index = ref 0 in
+  map (fun inner ->
+      let subm = submatrix
+                   (Row 0) (Col !index)
+                   (Row 1) (Col (size inner)) mat in
+      index := !index + size inner ;
+      subm
+    ) base
+
 let shadow_submatrix start_row start_col rows cols mat =
   if get_row start_row + get_row rows > get_row mat.rows
      || get_col start_col + get_col cols > get_col mat.cols
-  then invalid_arg "Submatrix: Index out of bounds."
+  then invalid_arg "Shadow submatrix: Index out of bounds."
   else
     let res_mat = { matrix = mat.matrix;
                     rows = rows;
@@ -407,6 +431,15 @@ let flatten3d mat_arr =
      mat_arr
      |> of_array (Row 1) (Col (Array.length mat_arr))
      |> flatten
+
+let rotate180 mat =
+  let mrows = get_row mat.rows in
+  let mcols = get_col mat.cols in
+  mapi (fun (Row r) (Col c) _ ->
+      get_raw (mrows - r - 1) (mcols - c - 1) mat 
+      (* |> set_raw r c mat; *)
+      (* set_raw (mrows - r - 1) (mcols - c - 1) mat value *)
+    ) mat
 
 let sum mat =
   mat |> fold_left (+.) 0. 

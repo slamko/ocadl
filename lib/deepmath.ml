@@ -135,6 +135,15 @@ let%test "convolve" =
 
   test ()
 
+let%test "rotate180" =
+  let open Mat in
+  let arr = Array.init 9 (fun i -> float_of_int i +. 1.) in
+  let im = arr |> of_array (Row 3) (Col 3) in
+  let res = arr |> Array.to_list |> List.rev |> of_list (Row 3) (Col 3)  in
+
+  rotate180 im
+  |> compare_float res
+
 let%test "mult" =
   let open Mat in
 
