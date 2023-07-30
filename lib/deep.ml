@@ -309,7 +309,7 @@ let pooling_bp meta act_prev diff =
   | Tensor3 act_prev | Tensor4 act_prev ->
      let prev_diff =
        map2 (fun input diff ->
-           print diff ;
+           (* print diff ; *)
            pool_rec meta input diff (Row 0) (Col 0)
              (zero_of_shape (get_shape input)))
          act_prev diff_mat 
@@ -318,7 +318,7 @@ let pooling_bp meta act_prev diff =
      { prev_diff; grad = PoolingParams}
   | _ -> failwith "Invalid previous activation for pooling bp."
 
-let conv2d_bp meta params act act_prev diff_mat =
+let conv2d_bp meta params (prev_layer: layer option) act act_prev diff_mat =
   let open Mat in
   let open Conv2D in
   match act, act_prev, diff_mat with
@@ -332,13 +332,28 @@ let conv2d_bp meta params act act_prev diff_mat =
                      act_prev dz params.kernels
      in
 
+
      (* let prev_diff = map3 (fun inp dout kern -> *)
                          (* let kern_rot = rotate180 kern in *)
                          (* convolve dout ~padding:meta.padding *)
                            (* ~stride:meta.stride (get_shape inp) kern_rot) *)
                        (* act_prev dz params.kernels *)
                    (* |> make_tens3 *)
-     let prev_diff = diff_mat |> make_tens3 
+
+     let prev_diff =
+       match prev_layer with
+       | Some x ->
+          begin match x with
+          | Input _ -> diff_mat |> make_tens3 
+          | _ ->
+             map3 (fun inp dout kern ->
+                         let kern_rot = rotate180 kern in
+                         convolve dout ~padding:meta.padding
+                           ~stride:meta.stride (get_shape inp) kern_rot)
+                       act_prev dz params.kernels
+             |> make_tens3
+          end
+       | None -> diff_mat |> make_tens3  
      in
 
      { prev_diff;
@@ -351,7 +366,7 @@ let conv2d_bp meta params act act_prev diff_mat =
   | Tensor3 m, Tensor2 a, Tensor3 _ -> failwith "conv2d_bp: activation type"
   | _ -> failwith "conv2d_bp: invalid activation type"
 
-let backprop_layer layer act_list diff_mat =
+let backprop_layer layer (prev_layer : layer option) act_list diff_mat =
   match layer with
   | Input _ ->
      { prev_diff = diff_mat;
@@ -364,7 +379,7 @@ let backprop_layer layer act_list diff_mat =
   | Conv2D (meta, params) ->
      let act = hd act_list in
      let act_prev = hdtl act_list in
-     conv2d_bp meta params act act_prev diff_mat 
+     conv2d_bp meta params prev_layer act act_prev diff_mat 
   | Pooling meta ->
      let act_prev = hdtl act_list in
      pooling_bp meta act_prev diff_mat
@@ -381,7 +396,11 @@ let backprop_layer layer act_list diff_mat =
      grad_acc
   | act_list ->
      let lay = hd bp_layers in
-     let bp_layer = backprop_layer lay act_list
+     let prev_lay = if List.length bp_layers > 1
+                    then Some (hdtl bp_layers)
+                    else None
+     in
+     let bp_layer = backprop_layer lay prev_lay act_list 
                       diff_mat in
 
      let param_list = bp_layer.grad::grad_acc.param_list in

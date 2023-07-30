@@ -54,18 +54,19 @@ let test train_data_fname save_file epochs =
   let conv_nn =
     make_input @@ make_shape3d (Row 28) (Col 28) 1
     |> make_conv2d ~padding:1 ~stride:1 ~act:relu ~deriv:relu'
-         ~kernel_shape:(make_shape (Row 2) (Col 2))
+         ~kernel_shape:(make_shape (Row 4) (Col 4))
          ~kernel_num:1
 
     |> make_pooling ~stride:2 ~f:pooling_max ~fbp:pooling_max_deriv
-         ~filter_shape:(make_shape (Row 2) (Col 2))
+         ~filter_shape:(make_shape (Row 4) (Col 4))
 
-    (* |> make_conv2d ~padding:1 ~stride:1 ~act:relu ~deriv:relu' *)
-         (* ~kernel_shape:(make_shape (Row 3) (Col 3)) *)
-         (* ~kernel_num:1 *)
+    |> make_conv2d ~padding:1 ~stride:1 ~act:relu ~deriv:relu'
+         ~kernel_shape:(make_shape (Row 4) (Col 4))
+         ~kernel_num:1
 
-    (* |> make_pooling ~stride:2 ~f:pooling_avarage ~fbp:pooling_max_deriv *)
-         (* ~filter_shape:(make_shape (Row 2) (Col 2)) *)
+    |> make_pooling ~stride:2 ~f:pooling_max ~fbp:pooling_max_deriv
+         ~filter_shape:(make_shape (Row 4) (Col 4))
+
 
     |> make_flatten
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'

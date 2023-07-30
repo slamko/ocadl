@@ -481,7 +481,6 @@ let flatten3d mat_arr =
 let reshape3d base mat =
   let base_size = fold_left (fun acc m -> acc + size m) 0 base in
 
-  Printf.printf "Mat size: %d : %d : %d\n" (size base) base_size (size mat) ;
   if base_size <> size mat
   then failwith "Reshape3D: invalid matrix size.";
 
@@ -489,7 +488,6 @@ let reshape3d base mat =
   
   foldi_left (fun r c index inner ->
       
-      Printf.printf "Index: %d\n" index ;
       let subm = submatrix
                    (Row 0) (Col index)
                    (Row 1) (Col (size inner)) mat
@@ -567,8 +565,8 @@ let convolve mat ~padding ~stride out_shape kernel =
   let base_cols = dim2 base |> get_col in
   let res_mat = zero_of_shape out_shape in
 
-  Printf.printf "Convolve sizes: base = %d, res = %d, kernel = %d\n"
-    (size base) (size res_mat) (size kernel);
+  (* Printf.printf "Convolve sizes: base = %d, res = %d, kernel = %d\n" *)
+    (* (size base) (size res_mat) (size kernel); *)
   
   let rec convolve_rec kernel r c res_mat =
     if r + kern_rows > base_rows 
