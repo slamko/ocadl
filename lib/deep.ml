@@ -268,32 +268,47 @@ let flatten_bp act_prev diff =
      }
   | _ -> failwith "No to tensor4 (flatten)."
 
-let pooling_bp meta act_prev diff_mat =
+let pooling_bp meta act_prev diff =
   let open Mat in
   let open Pooling in
 
-  let rec pool_rec meta mat (Row cur_row) (Col cur_col) =
+  let diff_mat = match diff with
+    | Tensor3 tens | Tensor4 tens -> tens
+    | _ -> failwith "Incompatible diff mat type for pooling backprop"
+  in
+
+  let rec pool_rec meta mat diff_mat (Row cur_row) (Col cur_col) acc =
     if cur_row >= (meta.filter_shape.dim1 |> get_row)
-    then mat
+    then acc
     else if cur_col >= (meta.filter_shape.dim2 |> get_col)
-    then pool_rec meta mat (Row (cur_row + 1)) (Col 0)
+    then pool_rec meta mat diff_mat (Row (cur_row + 1)) (Col 0) acc
     else
       let diff = get (Row cur_row) (Col cur_col) diff_mat in
+
+      let res_submat = acc 
+                       |> shadow_submatrix
+                            (Row (cur_row * meta.stride))
+                            (Col (cur_col * meta.stride))
+                            meta.filter_shape.dim1 meta.filter_shape.dim2
+      in
+
       mat
       |> shadow_submatrix
            (Row (cur_row * meta.stride))
            (Col (cur_col * meta.stride))
            meta.filter_shape.dim1 meta.filter_shape.dim2
-      |> meta.fderiv meta.filter_shape diff ;
+      |> meta.fderiv meta.filter_shape diff res_submat ;
 
-      pool_rec meta mat (Row cur_row) (Col (cur_col + 1))
+      pool_rec meta mat diff_mat (Row cur_row) (Col (cur_col + 1)) acc
   in
 
   match act_prev with
   | Tensor3 tens | Tensor4 tens ->
      let prev_diff =
-       map (fun fmat ->
-           pool_rec meta (qcopy fmat) (Row 0) (Col 0)) tens 
+       map2 (fun fmat diff ->
+           pool_rec meta fmat diff (Row 0) (Col 0)
+             (zero_of_shape (get_shape fmat)))
+         tens diff_mat 
        |> make_tens3
      in
      { prev_diff; grad = PoolingParams}

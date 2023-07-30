@@ -30,6 +30,21 @@ let pooling_max a b =
 let pooling_avarage a b =
   (a +. b) /. 2.
 
+let pooling_max_deriv shape grad mat res_mat =
+  let _, r, c =
+    Mat.foldi_left (fun cur_r cur_c (acc, r, c) value ->
+        if value > acc
+        then (value, cur_r, cur_c)
+        else (acc, r, c)) (0., Row 0, Col 0) mat
+  in
+
+  set r c res_mat grad
+
+let pooling_avarage_deriv shape grad _ res_mat =
+  let mat_size = shape_size shape |> float_of_int in
+  Mat.iteri (fun r c _ ->
+      set r c res_mat (grad /. mat_size))
+
 let make_zero_mat_list mat_list =
   List.fold_right (fun mat mlist ->
       (Mat.make (Mat.dim1 mat) (Mat.dim2 mat) 0.) ::  mlist) mat_list []

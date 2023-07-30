@@ -400,10 +400,26 @@ let fold_left proc init mat =
   iter (fun el -> acc := proc !acc el) mat;
   !acc
 
+let foldi_right proc mat init =
+  let acc = ref init in
+  iteri (fun r c el -> acc := proc r c el !acc) mat;
+  !acc
+
+let foldi_left proc init mat =
+  let acc = ref init in
+  iteri (fun r c el -> acc := proc r c !acc el) mat;
+  !acc
+
 let fold_left2 proc init mat1 mat2 =
   let@ _ = shape_match mat1 mat2 in
   let acc = ref init in
-  let _ = iter2 (fun val1 val2-> acc := proc !acc val1 val2) mat1 mat2 in
+  let _ = iter2 (fun val1 val2 -> acc := proc !acc val1 val2) mat1 mat2 in
+  !acc
+
+let fold_right2 proc mat1 mat2 init =
+  let@ _ = shape_match mat1 mat2 in
+  let acc = ref init in
+  let _ = iter2 (fun val1 val2 -> acc := proc val1 val2 !acc) mat1 mat2 in
   !acc
 
 let flatten (mat_mat : 'a t t) =

@@ -57,14 +57,14 @@ let test train_data_fname save_file epochs =
          ~kernel_shape:(make_shape (Row 2) (Col 2))
          ~kernel_num:1
 
-    |> make_pooling ~stride:2 ~f:pooling_max
+    |> make_pooling ~stride:2 ~f:pooling_max ~fbp:pooling_max_deriv
          ~filter_shape:(make_shape (Row 2) (Col 2))
 
     |> make_conv2d ~padding:2 ~stride:1 ~act:relu ~deriv:relu'
          ~kernel_shape:(make_shape (Row 3) (Col 3))
          ~kernel_num:1
 
-    |> make_pooling ~stride:2 ~f:pooling_avarage
+    |> make_pooling ~stride:2 ~f:pooling_avarage ~fbp:pooling_max_deriv
          ~filter_shape:(make_shape (Row 2) (Col 2))
 
     |> make_flatten
