@@ -42,12 +42,11 @@ let pooling_forward meta tens =
          |> pool_rec meta mat (Row cur_row) (Col (cur_col + 1))  
   in
 
-  Tensor3
-    (map
-         (fun mat ->
+    map (fun mat ->
            zero_of_shape meta.out_shape
            |> pool_rec meta mat (Row 0) (Col 0))
-         tens )
+         tens
+    |> make_tens3
 
 let conv3d_forward meta params tens =
   let open Mat in
@@ -82,7 +81,11 @@ let conv2d_forward meta params tens =
 
 let forward_layer (input : ff_input_type) layer_type =
   match layer_type with
-  | Input _ -> input
+  | Input _ -> 
+     begin match input with
+     | Tensor1 t | Tensor2 t ->
+        [|t|] |> Mat.of_array (Row 1) (Col 1) |> make_tens3
+     end
   | FullyConnected (fc, fcp) ->
      begin match input with
      | Tensor1 tens ->
@@ -259,10 +262,10 @@ let flatten_bp act_prev diff =
        |> make_tens2;
       grad = FlattenParams;
     }
-  | Tensor1 diff_mat, Tensor3 tens ->
+  | Tensor1 diff_mat, Tensor3 act_prev ->
      { prev_diff =
          diff_mat
-         |> Mat.reshape3d tens
+         |> Mat.reshape3d act_prev
          |> make_tens3;
        grad = FlattenParams;
      }
@@ -283,7 +286,7 @@ let pooling_bp meta act_prev diff =
     else if cur_col >= (meta.filter_shape.dim2 |> get_col)
     then pool_rec meta mat diff_mat (Row (cur_row + 1)) (Col 0) acc
     else
-      let diff = get (Row cur_row) (Col cur_col) diff_mat in
+      let cur_diff = get (Row cur_row) (Col cur_col) diff_mat in
 
       let res_submat = acc 
                        |> shadow_submatrix
@@ -297,23 +300,55 @@ let pooling_bp meta act_prev diff =
            (Row (cur_row * meta.stride))
            (Col (cur_col * meta.stride))
            meta.filter_shape.dim1 meta.filter_shape.dim2
-      |> meta.fderiv meta.filter_shape diff res_submat ;
+      |> meta.fderiv meta.filter_shape cur_diff res_submat ;
 
       pool_rec meta mat diff_mat (Row cur_row) (Col (cur_col + 1)) acc
   in
 
   match act_prev with
-  | Tensor3 tens | Tensor4 tens ->
+  | Tensor3 act_prev | Tensor4 act_prev ->
      let prev_diff =
-       map2 (fun fmat diff ->
-           pool_rec meta fmat diff (Row 0) (Col 0)
-             (zero_of_shape (get_shape fmat)))
-         tens diff_mat 
+       map2 (fun input diff ->
+           print diff ;
+           pool_rec meta input diff (Row 0) (Col 0)
+             (zero_of_shape (get_shape input)))
+         act_prev diff_mat 
        |> make_tens3
      in
      { prev_diff; grad = PoolingParams}
   | _ -> failwith "Invalid previous activation for pooling bp."
- 
+
+let conv2d_bp meta params act act_prev diff_mat =
+  let open Mat in
+  let open Conv2D in
+  match act, act_prev, diff_mat with
+  | Tensor3 act, Tensor3 act_prev, Tensor3 diff_mat ->
+     let dact_f = map (map meta.deriv) act in  
+     let dz = map2 hadamard dact_f diff_mat in
+     let bias_mat = map sum dz in
+     let kernels = map3 (fun inp out kern ->
+                       convolve inp ~padding:meta.padding
+                         ~stride:meta.stride (get_shape kern) out)
+                     act_prev dz params.kernels
+     in
+
+     let prev_diff = map3 (fun inp dout kern ->
+                         let kern_rot = rotate180 kern in
+                         convolve dout ~padding:meta.padding
+                           ~stride:meta.stride (get_shape inp) kern_rot)
+                       act_prev dz params.kernels
+                   |> make_tens3
+     in
+
+     { prev_diff;
+       grad = Conv2DParams
+                { kernels;
+                  bias_mat
+                }
+     }
+                         
+  | Tensor3 m, Tensor2 a, Tensor3 _ -> failwith "conv2d_bp: activation type"
+  | _ -> failwith "conv2d_bp: invalid activation type"
 
 let backprop_layer layer act_list diff_mat =
   match layer with
@@ -323,12 +358,12 @@ let backprop_layer layer act_list diff_mat =
      }
   | FullyConnected (meta, params) ->
      let act = hd act_list in
-     let act_prev = tl act_list |> hd in
+     let act_prev = hdtl act_list in
      bp_fully_connected act act_prev meta params diff_mat
   | Conv2D (meta, params) ->
-     { prev_diff = diff_mat;
-       grad = Conv2DParams params;
-     }
+     let act = hd act_list in
+     let act_prev = hdtl act_list in
+     conv2d_bp meta params act act_prev diff_mat 
   | Pooling meta ->
      let act_prev = hdtl act_list in
      pooling_bp meta act_prev diff_mat
@@ -383,8 +418,8 @@ let nn_gradient (nn : nnet) data  =
    
   in
  
-  let newn = nn_zero_params nn
-             |> bp_rec nn data in
+  let newn = bp_rec nn data @@ nn_zero_params nn
+  in
 
   (* print_endline "Full nn"; *)
   let param_nn = nn_params_map

@@ -199,6 +199,24 @@ let iteri proc mat =
      done
   done
 
+let iteri3 proc mat1 mat2 mat3 =
+  let@ _ = shape_match mat1 mat2 in
+  let@ _ = shape_match mat1 mat3 in
+
+  for r = 0 to get_row mat1.rows - 1
+  do for c = 0 to get_col mat1.cols - 1
+     do
+       proc (Row r) (Col c)
+         (get (Row r) (Col c) mat1)
+         (get (Row r) (Col c) mat2)
+         (get (Row r) (Col c) mat3)
+     done
+  done;
+  ()
+
+let iter3 proc mat1 mat2 mat3 =
+  iteri3 (fun _ _ v1 v2 v3 -> proc v1 v2 v3) mat1 mat2 mat3
+
 let iter2 proc mat1 mat2 =
   let@ _ = shape_match mat1 mat2 in
   for r = 0 to get_row mat1.rows - 1
@@ -223,6 +241,25 @@ let iteri2 proc mat1 mat2 =
 let set_raw row col mat value =
   set (Row row) (Col col) mat value
 
+let mapi3 proc mat1 mat2 mat3 =
+  match size mat1 + size mat2 + size mat3 with
+  | 0 -> empty ()
+  | _ ->
+     let res_mat = proc (Row 0) (Col 0)
+                     (mat1 |> get_first)
+                     (mat2 |> get_first)
+                     (mat3 |> get_first)
+                   |> make mat1.rows mat1.cols in
+     
+    iteri3 (fun r c value1 value2 value3 ->
+        proc r c value1 value2 value3
+        |> set r c res_mat)
+      mat1 mat2 mat3 ;
+     res_mat
+
+let map3 proc mat1 mat2 mat3 =
+  mapi3 (fun _ _ v1 v2 v3 -> proc v1 v2 v3) mat1 mat2 mat3
+
 let mapi2 proc mat1 mat2 =
   match size mat1 + size mat2 with
   | 0 -> empty ()
@@ -246,7 +283,7 @@ let mapi proc mat =
   | _ ->
      let res_mat = mat
                    |> get_first
-                   |> proc (Row 0) (Col 0) 
+                   |> proc (Row 0) (Col 0)
                    |> make mat.rows mat.cols in
      
      iteri (fun r c value1 ->
@@ -365,16 +402,6 @@ let submatrix start_row start_col rows cols mat =
   iteri (fun r c value -> set r c res_mat value) mat;
   res_mat
 
-let reshape3d base mat =
-  let index = ref 0 in
-  map (fun inner ->
-      let subm = submatrix
-                   (Row 0) (Col !index)
-                   (Row 1) (Col (size inner)) mat in
-      index := !index + size inner ;
-      subm
-    ) base
-
 let shadow_submatrix start_row start_col rows cols mat =
   if get_row start_row + get_row rows > get_row mat.rows
      || get_col start_col + get_col cols > get_col mat.cols
@@ -451,6 +478,30 @@ let flatten3d mat_arr =
      |> of_array (Row 1) (Col (Array.length mat_arr))
      |> flatten
 
+let reshape3d base mat =
+  let base_size = fold_left (fun acc m -> acc + size m) 0 base in
+
+  Printf.printf "Mat size: %d : %d : %d\n" (size base) base_size (size mat) ;
+  if base_size <> size mat
+  then failwith "Reshape3D: invalid matrix size.";
+
+  let res_mat = make base.rows base.cols (get_first base) in
+  
+  foldi_left (fun r c index inner ->
+      
+      Printf.printf "Index: %d\n" index ;
+      let subm = submatrix
+                   (Row 0) (Col index)
+                   (Row 1) (Col (size inner)) mat
+                 |> reshape inner.rows inner.cols
+      in
+
+      set r c res_mat subm ;
+      index + size inner - 1
+    ) 0 base |> ignore;
+
+  res_mat
+
 let rotate180 mat =
   let mrows = get_row mat.rows in
   let mcols = get_col mat.cols in
@@ -485,6 +536,9 @@ let mult mat1 mat2 =
     
     res_mat
 
+let hadamard mat1 mat2 =
+  map2 ( *. ) mat1 mat2
+
 let convolve mat ~padding ~stride out_shape kernel =
   (* let kern_arr = kernel |> Mat.to_array in *)
   let kern_rows = dim1 kernel |> get_row in
@@ -507,6 +561,9 @@ let convolve mat ~padding ~stride out_shape kernel =
   let base_rows = dim1 base |> get_row in
   let base_cols = dim2 base |> get_col in
   let res_mat = zero_of_shape out_shape in
+
+  Printf.printf "Convolve sizes: base = %d, res = %d\n" (size base)
+    (size res_mat) ;
   
   let rec convolve_rec kernel mat r c res_mat =
     if r + kern_rows > base_rows 

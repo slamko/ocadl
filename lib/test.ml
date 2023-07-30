@@ -60,12 +60,12 @@ let test train_data_fname save_file epochs =
     |> make_pooling ~stride:2 ~f:pooling_max ~fbp:pooling_max_deriv
          ~filter_shape:(make_shape (Row 2) (Col 2))
 
-    |> make_conv2d ~padding:2 ~stride:1 ~act:relu ~deriv:relu'
-         ~kernel_shape:(make_shape (Row 3) (Col 3))
-         ~kernel_num:1
+    (* |> make_conv2d ~padding:1 ~stride:1 ~act:relu ~deriv:relu' *)
+         (* ~kernel_shape:(make_shape (Row 3) (Col 3)) *)
+         (* ~kernel_num:1 *)
 
-    |> make_pooling ~stride:2 ~f:pooling_avarage ~fbp:pooling_max_deriv
-         ~filter_shape:(make_shape (Row 2) (Col 2))
+    (* |> make_pooling ~stride:2 ~f:pooling_avarage ~fbp:pooling_max_deriv *)
+         (* ~filter_shape:(make_shape (Row 2) (Col 2)) *)
 
     |> make_flatten
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
@@ -90,11 +90,10 @@ let test train_data_fname save_file epochs =
   in
  *)
 
-  (* let* res = loss train_data conv_nn in *)
+  let* res = loss train_data conv_nn in
   (* Printf.printf "Cost: %f\n" res; *)
   let ff = forward (get_data_input (List.hd train_data)) conv_nn
   in
-  Printf.printf "Res len %d \n\n" (List.length ff.res);
   List.iter
     (function
      | Tensor1 t | Tensor2 t ->
@@ -104,15 +103,14 @@ let test train_data_fname save_file epochs =
         Printf.printf "Ten3:\n";
         Matrix.iter (fun m ->
             Printf.printf "Submat\n"; Matrix.print m) t;
-  )
-    ff.res ;
+  ) ff.res ;
   (* let  *)
 
-  (* let* trained_nn = lern train_data nn epochs in *)
-  (* let* new_res = loss train_data trained_nn in *)
+  Printf.printf "initial loss: %f\n" res ;
+  let* trained_nn = lern train_data conv_nn 1 in
+  let* new_res = loss train_data trained_nn in
 
-  (* Printf.printf "initial loss: %f\n" res ; *)
-  (* Printf.printf "trained loss: %f\n" new_res ; *)
+  Printf.printf "trained loss: %f\n" new_res ;
 
   Ok ()
  

@@ -22,7 +22,7 @@ let relu x =
   if x > 0. then x else 0.
 
 let relu' a =
-  if a > 0. then 1. else 0. 
+  if a > 0.0001 then 1. else 0. 
 
 let pooling_max a b =
   if a > b then a else b
