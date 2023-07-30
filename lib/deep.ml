@@ -332,12 +332,13 @@ let conv2d_bp meta params act act_prev diff_mat =
                      act_prev dz params.kernels
      in
 
-     let prev_diff = map3 (fun inp dout kern ->
-                         let kern_rot = rotate180 kern in
-                         convolve dout ~padding:meta.padding
-                           ~stride:meta.stride (get_shape inp) kern_rot)
-                       act_prev dz params.kernels
-                   |> make_tens3
+     (* let prev_diff = map3 (fun inp dout kern -> *)
+                         (* let kern_rot = rotate180 kern in *)
+                         (* convolve dout ~padding:meta.padding *)
+                           (* ~stride:meta.stride (get_shape inp) kern_rot) *)
+                       (* act_prev dz params.kernels *)
+                   (* |> make_tens3 *)
+     let prev_diff = diff_mat |> make_tens3 
      in
 
      { prev_diff;

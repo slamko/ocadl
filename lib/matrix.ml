@@ -539,38 +539,43 @@ let mult mat1 mat2 =
 let hadamard mat1 mat2 =
   map2 ( *. ) mat1 mat2
 
+let padded padding mat =
+  if padding = 0
+  then mat
+  else
+    let mat_rows = dim1 mat |> get_row in
+    let mat_cols = dim2 mat |> get_col in
+  
+    create
+      (Row (mat_rows + (2 * padding)))
+      (Col (mat_cols + (2 * padding)))
+      (fun (Row r) (Col c) ->
+        if r >= padding && c >= padding
+           && r < mat_rows + padding
+           && c < mat_cols + padding
+        then get_raw (r - padding) (c - padding) mat
+        else 0.
+      )
+
 let convolve mat ~padding ~stride out_shape kernel =
   (* let kern_arr = kernel |> Mat.to_array in *)
   let kern_rows = dim1 kernel |> get_row in
   let kern_cols = dim2 kernel |> get_col in
-
-  let mat_rows = dim1 mat |> get_row in
-  let mat_cols = dim2 mat |> get_col in
-  
-  let base = create
-               (Row (mat_rows + (2 * padding)))
-               (Col (mat_cols + (2 * padding)))
-               (fun (Row r) (Col c) ->
-                 if r >= padding && c >= padding
-                    && r < mat_rows + padding
-                    && c < mat_cols + padding
-                 then get_raw (r - padding) (c - padding) mat
-                 else 0.
-               ) in
-
+ 
+  let base = padded padding mat in
   let base_rows = dim1 base |> get_row in
   let base_cols = dim2 base |> get_col in
   let res_mat = zero_of_shape out_shape in
 
-  Printf.printf "Convolve sizes: base = %d, res = %d\n" (size base)
-    (size res_mat) ;
+  Printf.printf "Convolve sizes: base = %d, res = %d, kernel = %d\n"
+    (size base) (size res_mat) (size kernel);
   
-  let rec convolve_rec kernel mat r c res_mat =
+  let rec convolve_rec kernel r c res_mat =
     if r + kern_rows > base_rows 
     then res_mat
     else
       if c + kern_cols > base_cols
-      then convolve_rec kernel mat (r + stride) 0 res_mat
+      then convolve_rec kernel (r + stride) 0 res_mat
       else
         (* let a = 4 in *)
         (* Printf.eprintf "r: %d; c: %d\n" r c ; *)
@@ -581,8 +586,8 @@ let convolve mat ~padding ~stride out_shape kernel =
                      (fun acc val1 val2 -> acc +. (val1 *. val2))
                      0. submat kernel in
         set_raw (r / stride) (c / stride) res_mat conv;
-        convolve_rec kernel mat r (c + stride) res_mat
+        convolve_rec kernel r (c + stride) res_mat
     in
 
-    convolve_rec kernel mat 0 0 res_mat
+    convolve_rec kernel 0 0 res_mat
 

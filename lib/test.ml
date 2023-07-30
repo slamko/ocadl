@@ -77,7 +77,7 @@ let test train_data_fname save_file epochs =
     (* if Sys.file_exists !save_file *)
     (* then restore_nn_from_json !save_file base_nn *)
     (* else *)
-      base_nn
+      conv_nn
   in
 (*  
   let trained_nn =
@@ -90,9 +90,9 @@ let test train_data_fname save_file epochs =
   in
  *)
 
-  let* res = loss train_data conv_nn in
+  let* res = loss train_data nn in
   (* Printf.printf "Cost: %f\n" res; *)
-  let ff = forward (get_data_input (List.hd train_data)) conv_nn
+  let ff = forward (get_data_input (List.hd train_data)) nn
   in
   List.iter
     (function
@@ -106,10 +106,10 @@ let test train_data_fname save_file epochs =
   ) ff.res ;
   (* let  *)
 
-  Printf.printf "initial loss: %f\n" res ;
-  let* trained_nn = lern train_data conv_nn 1 in
+  let* trained_nn = lern train_data nn 10 in
   let* new_res = loss train_data trained_nn in
 
+  Printf.printf "initial loss: %f\n" res ;
   Printf.printf "trained loss: %f\n" new_res ;
 
   Ok ()
