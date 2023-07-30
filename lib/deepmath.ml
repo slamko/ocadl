@@ -40,6 +40,8 @@ let arr_get index arr =
 let arr_print arr =
   arr |> Array.iter @@ Printf.printf "El: %f\n"
 
+let hdtl lst = List.tl lst |> List.hd
+
 let opt_to_bool = function
   | Some b -> b
   | None -> false

@@ -268,6 +268,38 @@ let flatten_bp act_prev diff =
      }
   | _ -> failwith "No to tensor4 (flatten)."
 
+let pooling_bp meta act_prev diff_mat =
+  let open Mat in
+  let open Pooling in
+
+  let rec pool_rec meta mat (Row cur_row) (Col cur_col) =
+    if cur_row >= (meta.filter_shape.dim1 |> get_row)
+    then mat
+    else if cur_col >= (meta.filter_shape.dim2 |> get_col)
+    then pool_rec meta mat (Row (cur_row + 1)) (Col 0)
+    else
+      let diff = get (Row cur_row) (Col cur_col) diff_mat in
+      mat
+      |> shadow_submatrix
+           (Row (cur_row * meta.stride))
+           (Col (cur_col * meta.stride))
+           meta.filter_shape.dim1 meta.filter_shape.dim2
+      |> meta.fderiv meta.filter_shape diff ;
+
+      pool_rec meta mat (Row cur_row) (Col (cur_col + 1))
+  in
+
+  match act_prev with
+  | Tensor3 tens | Tensor4 tens ->
+     let prev_diff =
+       map (fun fmat ->
+           pool_rec meta (qcopy fmat) (Row 0) (Col 0)) tens 
+       |> make_tens3
+     in
+     { prev_diff; grad = PoolingParams}
+  | _ -> failwith "Invalid previous activation for pooling bp."
+ 
+
 let backprop_layer layer act_list diff_mat =
   match layer with
   | Input _ ->
@@ -282,10 +314,9 @@ let backprop_layer layer act_list diff_mat =
      { prev_diff = diff_mat;
        grad = Conv2DParams params;
      }
-  | Pooling _ ->
-     { prev_diff = diff_mat;
-       grad = PoolingParams;
-     }
+  | Pooling meta ->
+     let act_prev = hdtl act_list in
+     pooling_bp meta act_prev diff_mat
   | Flatten _ -> 
      let act_prev = tl act_list |> hd in
      flatten_bp act_prev diff_mat

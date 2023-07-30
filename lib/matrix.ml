@@ -99,6 +99,9 @@ let empty_shape () =
 let zero_of_shape shape =
   of_shape 0. shape
 
+let qcopy mat =
+  of_array mat.rows mat.cols (Array.copy mat.matrix)
+
 let create (Row rows) (Col cols) finit =
   Array.init (rows * cols) (fun i ->
       finit (Row (i / cols)) (Col (i mod cols)))

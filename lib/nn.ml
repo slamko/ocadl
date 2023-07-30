@@ -211,7 +211,7 @@ let make_conv2d ~kernel_shape ~kernel_num
   let layer = Conv2D (meta, params) in
   layer::layers 
 
-let make_pooling ~filter_shape ~stride ~f layers =
+let make_pooling ~filter_shape ~stride ~f ~fbp layers =
   let open Mat in
   let prev_shape = layers |> List.hd |> get_out_shape in
 
@@ -224,6 +224,7 @@ let make_pooling ~filter_shape ~stride ~f layers =
   
   let meta = { Pooling.
                fselect = f;
+               fderiv = fbp;
                stride;
                filter_shape;
                out_shape =

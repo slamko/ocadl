@@ -50,6 +50,7 @@ end
 module Pooling = struct 
 type meta = {
     fselect : float -> float -> float;
+    fderiv : shape -> float -> mat -> unit;
     stride : int;
     filter_shape : shape;
     out_shape : shape;
