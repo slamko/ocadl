@@ -281,9 +281,9 @@ let pooling_bp meta act_prev diff =
   in
 
   let rec pool_rec meta mat diff_mat (Row cur_row) (Col cur_col) acc =
-    if cur_row >= (meta.filter_shape.dim1 |> get_row)
+    if cur_row >= (dim1 diff_mat |> get_row)
     then acc
-    else if cur_col >= (meta.filter_shape.dim2 |> get_col)
+    else if cur_col >= (dim2 diff_mat |> get_col)
     then pool_rec meta mat diff_mat (Row (cur_row + 1)) (Col 0) acc
     else
       let cur_diff = get (Row cur_row) (Col cur_col) diff_mat in
@@ -302,6 +302,8 @@ let pooling_bp meta act_prev diff =
            meta.filter_shape.dim1 meta.filter_shape.dim2
       |> meta.fderiv meta.filter_shape cur_diff res_submat ;
 
+      (* set (Row 0) (Col 0) res_submat 1.0 ; *)
+
       pool_rec meta mat diff_mat (Row cur_row) (Col (cur_col + 1)) acc
   in
 
@@ -313,9 +315,10 @@ let pooling_bp meta act_prev diff =
            pool_rec meta input diff (Row 0) (Col 0)
              (zero_of_shape (get_shape input)))
          act_prev diff_mat 
-       |> make_tens3
+       (* |> make_tens3 *)
      in
-     { prev_diff; grad = PoolingParams}
+     (* iter (fun m -> show_mat m |> Printf.printf "Diff: %s\n") prev_diff ; *)
+     { prev_diff = prev_diff |> make_tens3; grad = PoolingParams}
   | _ -> failwith "Invalid previous activation for pooling bp."
 
 let conv2d_bp meta params (prev_layer: layer option) act act_prev diff_mat =

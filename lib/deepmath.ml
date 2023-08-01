@@ -19,10 +19,10 @@ let tanh' activation =
   1. -. (activation *. activation)
 
 let relu x =
-  if x > 0. then x else 0.
+  if x > 0.00001 then x else 0.
 
 let relu' a =
-  if a > 0.0001 then 1. else 0. 
+  if a > 0.00001 then 1. else 0. 
 
 let pooling_max a b =
   if a > b then a else b
@@ -30,7 +30,7 @@ let pooling_max a b =
 let pooling_avarage a b =
   (a +. b) /. 2.
 
-let pooling_max_deriv shape grad mat res_mat =
+let pooling_max_deriv shape grad res_mat mat =
   let _, r, c =
     Mat.foldi_left (fun cur_r cur_c (acc, r, c) value ->
         if value > acc
@@ -40,7 +40,7 @@ let pooling_max_deriv shape grad mat res_mat =
 
   set r c res_mat grad
 
-let pooling_avarage_deriv shape grad _ res_mat =
+let pooling_avarage_deriv shape grad res_mat _ =
   let mat_size = shape_size shape |> float_of_int in
   Mat.iteri (fun r c _ ->
       set r c res_mat (grad /. mat_size))
