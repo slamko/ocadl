@@ -28,6 +28,9 @@ let () =
       Ocadl__Test.test 
          !train_data_file
          !save_file
-         !epoch_num with
+         !epoch_num
+         !learning_rate
+         !batch_size
+    with
     | Ok ok -> ok
     | Error err -> Printf.eprintf "error: %s\n" err end

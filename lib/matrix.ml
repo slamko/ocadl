@@ -69,8 +69,8 @@ let get_shape3d mat =
 let shape_match mat1 mat2 =
   let shape = get_shape mat2 in
   match get_shape mat1 |> compare shape with
-  | 0 -> Ok shape
-  | _ -> Error "Matrix shapes do not match."
+  | 0 -> ()
+  | _ -> failwith "Matrix shapes do not match."
 
 let of_array rows cols matrix =
   if (get_row rows * get_col cols) > (matrix |> Array.length) ||
@@ -200,8 +200,8 @@ let iteri proc mat =
   done
 
 let iteri3 proc mat1 mat2 mat3 =
-  let@ _ = shape_match mat1 mat2 in
-  let@ _ = shape_match mat1 mat3 in
+  shape_match mat1 mat2;
+  shape_match mat1 mat3;
 
   for r = 0 to get_row mat1.rows - 1
   do for c = 0 to get_col mat1.cols - 1
@@ -218,7 +218,7 @@ let iter3 proc mat1 mat2 mat3 =
   iteri3 (fun _ _ v1 v2 v3 -> proc v1 v2 v3) mat1 mat2 mat3
 
 let iter2 proc mat1 mat2 =
-  let@ _ = shape_match mat1 mat2 in
+  shape_match mat1 mat2 ;
   for r = 0 to get_row mat1.rows - 1
   do for c = 0 to get_col mat1.cols - 1
      do
@@ -229,7 +229,7 @@ let iter2 proc mat1 mat2 =
   ()
 
 let iteri2 proc mat1 mat2 =
-  let@ _ = shape_match mat1 mat2 in
+  shape_match mat1 mat2 ;
   for r = 0 to get_row mat1.rows - 1
   do for c = 0 to get_col mat1.cols - 1
      do get (Row r) (Col c) mat2
@@ -438,13 +438,13 @@ let foldi_left proc init mat =
   !acc
 
 let fold_left2 proc init mat1 mat2 =
-  let@ _ = shape_match mat1 mat2 in
+  shape_match mat1 mat2 ;
   let acc = ref init in
   let _ = iter2 (fun val1 val2 -> acc := proc !acc val1 val2) mat1 mat2 in
   !acc
 
 let fold_right2 proc mat1 mat2 init =
-  let@ _ = shape_match mat1 mat2 in
+  shape_match mat1 mat2 ;
   let acc = ref init in
   let _ = iter2 (fun val1 val2 -> acc := proc val1 val2 !acc) mat1 mat2 in
   !acc
@@ -579,7 +579,8 @@ let convolve mat ~padding ~stride out_shape kernel =
         (* Printf.eprintf "r: %d; c: %d\n" r c ; *)
         let submat = shadow_submatrix (Row r) (Col c)
                        kernel.rows kernel.cols base in
-        let@ _ = shape_match kernel submat in
+
+        shape_match kernel submat;
         let conv = fold_left2
                      (fun acc val1 val2 -> acc +. (val1 *. val2))
                      0. submat kernel in

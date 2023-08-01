@@ -34,7 +34,7 @@ let rec perform nn data =
      
      perform nn t
 
-let test train_data_fname save_file epochs =
+let test train_data_fname save_file epochs learning_rate batch_size =
   let train_data =
     if Sys.file_exists train_data_fname
     then read_mnist_train_data train_data_fname
@@ -112,7 +112,9 @@ let test train_data_fname save_file epochs =
   in
   (* let  *)
 
-  let* trained_nn = lern train_data nn epochs in
+  let* trained_nn = learn train_data
+                      ~epoch_num:epochs ~learning_rate
+                      ~batch_size nn in
   let* new_res = loss train_data trained_nn in
 
   Printf.printf "initial loss: %f\n" res ;

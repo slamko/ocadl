@@ -312,7 +312,7 @@ let nn_zero_params nn : nnet_params =
            FullyConnectedParams
               { weight_mat = Mat.zero params.weight_mat;
                 bias_mat = Mat.zero params.bias_mat;
-           }
+           }                    
       | Conv2D (_, params) ->
            Conv2DParams
               { kernels = Mat.map Mat.zero params.kernels;
@@ -387,12 +387,12 @@ let nn_apply_params proc nn params =
   }
                     
 let nn_params_zero nn_params =
-   List.map (function
+   let param_list = List.map (function
       | FullyConnectedParams fc -> fully_connected_zero fc
       | Conv2DParams cv -> conv2d_zero cv
       | empty -> empty
-     )
-     nn_params.param_list
+     ) nn_params.param_list in
+   { param_list }
 
 let get_data_input sample =
   snd sample
