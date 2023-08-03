@@ -3,10 +3,8 @@ open Matrix
 open Ppxlib
 
 type _ tensor =
-  | Tensor1 : float array -> float array tensor
-  | Tensor2 : float matrix -> float matrix tensor
-  | Tensor3 : float matrix array -> float matrix array tensor
-  | Tensor4 : float matrix matrix -> float matrix matrix tensor
+  | Tensor1 : float matrix -> float matrix tensor
+  | Tensor3 : float matrix matrix -> float matrix matrix tensor
 (* [@@deriving show] *)
 
 type weight_list = mat list
@@ -35,8 +33,8 @@ type meta = {
   }
 [@@deriving show]
 
-type input = float array tensor
-type out = float array tensor
+type input = float matrix tensor
+type out = float matrix tensor
 
 type t = meta * params
 [@@deriving show]
@@ -59,8 +57,8 @@ type meta = {
   }
 [@@deriving show]
 
-type input = mat array tensor
-type out = mat array tensor
+type input = mat matrix tensor
+type out = mat matrix tensor
 
 type t = meta * params
 [@@deriving show]
@@ -76,8 +74,8 @@ type meta = {
   }
 [@@deriving show]
 
-type input = mat array tensor
-type out = mat array tensor
+type input = mat matrix tensor
+type out = mat matrix tensor
 
 type t = meta
 [@@deriving show]
@@ -90,8 +88,8 @@ type meta = {
   }
 [@@deriving show]
 
-type input = mat array tensor
-type out = mat array tensor
+type input = mat matrix tensor
+type out = mat matrix tensor
 
 type t = meta
 end
@@ -102,8 +100,8 @@ type meta = {
   }
 [@@deriving show]
 
-type input = mat array tensor
-type out = float array tensor
+type input = mat matrix tensor
+type out = float matrix tensor
 
 type t = meta
 end
@@ -178,9 +176,9 @@ type ('a, 'b) nnet = {
   }
 
 let make_tens1 v = Tensor1 v
-let make_tens2 v = Tensor2 v
+(* let make_tens2 v = Tensor2 v *)
 let make_tens3 v = Tensor3 v
-let make_tens4 v = Tensor4 v
+(* let make_tens4 v = Tensor4 v *)
 
 type ('a, 'b, 'c) feed_forward = {
     bp_data : (('a, 'b) layer * 'a * 'b, 'c) bp_list

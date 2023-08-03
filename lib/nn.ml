@@ -39,20 +39,24 @@ let list_parse_train_data in_cols pair_list =
 
 let read_mnist_train_data fname shape =
   let csv = Csv.load fname in
+
   csv
   |> List.map @@ List.map float_of_string 
   |> List.map @@ list_split 1 
   |> List.map
        (fun (res_list, data_list) ->
-         let res_mat = Array.make 10 0. in
+         let res_mat = Mat.make (Row 1) (Col 10) 0. in
          let (Col col) = Mat.Col (List.hd res_list |> int_of_float) in
-         Array.set res_mat col 1.;
-         Tensor1 res_mat,
-         Tensor2 (data_list
-                  |> Mat.of_list
-                       shape.Mat.dim1
-                       shape.Mat.dim2))
-  (* |> List.iter (fun (res, inp) -> mat_print inp) *)
+         Mat.set (Row 0) (Col col) res_mat 1.;
+         let inp =
+           (data_list
+            |> Mat.of_list
+                 shape.Mat.dim1
+                 shape.Mat.dim2)
+           |> Mat.make (Row 1) (Col shape.Mat.dim3) in
+
+         (Tensor1 res_mat,
+          Tensor3 inp))
 
 let to_json_list proc l =
   `List (l |> proc)

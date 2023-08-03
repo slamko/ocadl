@@ -21,7 +21,6 @@ let fully_connected_forward meta params tens =
   Mat.mult tens params.weight_mat
   |> Mat.add params.bias_mat
   |> Mat.map meta.activation
-  |> Mat.qto_array
   |> make_tens1
 
 let pooling_forward meta tens =
@@ -46,7 +45,6 @@ let pooling_forward meta tens =
     map (fun mat ->
            zero_of_shape meta.out_shape
            |> pool_rec meta mat (Row 0) (Col 0)) tens
-    |> qto_array
     |> make_tens3
 
 let conv3d_forward meta params tens =
@@ -74,7 +72,6 @@ let conv3d_forward meta params tens =
       |> add_const (params.bias_mat |> get (Row 0) (Col c))
       |> map meta.act 
     ) res_mat
-  |> qto_array
   |> make_tens3
 
 let conv2d_forward meta params tens =
@@ -89,28 +86,25 @@ let forward_layer : type a b c. a -> (a, b) layer -> b
      (match input with
      | Tensor1 tens -> 
         tens
-        |> Mat.of_array_size
         |> fully_connected_forward fc fcp
      )
   | Conv2D (cn, cnp) -> 
      (match input with
      | Tensor3 tens -> 
         tens
-        |> Mat.of_array_size
         |> conv3d_forward cn cnp
      )
   | Flatten _ ->
      (match input with
      | Tensor3 tens ->
         tens
-        |> Mat.flatten3d
+        |> Mat.flatten
         |> make_tens1
      )
   | Pooling pl ->
      (match input with
       | Tensor3 tens ->
          tens
-         |> Mat.of_array_size
          |> pooling_forward pl
      )
 
@@ -133,8 +127,9 @@ let forward input nn =
 let get_err : type t. t tensor -> float =
   fun tens ->
   match tens with
-  | Tensor1 arr -> Array.fold_left (+.) 0. arr
-  | Tensor2 mat -> Mat.sum mat
+  | Tensor1 mat -> Mat.sum mat
+  | Tensor3 mat ->
+     Mat.fold_left (fun acc m -> Mat.sum m +. acc) 0. mat
 
 let loss data nn =
 
@@ -153,7 +148,7 @@ let loss data nn =
            (match res, expected with
             | Tensor1 res, Tensor1 exp -> 
                let diff =
-                 Mat.sub (Mat.of_array_size res) (Mat.of_array_size exp)
+                 Mat.sub res exp 
                  |> Mat.sum
                in
                loss_rec nn data_tail (err +. (diff *. diff))
@@ -170,7 +165,7 @@ let loss data nn =
              (match res, expected with
               | Tensor1 res, Tensor1 exp -> 
                  let diff =
-                   Mat.sub (Mat.of_array_size res) (Mat.of_array_size exp)
+                   Mat.sub res exp 
                  |> Mat.sum
                  in
                  loss_rec nn data_tail (err +. (diff *. diff))
@@ -455,8 +450,7 @@ let nn_gradient nn data  =
           | FullyConnected (_, _) ->
              (match ff_res, expected_res with
               | Tensor1 res, Tensor1 exp -> 
-                 Mat.sub (Mat.of_array_size res) (Mat.of_array_size exp)
-                 |> Mat.qto_array
+                 Mat.sub res exp 
                  |> make_tens1
              )
           | Conv2D (_, _) ->
@@ -470,8 +464,7 @@ let nn_gradient nn data  =
           | Flatten _ -> 
              (match ff_res, expected_res with
               | Tensor1 res, Tensor1 exp -> 
-                 Mat.sub (Mat.of_array_size res) (Mat.of_array_size exp)
-                 |> Mat.qto_array
+                 Mat.sub res exp
                  |> make_tens1
              )
          ) in
