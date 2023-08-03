@@ -100,7 +100,7 @@ type meta = {
   }
 [@@deriving show]
 
-type input = mat matrix tensor
+type input = float matrix matrix tensor
 type out = float matrix tensor
 
 type t = meta

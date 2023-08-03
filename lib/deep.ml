@@ -11,9 +11,9 @@ type backprop_neuron = {
     pd_prev_arr : float array
   }
 
-type backprop_layer = {
-    prev_diff : ff_input_type;
-    grad : layer_params;
+type ('a, 'b) backprop_layer = {
+    prev_diff : 'a;
+    grad : ('a, 'b) layer_params;
   }
 
 let fully_connected_forward meta params tens =
@@ -263,28 +263,13 @@ let bp_fully_connected act act_prev meta params diff =
           }
      | _ -> invalid_arg "bp layer: Incompatible activation type."
 
-let flatten_bp act_prev diff =
-  match diff, act_prev with
-  | Tensor1 diff_mat, Tensor1 _ ->
-     { prev_diff = make_tens1 diff_mat;
-       grad = FlattenParams;
-     }
-  | Tensor1 diff_mat, Tensor2 tens ->
-     { prev_diff =
-       tens
-       |> Mat.get_shape
-       |> Mat.reshape_of_shape diff_mat
-       |> make_tens2;
-      grad = FlattenParams;
-    }
-  | Tensor1 diff_mat, Tensor3 act_prev ->
-     { prev_diff =
-         diff_mat
-         |> Mat.reshape3d act_prev
-         |> make_tens3;
-       grad = FlattenParams;
-     }
-  | _ -> failwith "No to tensor4 (flatten)."
+let flatten_bp (Tensor3 act_prev) (Tensor1 diff) =
+  { prev_diff =
+      diff
+      |> Mat.reshape3d act_prev
+      |> make_tens3;
+    grad = FlattenParams;
+  }
 
 let pooling_bp meta act_prev diff =
   let open Mat in
@@ -336,11 +321,10 @@ let pooling_bp meta act_prev diff =
      { prev_diff = prev_diff |> make_tens3; grad = PoolingParams}
   | _ -> failwith "Invalid previous activation for pooling bp."
 
-let conv2d_bp meta params (prev_layer: layer option) act act_prev diff_mat =
+let conv2d_bp meta params prev_layer
+      (Tensor3 act) (Tensor3 act_prev) (Tensor3 diff_mat) =
   let open Mat in
   let open Conv2D in
-  match act, act_prev, diff_mat with
-  | Tensor3 act, Tensor3 act_prev, Tensor3 diff_mat ->
      let dact_f = map (map meta.deriv) act in  
      let dz = map2 hadamard dact_f diff_mat in
      let bias_mat = map sum dz in
@@ -350,28 +334,16 @@ let conv2d_bp meta params (prev_layer: layer option) act act_prev diff_mat =
                      act_prev dz params.kernels
      in
 
-
-     (* let prev_diff = map3 (fun inp dout kern -> *)
-                         (* let kern_rot = rotate180 kern in *)
-                         (* convolve dout ~padding:meta.padding *)
-                           (* ~stride:meta.stride (get_shape inp) kern_rot) *)
-                       (* act_prev dz params.kernels *)
-                   (* |> make_tens3 *)
-
      let prev_diff =
        match prev_layer with
-       | Some x ->
-          begin match x with
-          | Input _ -> diff_mat |> make_tens3 
-          | _ ->
-             map3 (fun inp dout kern ->
-                         let kern_rot = rotate180 kern in
-                         convolve dout ~padding:meta.padding
-                           ~stride:meta.stride (get_shape inp) kern_rot)
-                       act_prev dz params.kernels
-             |> make_tens3
-          end
-       | None -> diff_mat |> make_tens3  
+       | true ->
+          map3 (fun inp dout kern ->
+              let kern_rot = rotate180 kern in
+              convolve dout ~padding:meta.padding
+                ~stride:meta.stride (get_shape inp) kern_rot)
+            act_prev dz params.kernels
+          |> make_tens3
+       | false -> diff_mat |> make_tens3  
      in
 
      { prev_diff;
@@ -380,29 +352,22 @@ let conv2d_bp meta params (prev_layer: layer option) act act_prev diff_mat =
                   bias_mat
                 }
      }
-                         
-  | Tensor3 m, Tensor2 a, Tensor3 _ -> failwith "conv2d_bp: activation type"
-  | _ -> failwith "conv2d_bp: invalid activation type"
 
-let backprop_layer layer (prev_layer : layer option) act_list diff_mat =
+let backprop_layer : type a b c. (a, b) layer -> bool -> a -> b -> b ->
+                          (a, b) backprop_layer
+  = fun layer prev_layer act_prev act diff_mat ->
   match layer with
-  | Input _ ->
+  | Input3 _ ->
      { prev_diff = diff_mat;
-       grad = InputParams;
+       grad = Input3Params;
      }
   | FullyConnected (meta, params) ->
-     let act = hd act_list in
-     let act_prev = hdtl act_list in
      bp_fully_connected act act_prev meta params diff_mat
   | Conv2D (meta, params) ->
-     let act = hd act_list in
-     let act_prev = hdtl act_list in
      conv2d_bp meta params prev_layer act act_prev diff_mat 
   | Pooling meta ->
-     let act_prev = hdtl act_list in
      pooling_bp meta act_prev diff_mat
   | Flatten _ -> 
-     let act_prev = tl act_list |> hd in
      flatten_bp act_prev diff_mat
  
 let rec backprop_nn :
@@ -415,19 +380,12 @@ let rec backprop_nn :
   | BP_Nil ->
      grad_acc
   | BP_Cons ((lay, input, out), tail) ->
-     let prev_lay = if List.length bp_layers > 1
-                    then Some (hdtl bp_layers)
-                    else None
-     in
+     let bp_layer = backprop_layer lay true input out diff in
 
-     let bp_layer = backprop_layer lay prev_lay act_list 
-                      diff in
-
-     let param_list = bp_layer.grad::grad_acc.param_list in
+     let param_list = PL_Cons (bp_layer.grad, grad_acc) in
      let prev_diff_mat = bp_layer.prev_diff in
      
-     backprop_nn tail 
-       {param_list} prev_diff_mat
+     backprop_nn tail prev_diff_mat param_list
 
   
 let nn_gradient nn data  =
