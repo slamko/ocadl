@@ -131,6 +131,27 @@ let get_err : type t. t tensor -> float =
   | Tensor3 mat ->
      Mat.fold_left (fun acc m -> Mat.sum m +. acc) 0. mat
 
+let tens3_error res exp =
+   let open Mat in
+
+   fold_left2 (fun acc res exp ->
+       sub exp res 
+       |> add acc)
+     (res |> get_first |> get_shape |> zero_of_shape) res exp
+   |> sum
+
+let tens1_error res exp =
+  Mat.sub exp res
+  |> Mat.sum
+
+let tens1_diff res exp =
+  Mat.sub exp res
+  |> make_tens1
+
+let tens3_diff res exp =
+  Mat.map2 Mat.sub exp res
+  |> make_tens3
+
 let loss data nn =
 
   let rec loss_rec : type a b. (a, b) nnet -> (a, b) train_data
@@ -147,32 +168,34 @@ let loss data nn =
         | FullyConnected (_, _) ->
            (match res, expected with
             | Tensor1 res, Tensor1 exp -> 
-               let diff =
-                 Mat.sub res exp 
-                 |> Mat.sum
-               in
+               let diff = tens1_error res exp in
                loss_rec nn data_tail (err +. (diff *. diff))
            )
-          | Conv2D (_, _) ->
+        | Conv2D (_, _) ->
              (match res, expected with
               | Tensor3 res, Tensor3 exp -> 
-                 (* Mat.sub (Mat.of_array_size res) (Mat.of_array_size exp) *)
-                 (* |> Mat.qto_array *)
-                 (* |> make_tens3 *)
-                 failwith "Non implemented"
-             )
-          | Flatten _ -> 
-             (match res, expected with
-              | Tensor1 res, Tensor1 exp -> 
-                 let diff =
-                   Mat.sub res exp 
-                 |> Mat.sum
-                 in
+                 let diff = tens3_error res exp in
                  loss_rec nn data_tail (err +. (diff *. diff))
              )
-          | _ ->
-             failwith "Non implemented"
-         )
+        | Flatten _ -> 
+             (match res, expected with
+              | Tensor1 res, Tensor1 exp -> 
+                 let diff = tens1_error res exp in
+                 loss_rec nn data_tail (err +. (diff *. diff))
+             )
+        | Pooling _ ->
+           (match res, expected with
+              | Tensor3 res, Tensor3 exp -> 
+                 let diff = tens3_error res exp in
+                 loss_rec nn data_tail (err +. (diff *. diff))
+             )
+        | Input3 _ ->
+           (match res, expected with
+              | Tensor3 res, Tensor3 exp -> 
+                 let diff = tens3_error res exp in
+                 loss_rec nn data_tail (err +. (diff *. diff))
+             )
+       )
   in
 
   let* loss = loss_rec nn data 0. in
@@ -344,42 +367,48 @@ let rec backprop_nn :
      backprop_nn tail prev_diff_mat param_list
 
   
-let nn_gradient nn data  =
+let nn_gradient nn data =
 
-  let rec bp_rec : type a b. (a, b) nnet ->
-                        (a, b) train_data ->
-                        (a, b) nnet_params -> (a, b) nnet_params
+  let rec bp_rec : type inp out. (inp, out) nnet ->
+                        (inp, out) train_data ->
+                        (inp, out) nnet_params -> (inp, out) nnet_params
+
     = fun nn data bp_grad_acc ->
     match data with
     | [] -> bp_grad_acc
     | cur_sample::data_tail ->
        let ff_net      = forward (get_data_input cur_sample) nn in
+
        (* show_nnet ff_net.backprop_nn |> print_string; *)
-       (* Printf.printf "len %d\n" @@ List.length ff_net.res ; *)
-       let BP_Cons ((lay, _, ff_res), _)       = ff_net in
+       let BP_Cons ((lay, _, ff_res), _) = ff_net in
        let expected_res = get_data_out cur_sample in
 
-       let res_diff : b =
+       let res_diff : out =
          (match lay with
           | FullyConnected (_, _) ->
              (match ff_res, expected_res with
               | Tensor1 res, Tensor1 exp -> 
-                 Mat.sub res exp 
-                 |> make_tens1
+                 tens1_diff res exp
              )
           | Conv2D (_, _) ->
              (match ff_res, expected_res with
               | Tensor3 res, Tensor3 exp -> 
-                 (* Mat.sub (Mat.of_array_size res) (Mat.of_array_size exp) *)
-                 (* |> Mat.qto_array *)
-                 (* |> make_tens3 *)
-                 failwith "Non implemented"
+                 tens3_diff res exp
              )
           | Flatten _ -> 
              (match ff_res, expected_res with
               | Tensor1 res, Tensor1 exp -> 
-                 Mat.sub res exp
-                 |> make_tens1
+                 tens1_diff res exp
+             )
+          | Pooling _ ->
+             (match ff_res, expected_res with
+              | Tensor3 res, Tensor3 exp -> 
+                 tens3_diff res exp
+             )
+          | Input3 _ ->
+             (match ff_res, expected_res with
+              | Tensor3 res, Tensor3 exp -> 
+                 tens3_diff res exp
              )
          ) in
 
