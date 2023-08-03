@@ -3,7 +3,9 @@ open Matrix
 
 module Mat = Matrix
 type mat = float Mat.Mat.t
+[@@deriving show]
 
+type 'a matrix = 'a Mat.Mat.t
 [@@deriving show]
 
 let sigmoid (x : float) : float =

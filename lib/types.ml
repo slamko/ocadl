@@ -2,6 +2,13 @@ open Deepmath
 open Matrix
 open Ppxlib
 
+type _ tensor =
+  | Tensor1 : float array -> float array tensor
+  | Tensor2 : float matrix -> float matrix tensor
+  | Tensor3 : float matrix array -> float matrix array tensor
+  | Tensor4 : float matrix matrix -> float matrix matrix tensor
+(* [@@deriving show] *)
+
 type weight_list = mat list
 [@@deriving show]
 
@@ -27,11 +34,17 @@ type meta = {
     out_shape : shape;
   }
 [@@deriving show]
+
+type input = float array tensor
+type out = float array tensor
+
+type t = meta * params
+[@@deriving show]
 end
 
 module Conv2D = struct 
 type params = {
-    kernels : mat Mat.t;
+    kernels : mat matrix;
     bias_mat : mat;
   }
 [@@deriving show]
@@ -45,6 +58,12 @@ type meta = {
     out_shape : shape;
   }
 [@@deriving show]
+
+type input = mat array tensor
+type out = mat array tensor
+
+type t = meta * params
+[@@deriving show]
 end
 
 module Pooling = struct 
@@ -57,18 +76,36 @@ type meta = {
   }
 [@@deriving show]
 
+type input = mat array tensor
+type out = mat array tensor
+
+type t = meta
+[@@deriving show]
 end
 
-type input_meta = {
+module Input3D = struct
+
+type meta = {
     shape : shape;
   }
 [@@deriving show]
+
+type input = mat array tensor
+type out = mat array tensor
+
+type t = meta
+end
 
 module Flatten = struct
 type meta = {
     out_shape : shape;
   }
 [@@deriving show]
+
+type input = mat array tensor
+type out = float array tensor
+
+type t = meta
 end
 
 
@@ -77,7 +114,7 @@ type layer_meta =
   | Conv2DMeta of Conv2D.meta
   | PoolingMeta of Pooling.meta
   | FlattenMeta of Flatten.meta
-  | InputMeta of input_meta 
+  | InputMeta of Input3D.meta 
 [@@deriving show]
 
 type layer_params =
@@ -88,50 +125,59 @@ type layer_params =
   | InputParams
 [@@deriving show]
 
-type layer =
-  | FullyConnected of (Fully_Connected.meta * Fully_Connected.params)
-  | Conv2D of (Conv2D.meta * Conv2D.params)
-  | Pooling of Pooling.meta
-  | Flatten of Flatten.meta
-  | Input of input_meta
-[@@deriving show]
+type (_, _) layer =
+  | FullyConnected  : Fully_Connected.t ->
+                      (Fully_Connected.input, Fully_Connected.out) layer
+
+  | Conv2D          : Conv2D.t  -> (Conv2D.input, Conv2D.out) layer
+  | Pooling         : Pooling.t -> (Pooling.input, Pooling.out) layer
+  | Flatten         : Flatten.t -> (Flatten.input, Flatten.out) layer
+  | Input3          : Input3D.t -> (Input3D.input, Input3D.out) layer
+
+type zero = unit
+
+type _ succ =
+  | Succ : 'n -> 'n succ
+
+type one = zero succ
+
+type (_, _,_) build_list =
+  | Build_Nil : (zero, 'a, 'a) build_list
+  | Build_Cons : ('b, 'c) layer *
+              ('n, 'a, 'b) build_list ->
+            ('n succ, 'a, 'c) build_list
+
+type (_, _) ff_list =
+  | FF_Nil : ('a, 'a) ff_list
+  | FF_Cons : ('a, 'b) layer *
+              ('b, 'c) ff_list ->
+            ('a, 'c) ff_list
+
+type (_, _) bp_list =
+  | BP_Nil : (('a, 'a) layer * 'a * 'a, _) bp_list
+  | BP_Cons : ((('b , 'c) layer * 'b * 'c) *
+               (('a , 'b) layer * 'a * 'b, _) bp_list)
+            -> (('a , 'c) layer * 'a * 'c, _) bp_list
+
 
 type nnet_params = {
     param_list : layer_params list;
   }
 [@@deriving show]
 
-(*
-type layer_common = {
-    common : common;
-    layer  : layer;
+type ('a, 'b) nnet = {
+    layers : ('a, 'b) ff_list;
   }
-[@@deriving show]
-*)
-
-type nnet = {
-    layers : layer list;
-  }
-[@@deriving show]
-
-type ff_input_type =
-  | Tensor1 of float Mat.t
-  | Tensor2 of float Mat.t
-  | Tensor3 of float Mat.t Mat.t
-  | Tensor4 of float Mat.t Mat.t
-[@@deriving show]
 
 let make_tens1 v = Tensor1 v
 let make_tens2 v = Tensor2 v
 let make_tens3 v = Tensor3 v
 let make_tens4 v = Tensor4 v
 
-type feed_forward = {
-    res : ff_input_type list;
-    backprop_nn : nnet;
+type ('a, 'b, 'c) feed_forward = {
+    bp_data : (('a, 'b) layer * 'a * 'b, 'c) bp_list
   }
 
-type train_data = (ff_input_type * ff_input_type) list
-
+type ('a, 'b) train_data = ('a tensor * 'b tensor) list
 
 

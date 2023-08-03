@@ -44,9 +44,9 @@ let read_mnist_train_data fname shape =
   |> List.map @@ list_split 1 
   |> List.map
        (fun (res_list, data_list) ->
-         let res_mat = Mat.make (Row 1) (Col 10) 0. in
-         let col = Mat.Col (List.hd res_list |> int_of_float) in
-         Mat.set (Row 0) col res_mat 1.;
+         let res_mat = Array.make 10 0. in
+         let (Col col) = Mat.Col (List.hd res_list |> int_of_float) in
+         Array.set res_mat col 1.;
          Tensor1 res_mat,
          Tensor2 (data_list
                   |> Mat.of_list
@@ -132,23 +132,31 @@ let restore_nn_from_json fname nn =
   (* List.hd weights |> List.length |> print_int *)
  *)
 
-let get_out_shape = function
-    | FullyConnected (meta, _)  -> meta.out_shape
-    | Conv2D (meta, _)          -> meta.out_shape
-    | Pooling meta              -> meta.out_shape
-    | Flatten meta              -> meta.out_shape
-    | Input meta                -> meta.shape
+let make_input3d shape = 
+  let in_layer = Input3 { shape; } in
+  Build_Cons (in_layer, Build_Nil)
 
-let make_input shape = 
-  let in_layer = Input { shape; } in
-  [in_layer]
+(*
+let ( |>> ) : type a b c n. ((a, b) layer -> (n succ, a, c) build_list) ->
+                   
+  = fun fbuilder layer_list ->
+  let prev = match layer_list with
+    | Build_Cons (lay, tail) -> lay
+  in
+  fbuilder prev layer_list
+ *)
 
 let make_fully_connected ~ncount ~act ~deriv layers =
   let open Mat in
-  let prev_ncount = List.hd layers
-                    |> get_out_shape
-                    |> shape_size in
-  
+  let prev_ncount =
+    match layers with
+    | Build_Cons (lay, _) ->
+       (match lay with
+        | FullyConnected (meta, _) -> meta.out_shape
+        | Flatten meta -> meta.out_shape
+       ) |> shape_size
+  in
+
   let meta =
     { Fully_Connected.
       activation = act;
@@ -165,15 +173,22 @@ let make_fully_connected ~ncount ~act ~deriv layers =
   in
 
   let layer = FullyConnected (meta, params); in
+  Build_Cons (layer, layers)
 
- layer::layers
 
 let make_conv2d ~kernel_shape ~kernel_num
       ~act ~deriv ~padding ~stride layers =
   let open Mat in
 
-  let prev_shape = List.hd layers
-                   |> get_out_shape in
+  let prev_shape =
+    match layers with
+    | Build_Cons (lay, _) ->
+       (match lay with
+        | Conv2D (meta, _) -> meta.out_shape
+        | Pooling meta -> meta.out_shape
+        | Input3 meta -> meta.shape
+       )
+  in
 
   let new_dim in_dim kern_dim =
     ((in_dim + (2 * padding) - kern_dim)
@@ -209,14 +224,20 @@ let make_conv2d ~kernel_shape ~kernel_num
     } in
 
   let layer = Conv2D (meta, params) in
-  layer::layers 
+  Build_Cons(layer, layers)
 
 let make_pooling ~filter_shape ~stride ~f ~fbp layers =
   let open Mat in
-  let prev_shape = layers |> List.hd |> get_out_shape in
 
-  (* match List.hd layers with *)
-  (* |  *)
+  let prev_shape =
+    match layers with
+    | Build_Cons (lay, _) ->
+       (match lay with
+        | Conv2D (meta, _) -> meta.out_shape
+        | Pooling meta -> meta.out_shape
+        | Input3 meta -> meta.shape
+       )
+  in
 
   let new_dim in_dim filt_dim =
     ((in_dim +  - filt_dim)
@@ -238,19 +259,40 @@ let make_pooling ~filter_shape ~stride ~f ~fbp layers =
              } in
 
   let layer = Pooling meta in
-  layer::layers 
+  Build_Cons (layer, layers)
 
 let make_flatten layers =
   let open Mat in
-  let prev_shape = List.hd layers |> get_out_shape in
+  let prev_shape =
+    match layers with
+    | Build_Cons (lay, _) ->
+       (match lay with
+        | Conv2D (meta, _) -> meta.out_shape
+        | Pooling meta -> meta.out_shape
+        | Input3 meta -> meta.shape
+       )
+  in
 
   let meta = { Flatten.out_shape =
                  make_shape (Row 1) (Col (shape_size prev_shape)) } in
   let layer = Flatten meta in
-  layer::layers
+  Build_Cons (layer, layers)
 
-let make_nn arch : nnet =
-  { layers = List.rev arch }
+let rev_build_list blist =
+  let rec rev_rec : type a b c n. (n, a, b) build_list ->
+                                (b, c) ff_list ->
+                                (a, c) ff_list
+    = fun blist acc ->
+    match blist with
+    | Build_Nil -> acc
+    | Build_Cons (lay, tail) ->
+       rev_rec tail (FF_Cons (lay, acc))
+  in
+
+  rev_rec blist FF_Nil
+
+let make_nn arch =
+  { layers = rev_build_list arch }
 
 let fully_connected_map proc layer =
   FullyConnectedParams
