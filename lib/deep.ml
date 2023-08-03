@@ -130,6 +130,12 @@ let forward input nn =
 
   forward_rec nn.layers input BP_Nil 
 
+let get_err : type t. t tensor -> float =
+  fun tens ->
+  match tens with
+  | Tensor1 arr -> Array.fold_left (+.) 0. arr
+  | Tensor2 mat -> Mat.sum mat
+
 let loss data nn =
 
   let rec loss_rec : type a b c. (a, b) nnet -> (a, b) train_data
@@ -140,20 +146,43 @@ let loss data nn =
     | sample::data_tail ->
        let ff = forward (get_data_input sample) nn in
        let expected = get_data_out sample in
-       let BP_Cons((_, _, res), _) = ff in
+       let BP_Cons((lay, _, res), _) = ff in
 
-       (* (match res, expected with *)
-       (* | Tensor2 m, Tensor2 exp -> *)
-          (* let diff = Mat.sub m exp *)
-                      (* |> Mat.sum in *)
-          (* loss_rec nn data_tail (err +. (diff *. diff)) *)
-       (* | Tensor1 m, Tensor1 exp -> *)
-       (* ) *)
-       err
+       (match lay with
+        | FullyConnected (_, _) ->
+           (match res, expected with
+            | Tensor1 res, Tensor1 exp -> 
+               let diff =
+                 Mat.sub (Mat.of_array_size res) (Mat.of_array_size exp)
+                 |> Mat.sum
+               in
+               loss_rec nn data_tail (err +. (diff *. diff))
+           )
+          | Conv2D (_, _) ->
+             (match res, expected with
+              | Tensor3 res, Tensor3 exp -> 
+                 (* Mat.sub (Mat.of_array_size res) (Mat.of_array_size exp) *)
+                 (* |> Mat.qto_array *)
+                 (* |> make_tens3 *)
+                 failwith "Non implemented"
+             )
+          | Flatten _ -> 
+             (match res, expected with
+              | Tensor1 res, Tensor1 exp -> 
+                 let diff =
+                   Mat.sub (Mat.of_array_size res) (Mat.of_array_size exp)
+                 |> Mat.sum
+                 in
+                 loss_rec nn data_tail (err +. (diff *. diff))
+             )
+          | _ ->
+             failwith "Non implemented"
+         )
   in
 
   let* loss = loss_rec nn data 0. in
-  Ok (List.length data |> float_of_int |> (/.) @@ loss)
+  let avg_loss = List.length data |> float_of_int |> (/.) @@ loss in
+  Ok avg_loss
 
 (*
 let backprop_neuron w_mat_arr fderiv w_row w_col ff_len diffi ai ai_prev_arr
@@ -454,17 +483,13 @@ let nn_gradient nn data  =
    
   in
  
-  let newn = bp_rec nn data @@ nn_params_zero nn
-  (* in *)
-
+  let newn = bp_rec nn data @@ nn_zero_params nn in
+  let scale_fact =
+    List.length data
+    |> float_of_int
+    |> (fun x -> 1. /. x) in
   (* print_endline "Full nn"; *)
-  let param_nn = nn_params_map
-                   (fun mat ->
-                     Mat.scale
-                           (List.length data
-                            |> float_of_int
-                            |> (fun x -> 1. /. x))
-                           mat) newn in
+  let param_nn = nn_params_map (( *. ) scale_fact) newn in
   Ok param_nn
 
 (*

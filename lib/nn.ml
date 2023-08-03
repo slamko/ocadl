@@ -343,6 +343,18 @@ let param_zero : type a b.
    | empty -> empty
   )
 
+let layer_zero : type a b. 
+             (a, b) layer ->
+             (a, b) layer_params =
+  fun lay ->
+  (match lay with
+   | FullyConnected (_, fc) -> fully_connected_zero fc
+   | Conv2D (_, cn) -> conv2d_zero cn
+   | Flatten _ -> FlattenParams
+   | Pooling _ -> PoolingParams
+   | Input3 _ -> Input3Params
+  )
+
 let nn_params_map proc nn =
   let rec nn_params_map : type a b c. (float -> float) ->
                              (a, b) param_list -> 
@@ -356,7 +368,7 @@ let nn_params_map proc nn =
      PL_Cons (new_lay, tail_map)
   in
 
-  { param_list = nn_params_map proc nn } 
+  { param_list = nn_params_map proc nn.param_list } 
                    
 let nn_params_apply proc nn1 nn2 =
 
@@ -467,5 +479,18 @@ let nn_params_zero nn_params =
        PL_Cons (new_lay, params_zero tail)
   in
 
-  params_zero nn_params
+  { param_list = params_zero nn_params.param_list }
+
+let nn_zero_params nn =
+  let rec params_zero : type a b. (a, b) ff_list ->
+                             (a, b) param_list
+    = fun nn_params ->
+    match nn_params with
+    | FF_Nil -> PL_Nil
+    | FF_Cons (lay, tail) ->
+       let new_lay = layer_zero lay in
+       PL_Cons (new_lay, params_zero tail)
+  in                            
+
+  { param_list = params_zero nn.layers }
 
