@@ -359,27 +359,35 @@ let nn_params_map proc nn =
   { param_list = nn_params_map proc nn } 
                    
 let nn_params_apply proc nn1 nn2 =
-  { param_list =
-      List.map2 (fun l1 l2 ->
-          match l1, l2 with
-          | FullyConnectedParams fc1, FullyConnectedParams fc2 ->
+
+  let rec apply_rec : type a b. (a, b) param_list ->
+                           (a, b) param_list ->
+                           (a, b) param_list
+    = fun pl1 pl2 ->
+    match pl1, pl2 with
+    | PL_Cons (l1, t1), PL_Cons (l2, t2) -> 
+        let tail = apply_rec t1 t2 in
+       (match l1, l2 with
+        | FullyConnectedParams fc1, FullyConnectedParams fc2 ->
+           let new_lay =
              FullyConnectedParams {
                  weight_mat = proc fc1.weight_mat fc2.weight_mat;
                  bias_mat = proc fc1.bias_mat fc2.bias_mat;
-               }
-          | Conv2DParams cv1, Conv2DParams cv2 ->
+               } in
+           PL_Cons(new_lay, tail)
+        | Conv2DParams cv1, Conv2DParams cv2 ->
+           let new_lay =
              Conv2DParams {
-                 kernels = Mat.map2
-                             (fun v1 v2 -> proc v1 v2)
-                             cv1.kernels cv2.kernels;
-                 bias_mat = proc cv1.bias_mat cv2.bias_mat;
-               }
-          | InputParams, InputParams -> InputParams
-          | PoolingParams, PoolingParams -> PoolingParams
-          | FlattenParams, FlattenParams -> FlattenParams
-          | _ -> failwith "nn apply: Param lists do not match."
-          ) nn1.param_list nn2.param_list;
-      }
+               kernels = Mat.map2
+                           (fun v1 v2 -> proc v1 v2)
+                           cv1.kernels cv2.kernels;
+               bias_mat = proc cv1.bias_mat cv2.bias_mat;
+               } in
+           PL_Cons (new_lay, tail)
+        | Input3Params, Input3Params -> PL_Cons (Input3Params, tail)
+        | PoolingParams, PoolingParams -> PoolingParams
+        | FlattenParams, FlattenParams -> FlattenParams
+       )
 
 let nn_apply_params proc nn params =
   { layers =
@@ -420,11 +428,16 @@ let nn_apply_params proc nn params =
       ) nn.layers params.param_list
   }
                     
-let rec nn_params_zero : type a b. (a, b) param_list ->
-                          (a, b) param_list
-  = fun nn_params ->
-  match nn_params with
-  | PL_Nil -> PL_Nil
-  | PL_Cons (lay, tail) ->
-     let new_lay = param_zero lay in
-     PL_Cons (new_lay, nn_params_zero tail)
+let nn_params_zero nn_params =
+  let rec params_zero : type a b. (a, b) param_list ->
+                             (a, b) param_list
+    = fun nn_params ->
+    match nn_params with
+    | PL_Nil -> PL_Nil
+    | PL_Cons (lay, tail) ->
+       let new_lay = param_zero lay in
+       PL_Cons (new_lay, params_zero tail)
+  in
+
+  params_zero nn_params
+
