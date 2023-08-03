@@ -382,7 +382,7 @@ let backprop_layer layer (prev_layer : layer option) act_list diff_mat =
      flatten_bp act_prev diff_mat
  
 let rec backprop_nn :
-          type a b c x. ((a, b) layer * a * b, c) bp_list -> b ->
+          type a b c x. ((b, a) layer * b * a, c) bp_list -> a ->
                (a, x) param_list ->
                (b, x) param_list =
   
@@ -447,15 +447,14 @@ let nn_gradient nn data  =
              )
          ) in
 
-       let bp_grad = backprop_nn ff_net res_diff PL_Nil in
+       let bp_grad = { param_list = backprop_nn ff_net res_diff PL_Nil } in
        
-       (* Printf.printf "One sample nn" ; *)
        nn_params_apply Mat.add bp_grad bp_grad_acc
        |> bp_rec nn data_tail
    
   in
  
-  (* let newn = bp_rec nn data @@ nn_zero_params nn *)
+  let newn = bp_rec nn data @@ nn_params_zero nn
   (* in *)
 
   (* print_endline "Full nn"; *)

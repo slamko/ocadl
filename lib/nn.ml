@@ -365,8 +365,8 @@ let nn_params_apply proc nn1 nn2 =
                            (a, b) param_list
     = fun pl1 pl2 ->
     match pl1, pl2 with
+    | PL_Nil, PL_Nil -> PL_Nil
     | PL_Cons (l1, t1), PL_Cons (l2, t2) -> 
-        let tail = apply_rec t1 t2 in
        (match l1, l2 with
         | FullyConnectedParams fc1, FullyConnectedParams fc2 ->
            let new_lay =
@@ -374,6 +374,7 @@ let nn_params_apply proc nn1 nn2 =
                  weight_mat = proc fc1.weight_mat fc2.weight_mat;
                  bias_mat = proc fc1.bias_mat fc2.bias_mat;
                } in
+           let tail = apply_rec t1 t2 in
            PL_Cons(new_lay, tail)
         | Conv2DParams cv1, Conv2DParams cv2 ->
            let new_lay =
@@ -383,51 +384,78 @@ let nn_params_apply proc nn1 nn2 =
                            cv1.kernels cv2.kernels;
                bias_mat = proc cv1.bias_mat cv2.bias_mat;
                } in
+           let tail = apply_rec t1 t2 in
            PL_Cons (new_lay, tail)
-        | Input3Params, Input3Params -> PL_Cons (Input3Params, tail)
-        | PoolingParams, PoolingParams -> PoolingParams
-        | FlattenParams, FlattenParams -> FlattenParams
+        | Input3Params, Input3Params   ->
+           PL_Cons (Input3Params,  apply_rec t1 t2)
+        | PoolingParams, PoolingParams ->
+           PL_Cons (PoolingParams, apply_rec t1 t2)
+        | FlattenParams, FlattenParams ->
+           PL_Cons (FlattenParams, apply_rec t1 t2)
+        | _ -> failwith "The world fucked up"
        )
+    | _ -> failwith "The world fucked up"
+  in
+
+  let param_list = apply_rec nn1.param_list nn2.param_list in
+  { param_list }
 
 let nn_apply_params proc nn params =
-  { layers =
-      List.map2
-        (fun lay apply_param ->
-          match lay, apply_param with
-          | FullyConnected (meta, nn_param),
-            FullyConnectedParams apply_param ->
-             let open Mat in
-             (* Printf.eprintf "pr %d pc %d\n" *)
-               (* (get_row (dim1 nn_param.weight_mat)) *)
-               (* (get_col (dim2 nn_param.weight_mat)) ; *)
-             let wmat = proc nn_param.weight_mat apply_param.weight_mat in
-             let bmat = proc nn_param.bias_mat   apply_param.bias_mat   in
 
-               FullyConnected (meta, {
-                              weight_mat = wmat;
-                              bias_mat = bmat;
-                         });
-          | FullyConnected (_, _), _ ->
-             failwith "nn apply params: Incompatible param list."
+  let rec apply_rec : type a b. (a, b) ff_list ->
+                           (a, b) param_list ->
+                           (a, b) ff_list
+    = fun pl1 pl2 ->
+    match pl1, pl2 with
+    | FF_Nil, PL_Nil -> FF_Nil
+    | FF_Cons (lay, t1), PL_Cons (apply_param, t2) -> 
+       (match lay, apply_param with
+       | FullyConnected (meta, nn_param),
+         FullyConnectedParams apply_param ->
+          let open Mat in
+          (* Printf.eprintf "pr %d pc %d\n" *)
+          (* (get_row (dim1 nn_param.weight_mat)) *)
+          (* (get_col (dim2 nn_param.weight_mat)) ; *)
+          let wmat = proc nn_param.weight_mat apply_param.weight_mat in
+          let bmat = proc nn_param.bias_mat   apply_param.bias_mat   in
+          
+          let new_lay =
+            FullyConnected (meta, {
+                  weight_mat = wmat;
+                  bias_mat = bmat;
+              }) in
 
-          | Conv2D (meta, nn_param), Conv2DParams apply_param ->
-             let kernels = Mat.map2
+          FF_Cons(new_lay, apply_rec t1 t2)
+       | FullyConnected (_, _), _ ->
+          failwith "nn apply params: Incompatible param list."
+       | Conv2D (meta, nn_param), Conv2DParams apply_param ->
+          let kernels = Mat.map2
                               (fun v1 v2 -> proc v1 v2)
                               nn_param.kernels apply_param.kernels in
-             let bias_mat = proc nn_param.bias_mat apply_param.bias_mat in
+          let bias_mat = proc nn_param.bias_mat apply_param.bias_mat in
+             
+          let new_lay =
+            Conv2D (meta, {
+                  kernels;
+                  bias_mat;
+              }) in
+          FF_Cons(new_lay, apply_rec t1 t2)
+       | Conv2D (_, _), _ -> 
+          failwith "nn apply params: Incompatible param list."
+       | Input3 _, Input3Params ->
+           FF_Cons (lay, apply_rec t1 t2)
+        | Pooling _, PoolingParams ->
+           FF_Cons (lay, apply_rec t1 t2)
+        | Flatten _, FlattenParams ->
+           FF_Cons (lay, apply_rec t1 t2)
+        | _ -> failwith "The world fucked up"
+       )
+    | _ -> failwith "nn apply params: Incompatible list types"
+  in
 
-               Conv2D (meta, {
-                            kernels;
-                            bias_mat;
-                         });
-      
-          | Conv2D (_, _), _ -> 
-             failwith "nn apply params: Incompatible param list."
-          | _ -> lay
+  let layers = apply_rec nn.layers params.param_list in
+  { layers }
 
-      ) nn.layers params.param_list
-  }
-                    
 let nn_params_zero nn_params =
   let rec params_zero : type a b. (a, b) param_list ->
                              (a, b) param_list
