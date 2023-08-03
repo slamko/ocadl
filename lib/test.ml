@@ -25,9 +25,9 @@ let rec perform nn data =
   match data with
   | [] -> ()
   | sample::t ->
-     let ff = forward (get_data_input sample) nn in
-     let res = ff.res |> List.hd in
-     let expected = get_data_out sample in
+     (* let ff = forward (get_data_input sample) nn in *)
+     (* let res = ff.res |> List.hd in *)
+     (* let expected = get_data_out sample in *)
      Printf.printf "NN result: \n" ;
 
      Printf.printf "Expected result: \n" ;
@@ -39,13 +39,11 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     if Sys.file_exists train_data_fname
     then read_mnist_train_data train_data_fname
            {dim1 = (Row 28) ; dim2 = (Col 28); dim3 = 1}
-    else xor_data
+    else failwith "No train file"
   in
-  (* List.hd train_data |>  |> Mat.dim2 |> print_int ; *)
-  (* let train_data = adder_data in *)
 
   let base_nn =
-    make_input @@ make_shape3d (Row 28) (Col 28) 1
+    make_input3d @@ make_shape3d (Row 28) (Col 28) 1
     |> make_flatten
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
@@ -53,7 +51,7 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     |> make_nn in
 
   let conv_nn =
-    make_input @@ make_shape3d (Row 28) (Col 28) 1
+    make_input3d @@ make_shape3d (Row 28) (Col 28) 1
     |> make_conv2d ~padding:1 ~stride:1 ~act:relu ~deriv:relu'
          ~kernel_shape:(make_shape (Row 4) (Col 4))
          ~kernel_num:1
@@ -69,7 +67,6 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     |> make_pooling ~stride:2 ~f:pooling_max ~fbp:pooling_max_deriv
          ~filter_shape:(make_shape (Row 4) (Col 4))
  *)
-
 
     |> make_flatten
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
@@ -96,21 +93,6 @@ let test train_data_fname save_file epochs learning_rate batch_size =
 
   let* res = loss train_data nn in
   (* Printf.printf "Cost: %f\n" res; *)
-  let ff = forward (get_data_input (List.hd train_data)) nn
-  in
-
-  let log () = List.iter
-    (function
-     | Tensor1 t | Tensor2 t ->
-        Printf.printf "Ten1:\n";
-        Matrix.print t
-     | Tensor3 t | Tensor4 t ->
-        Printf.printf "Ten3:\n";
-        Matrix.iter (fun m ->
-            Printf.printf "Submat\n"; Matrix.print m) t;
-  ) ff.res ;
-  in
-  (* let  *)
 
   let* trained_nn = learn train_data
                       ~epoch_num:epochs ~learning_rate

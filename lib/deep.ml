@@ -271,14 +271,9 @@ let flatten_bp (Tensor3 act_prev) (Tensor1 diff) =
     grad = FlattenParams;
   }
 
-let pooling_bp meta act_prev diff =
+let pooling_bp meta (Tensor3 act_prev) (Tensor3 diff_mat) =
   let open Mat in
   let open Pooling in
-
-  let diff_mat = match diff with
-    | Tensor3 tens | Tensor4 tens -> tens
-    | _ -> failwith "Incompatible diff mat type for pooling backprop"
-  in
 
   let rec pool_rec meta mat diff_mat (Row cur_row) (Col cur_col) acc =
     if cur_row >= (dim1 diff_mat |> get_row)
@@ -302,24 +297,18 @@ let pooling_bp meta act_prev diff =
            meta.filter_shape.dim1 meta.filter_shape.dim2
       |> meta.fderiv meta.filter_shape cur_diff res_submat ;
 
-      (* set (Row 0) (Col 0) res_submat 1.0 ; *)
-
       pool_rec meta mat diff_mat (Row cur_row) (Col (cur_col + 1)) acc
   in
 
-  match act_prev with
-  | Tensor3 act_prev | Tensor4 act_prev ->
-     let prev_diff =
-       map2 (fun input diff ->
-           (* print diff ; *)
-           pool_rec meta input diff (Row 0) (Col 0)
+  let prev_diff =
+    map2 (fun input diff ->
+        (* print diff ; *)
+        pool_rec meta input diff (Row 0) (Col 0)
              (zero_of_shape (get_shape input)))
-         act_prev diff_mat 
-       (* |> make_tens3 *)
-     in
-     (* iter (fun m -> show_mat m |> Printf.printf "Diff: %s\n") prev_diff ; *)
-     { prev_diff = prev_diff |> make_tens3; grad = PoolingParams}
-  | _ -> failwith "Invalid previous activation for pooling bp."
+      act_prev diff_mat 
+      (* |> make_tens3 *)
+  in
+  { prev_diff = prev_diff |> make_tens3; grad = PoolingParams}
 
 let conv2d_bp meta params prev_layer
       (Tensor3 act) (Tensor3 act_prev) (Tensor3 diff_mat) =
@@ -379,6 +368,11 @@ let rec backprop_nn :
   match bp_list with
   | BP_Nil ->
      grad_acc
+
+  | BP_Cons ((lay, input, out), BP_Nil) ->
+     let bp_layer = backprop_layer lay false input out diff in
+     PL_Cons (bp_layer.grad, grad_acc)
+
   | BP_Cons ((lay, input, out), tail) ->
      let bp_layer = backprop_layer lay true input out diff in
 
@@ -520,7 +514,7 @@ let rec learn_rec pool pool_size data epoch_num
        if cycles_to_batch = cur_domain_num
        then
          full_grad
-         |> nn_params_map @@ Mat.scale learning_rate
+         |> nn_params_map @@ ( *. ) learning_rate
          |> nn_apply_params Mat.sub nn 
        else nn
      in
