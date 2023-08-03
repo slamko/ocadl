@@ -295,17 +295,18 @@ let make_nn arch =
   { layers = rev_build_list arch }
 
 let fully_connected_map proc layer =
-  FullyConnectedParams
-    { weight_mat = Mat.map proc layer.Fully_Connected.weight_mat;
+    let open Fully_Connected in
+    {
+      weight_mat = Mat.map proc layer.Fully_Connected.weight_mat;
       bias_mat = Mat.map proc layer.Fully_Connected.bias_mat;
     }
 
 let conv2d_map proc layer =
   let open Conv2D in
-  Conv2DParams
-    { kernels = layer.kernels |> Mat.map @@ Mat.map proc;
-      bias_mat = Mat.map proc layer.bias_mat
-    }
+  {
+    kernels = layer.kernels |> Mat.map @@ Mat.map proc;
+    bias_mat = Mat.map proc layer.bias_mat
+  }
 
 let nn_params_map proc nn_params =
   List.map (function

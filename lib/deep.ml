@@ -132,7 +132,7 @@ let forward input nn =
 
 let loss data nn =
 
-  let rec loss_rec : type a b c. (a, b) nnet -> (b, b) train_data
+  let rec loss_rec : type a b c. (a, b) nnet -> (a, b) train_data
                           -> float -> (float, string) result =
     fun nn data err ->
     match data with
@@ -142,13 +142,14 @@ let loss data nn =
        let expected = get_data_out sample in
        let BP_Cons((_, _, res), _) = ff in
 
-       (* match res, expected with *)
-       (* | Tensor2 m, Tensor2 exp ->  *)
+       (* (match res, expected with *)
+       (* | Tensor2 m, Tensor2 exp -> *)
           (* let diff = Mat.sub m exp *)
                       (* |> Mat.sum in *)
           (* loss_rec nn data_tail (err +. (diff *. diff)) *)
-       (* | Tensor1 m, Tensor1 exp ->  *)
-          
+       (* | Tensor1 m, Tensor1 exp -> *)
+       (* ) *)
+       err
   in
 
   let* loss = loss_rec nn data 0. in
@@ -379,51 +380,74 @@ let backprop_layer layer (prev_layer : layer option) act_list diff_mat =
   | Flatten _ -> 
      let act_prev = tl act_list |> hd in
      flatten_bp act_prev diff_mat
-     
- let rec backprop_nn (ff_list : ff_input_type list)
-          (bp_layers : layer list) (grad_acc : nnet_params)
-          diff_mat =
-
-  match ff_list with
-  | [] | [_] ->
+ 
+let rec backprop_nn :
+          type a b c x. ((a, b) layer * a * b, c) bp_list -> b ->
+               (a, x) param_list ->
+               (b, x) param_list =
+  
+  fun bp_list diff grad_acc ->
+  match bp_list with
+  | BP_Nil ->
      grad_acc
-  | act_list ->
-     let lay = hd bp_layers in
+  | BP_Cons ((lay, input, out), tail) ->
      let prev_lay = if List.length bp_layers > 1
                     then Some (hdtl bp_layers)
                     else None
      in
+
      let bp_layer = backprop_layer lay prev_lay act_list 
-                      diff_mat in
+                      diff in
 
      let param_list = bp_layer.grad::grad_acc.param_list in
      let prev_diff_mat = bp_layer.prev_diff in
      
-     backprop_nn (tl act_list) (tl bp_layers)
+     backprop_nn tail 
        {param_list} prev_diff_mat
-  
-let nn_gradient (nn : nnet) data  =
 
-  let rec bp_rec nn data bp_grad_acc =
+  
+let nn_gradient nn data  =
+
+  let rec bp_rec : type a b c. (a, b) nnet ->
+                        (a, b) train_data ->
+                        (a, b) nnet_params -> (a, b) nnet_params
+    = fun nn data bp_grad_acc ->
     match data with
     | [] -> bp_grad_acc
     | cur_sample::data_tail ->
        let ff_net      = forward (get_data_input cur_sample) nn in
        (* show_nnet ff_net.backprop_nn |> print_string; *)
        (* Printf.printf "len %d\n" @@ List.length ff_net.res ; *)
-       let ff_res       = hd ff_net.res in
+       let BP_Cons ((lay, _, ff_res), _)       = ff_net in
        let expected_res = get_data_out cur_sample in
 
-       let res_diff =
-         match expected_res, ff_res with
-         | (Tensor1 exp, Tensor1 res) ->
-            Mat.sub res exp |> make_tens1
-         | (Tensor2 exp, Tensor2 res) ->
-            Mat.sub res exp |> make_tens2
-         | _ -> invalid_arg "Incompatible output shape." in
+       let res_diff : b =
+         (match lay with
+          | FullyConnected (_, _) ->
+             (match ff_res, expected_res with
+              | Tensor1 res, Tensor1 exp -> 
+                 Mat.sub (Mat.of_array_size res) (Mat.of_array_size exp)
+                 |> Mat.qto_array
+                 |> make_tens1
+             )
+          | Conv2D (_, _) ->
+             (match ff_res, expected_res with
+              | Tensor3 res, Tensor3 exp -> 
+                 (* Mat.sub (Mat.of_array_size res) (Mat.of_array_size exp) *)
+                 (* |> Mat.qto_array *)
+                 (* |> make_tens3 *)
+                 failwith "Non implemented"
+             )
+          | Flatten _ -> 
+             (match ff_res, expected_res with
+              | Tensor1 res, Tensor1 exp -> 
+                 Mat.sub (Mat.of_array_size res) (Mat.of_array_size exp)
+                 |> Mat.qto_array
+                 |> make_tens1
+             )
+         ) in
 
-       let bp_grad = backprop_nn ff_net.res ff_net.backprop_nn.layers
-                       {param_list = []; } res_diff in
+       let bp_grad = backprop_nn ff_net res_diff PL_Nil in
        
        (* Printf.printf "One sample nn" ; *)
        nn_params_apply Mat.add bp_grad bp_grad_acc
@@ -431,8 +455,8 @@ let nn_gradient (nn : nnet) data  =
    
   in
  
-  let newn = bp_rec nn data @@ nn_zero_params nn
-  in
+  (* let newn = bp_rec nn data @@ nn_zero_params nn *)
+  (* in *)
 
   (* print_endline "Full nn"; *)
   let param_nn = nn_params_map

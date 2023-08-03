@@ -158,8 +158,8 @@ type (_, _) ff_list =
             ('a, 'c) ff_list
 
 type (_, _) param_list =
-  | FF_Nil : ('a, 'a) param_list
-  | FF_Cons : ('a, 'b) layer_params *
+  | PL_Nil : ('a, 'a) param_list
+  | PL_Cons : ('a, 'b) layer_params *
               ('b, 'c) param_list ->
             ('a, 'c) param_list
 
@@ -187,7 +187,7 @@ type ('a, 'b, 'c) feed_forward = {
     bp_data : (('a, 'b) layer * 'a * 'b, 'c) bp_list
   }
 
-type ('a, 'b) train_data = ('a tensor * 'b tensor) list
+type ('a, 'b) train_data = ('b * 'a) list
 
 let get_data_input sample =
   snd sample
