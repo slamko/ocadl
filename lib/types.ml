@@ -118,16 +118,15 @@ type layer_meta =
 [@@deriving show]
 
 type (_, _) layer_params =
-  | FullyConnected  : Fully_Connected.t ->
-                      (Fully_Connected.input, Fully_Connected.out)
-                        layer_params
+  | FullyConnectedParams : Fully_Connected.params ->
+      (Fully_Connected.input, Fully_Connected.out)  layer_params
 
-  | Conv2D          : Conv2D.params ->
-                      (Conv2D.input, Conv2D.out) layer_params
+  | Conv2DParams : Conv2D.params ->
+      (Conv2D.input, Conv2D.out) layer_params
 
-  | Pooling         : (Pooling.input, Pooling.out) layer_params
-  | Flatten         : (Flatten.input, Flatten.out) layer_params
-  | Input3          : (Input3D.input, Input3D.out) layer_params
+  | PoolingParams : (Pooling.input, Pooling.out) layer_params
+  | FlattenParams : (Flatten.input, Flatten.out) layer_params
+  | Input3Params : (Input3D.input, Input3D.out) layer_params
 
 type (_, _) layer =
   | FullyConnected  : Fully_Connected.t ->

@@ -296,25 +296,17 @@ let make_nn arch =
 
 let fully_connected_map proc layer =
     let open Fully_Connected in
-    {
+    FullyConnectedParams {
       weight_mat = Mat.map proc layer.Fully_Connected.weight_mat;
       bias_mat = Mat.map proc layer.Fully_Connected.bias_mat;
     }
 
 let conv2d_map proc layer =
   let open Conv2D in
-  {
+  Conv2DParams {
     kernels = layer.kernels |> Mat.map @@ Mat.map proc;
     bias_mat = Mat.map proc layer.bias_mat
   }
-
-let nn_params_map proc nn_params =
-  List.map (function
-      | FullyConnectedParams fc -> fully_connected_map proc fc
-      | Conv2DParams cv -> conv2d_map proc cv
-      | empty -> empty
-    )
-    nn_params.param_list
 
 let fully_connected_zero layer =
   let open Fully_Connected in
@@ -330,43 +322,42 @@ let conv2d_zero layer =
       bias_mat = layer.bias_mat |> Mat.zero ;
     }
 
-let nn_params_map proc nn =
-  { param_list =
-      List.map (fun l ->
-          match l with
-          | FullyConnectedParams fc ->
-             FullyConnectedParams {
-                 weight_mat = proc fc.weight_mat;
-                 bias_mat = proc fc.bias_mat;
-               }
-          | Conv2DParams cv ->
-             Conv2DParams {
-                 kernels = Mat.map (fun v -> proc v) cv.kernels;
-                 bias_mat = proc cv.bias_mat;
-               }
-          | empty -> empty
-        ) nn.param_list ;
-  } 
 
-let nn_zero_params nn : nnet_params =
-  let zero_layers = nn.layers
-  |> List.map (function
-      | FullyConnected (_, params) ->
-           FullyConnectedParams
-              { weight_mat = Mat.zero params.weight_mat;
-                bias_mat = Mat.zero params.bias_mat;
-           }                    
-      | Conv2D (_, params) ->
-           Conv2DParams
-              { kernels = Mat.map Mat.zero params.kernels;
-                bias_mat = Mat.zero params.bias_mat;
-              }
-      | Pooling _ -> PoolingParams
-      | Input _ -> InputParams
-      | Flatten _ -> FlattenParams
-       ) in
-  { param_list = zero_layers; }
-                    
+let param_map : type a b. (float -> float) ->
+             (a, b) layer_params ->
+             (a, b) layer_params =
+  fun proc lay ->
+  (match lay with
+   | FullyConnectedParams fc -> fully_connected_map proc fc
+   | Conv2DParams cn -> conv2d_map proc cn
+   | empty -> empty
+  )
+
+let param_zero : type a b. 
+             (a, b) layer_params ->
+             (a, b) layer_params =
+  fun lay ->
+  (match lay with
+   | FullyConnectedParams fc -> fully_connected_zero fc
+   | Conv2DParams cn -> conv2d_zero cn
+   | empty -> empty
+  )
+
+let nn_params_map proc nn =
+  let rec nn_params_map : type a b c. (float -> float) ->
+                             (a, b) param_list -> 
+                             (a, b) param_list =
+  fun proc nn_params ->
+  match nn_params with
+  | PL_Nil as nil -> nil
+  | PL_Cons (lay, tail) ->
+     let tail_map = nn_params_map proc tail in
+     let new_lay = param_map proc lay in
+     PL_Cons (new_lay, tail_map)
+  in
+
+  { param_list = nn_params_map proc nn } 
+                   
 let nn_params_apply proc nn1 nn2 =
   { param_list =
       List.map2 (fun l1 l2 ->
@@ -429,10 +420,11 @@ let nn_apply_params proc nn params =
       ) nn.layers params.param_list
   }
                     
-let nn_params_zero nn_params =
-   let param_list = List.map (function
-      | FullyConnectedParams fc -> fully_connected_zero fc
-      | Conv2DParams cv -> conv2d_zero cv
-      | empty -> empty
-     ) nn_params.param_list in
-   { param_list }
+let rec nn_params_zero : type a b. (a, b) param_list ->
+                          (a, b) param_list
+  = fun nn_params ->
+  match nn_params with
+  | PL_Nil -> PL_Nil
+  | PL_Cons (lay, tail) ->
+     let new_lay = param_zero lay in
+     PL_Cons (new_lay, nn_params_zero tail)
