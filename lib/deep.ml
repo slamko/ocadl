@@ -21,6 +21,7 @@ let fully_connected_forward meta params tens =
   Mat.mult tens params.weight_mat
   |> Mat.add params.bias_mat
   |> Mat.map meta.activation
+  |> Mat.qto_array
   |> make_tens1
 
 let pooling_forward meta tens =
@@ -44,8 +45,8 @@ let pooling_forward meta tens =
 
     map (fun mat ->
            zero_of_shape meta.out_shape
-           |> pool_rec meta mat (Row 0) (Col 0))
-         tens
+           |> pool_rec meta mat (Row 0) (Col 0)) tens
+    |> qto_array
     |> make_tens3
 
 let conv3d_forward meta params tens =
@@ -73,91 +74,80 @@ let conv3d_forward meta params tens =
       |> add_const (params.bias_mat |> get (Row 0) (Col c))
       |> map meta.act 
     ) res_mat
+  |> qto_array
   |> make_tens3
 
 let conv2d_forward meta params tens =
   Mat.make (Row 1) (Col 1) tens
   |> conv3d_forward meta params
 
-let forward_layer (input : ff_input_type) layer_type =
+let forward_layer : type a b c. a -> (a, b) layer -> b
+  = fun input layer_type ->
   match layer_type with
-  | Input _ -> 
-     begin match input with
-     | Tensor1 t | Tensor2 t ->
-        [|t|] |> Mat.of_array (Row 1) (Col 1) |> make_tens3
-     end
+  | Input3 _ -> input
   | FullyConnected (fc, fcp) ->
-     begin match input with
-     | Tensor1 tens ->
-        tens |> fully_connected_forward fc fcp
-     | _ -> failwith "Invalid input shape for fully connected layer" end
-           (*
-     | Tensor2 tens ->
+     (match input with
+     | Tensor1 tens -> 
         tens
-        |> Mat.flatten2d
+        |> Mat.of_array_size
         |> fully_connected_forward fc fcp
-     | Tensor3 tens | Tensor4 tens ->
-        Mat.flatten tens
-            |> fully_connected_forward fc fcp end
-            *)
+     )
   | Conv2D (cn, cnp) -> 
-     begin match input with
-     | Tensor2 tens ->
-        tens |> conv2d_forward cn cnp
-     | Tensor3 tens ->
-        tens |> conv3d_forward cn cnp
-     | _
-       -> invalid_arg "Invalid input for convolutional layer." end
+     (match input with
+     | Tensor3 tens -> 
+        tens
+        |> Mat.of_array_size
+        |> conv3d_forward cn cnp
+     )
   | Flatten _ ->
-     begin match input with
-     | Tensor3 tens | Tensor4 tens ->
-        Mat.flatten tens
+     (match input with
+     | Tensor3 tens ->
+        tens
+        |> Mat.flatten3d
         |> make_tens1
-     | Tensor1 tens | Tensor2 tens ->
-        Mat.flatten2d tens
-        |> make_tens1 end
+     )
   | Pooling pl ->
-     begin match input with
-     | Tensor3 tens | Tensor4 tens -> pooling_forward pl tens
-     | _
-       -> invalid_arg "Invalid input for pooling layer."
-     end
+     (match input with
+      | Tensor3 tens ->
+         tens
+         |> Mat.of_array_size
+         |> pooling_forward pl
+     )
 
 let forward input nn =
 
-  let rec forward_rec layers input acc =
+  let rec forward_rec : type a b c x. (a, b) ff_list -> a ->
+                             ((x, a) layer * x * a, _) bp_list ->
+                             ((x, b) layer * x * b, _) bp_list
+    = fun layers input acc ->
     match layers with
-    | [] -> acc
-    | layer::tail ->
-
-       let act = forward_layer input layer in
-       let upd_acc =
-         { res = act::acc.res;
-           backprop_nn = build_nn (layer::acc.backprop_nn.layers)
-         } in
+    | FF_Nil -> acc
+    | FF_Cons (lay, tail) ->
+       let act = forward_layer input lay in
+       let upd_acc = BP_Cons ((lay, input, act), acc) in
        forward_rec tail act upd_acc
   in
 
-  forward_rec nn.layers input
-    { res = [input];
-      backprop_nn = build_nn [];
-    }
+  forward_rec nn.layers input BP_Nil 
 
-let loss (data : train_data) nn =
+let loss data nn =
 
-  let rec loss_rec nn data err = 
+  let rec loss_rec : type a b c. (a, b) nnet -> (b, b) train_data
+                          -> float -> (float, string) result =
+    fun nn data err ->
     match data with
     | [] -> Ok err
     | sample::data_tail ->
        let ff = forward (get_data_input sample) nn in
        let expected = get_data_out sample in
-       let res = hd ff.res in
-       match res,expected with
-       | Tensor2 m, Tensor2 exp | Tensor1 m, Tensor1 exp-> 
-          let diff = Mat.sub m exp
-                      |> Mat.sum in
-          loss_rec nn data_tail (err +. (diff *. diff))
-       | _ -> Error "Invalid output shape"
+       let BP_Cons((_, _, res), _) = ff in
+
+       (* match res, expected with *)
+       (* | Tensor2 m, Tensor2 exp ->  *)
+          (* let diff = Mat.sub m exp *)
+                      (* |> Mat.sum in *)
+          (* loss_rec nn data_tail (err +. (diff *. diff)) *)
+       (* | Tensor1 m, Tensor1 exp ->  *)
           
   in
 

@@ -117,13 +117,17 @@ type layer_meta =
   | InputMeta of Input3D.meta 
 [@@deriving show]
 
-type layer_params =
-  | FullyConnectedParams of Fully_Connected.params
-  | Conv2DParams of Conv2D.params
-  | PoolingParams
-  | FlattenParams
-  | InputParams
-[@@deriving show]
+type (_, _) layer_params =
+  | FullyConnected  : Fully_Connected.t ->
+                      (Fully_Connected.input, Fully_Connected.out)
+                        layer_params
+
+  | Conv2D          : Conv2D.params ->
+                      (Conv2D.input, Conv2D.out) layer_params
+
+  | Pooling         : (Pooling.input, Pooling.out) layer_params
+  | Flatten         : (Flatten.input, Flatten.out) layer_params
+  | Input3          : (Input3D.input, Input3D.out) layer_params
 
 type (_, _) layer =
   | FullyConnected  : Fully_Connected.t ->
@@ -153,6 +157,12 @@ type (_, _) ff_list =
               ('b, 'c) ff_list ->
             ('a, 'c) ff_list
 
+type (_, _) param_list =
+  | FF_Nil : ('a, 'a) param_list
+  | FF_Cons : ('a, 'b) layer_params *
+              ('b, 'c) param_list ->
+            ('a, 'c) param_list
+
 type (_, _) bp_list =
   | BP_Nil : (('a, 'a) layer * 'a * 'a, _) bp_list
   | BP_Cons : ((('b , 'c) layer * 'b * 'c) *
@@ -160,10 +170,9 @@ type (_, _) bp_list =
             -> (('a , 'c) layer * 'a * 'c, _) bp_list
 
 
-type nnet_params = {
-    param_list : layer_params list;
+type ('a, 'b) nnet_params = {
+    param_list : ('a, 'b) param_list;
   }
-[@@deriving show]
 
 type ('a, 'b) nnet = {
     layers : ('a, 'b) ff_list;
@@ -180,4 +189,8 @@ type ('a, 'b, 'c) feed_forward = {
 
 type ('a, 'b) train_data = ('a tensor * 'b tensor) list
 
+let get_data_input sample =
+  snd sample
 
+let get_data_out sample =
+  fst sample

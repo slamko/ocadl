@@ -435,9 +435,3 @@ let nn_params_zero nn_params =
       | empty -> empty
      ) nn_params.param_list in
    { param_list }
-
-let get_data_input sample =
-  snd sample
-
-let get_data_out sample =
-  fst sample

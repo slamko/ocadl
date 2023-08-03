@@ -83,6 +83,11 @@ let of_array rows cols matrix =
     let start_col = Col 0 in
     { matrix; rows; cols; start_row; start_col; stride }
 
+let qto_array mat = mat.matrix
+
+let of_array_size matrix =
+  of_array (Row 1) (Col (Array.length matrix)) matrix
+
 let make (Row rows) (Col cols) init_val =
   Array.make (rows * cols) init_val
   |> of_array (Row rows) (Col cols)
@@ -472,11 +477,12 @@ let flatten2d mat =
 
 let flatten3d mat_arr = 
   match mat_arr with
-  | [| |] -> empty ()
+  | [| |] -> [| |]
   | mat_arr ->
      mat_arr
-     |> of_array (Row 1) (Col (Array.length mat_arr))
+     |> of_array_size
      |> flatten
+     |> qto_array
 
 let reshape3d base mat =
   let base_size = fold_left (fun acc m -> acc + size m) 0 base in
