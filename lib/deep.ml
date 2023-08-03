@@ -78,7 +78,7 @@ let conv2d_forward meta params tens =
   Mat.make (Row 1) (Col 1) tens
   |> conv3d_forward meta params
 
-let forward_layer : type a b c. a -> (a, b) layer -> b
+let forward_layer : type a b. a -> (a, b) layer -> b
   = fun input layer_type ->
   match layer_type with
   | Input3 _ -> input
@@ -110,7 +110,7 @@ let forward_layer : type a b c. a -> (a, b) layer -> b
 
 let forward input nn =
 
-  let rec forward_rec : type a b c x. (a, b) ff_list -> a ->
+  let rec forward_rec : type a b x. (a, b) ff_list -> a ->
                              ((x, a) layer * x * a, _) bp_list ->
                              ((x, b) layer * x * b, _) bp_list
     = fun layers input acc ->
@@ -133,7 +133,7 @@ let get_err : type t. t tensor -> float =
 
 let loss data nn =
 
-  let rec loss_rec : type a b c. (a, b) nnet -> (a, b) train_data
+  let rec loss_rec : type a b. (a, b) nnet -> (a, b) train_data
                           -> float -> (float, string) result =
     fun nn data err ->
     match data with
@@ -179,89 +179,51 @@ let loss data nn =
   let avg_loss = List.length data |> float_of_int |> (/.) @@ loss in
   Ok avg_loss
 
-(*
-let backprop_neuron w_mat_arr fderiv w_row w_col ff_len diffi ai ai_prev_arr
-      pd_prev_arr_acc : backprop_neuron =
-
-  let rec bp_neuron_rec irow w_col diffi ai ai_prev_arr =
-    match irow with
-    | -1 -> ()
-    | _ ->
-       let ai_prev = Array.get ai_prev_arr irow in
-       let ai_deriv = fderiv ai in
-       let wi_grad : float = 2. *. diffi *. ai_deriv *. ai_prev in
-      (* Printf.printf "Diff %f\nNeuron WI : %f \nrow %d \ncol %d \nai %f \nai prev %f\n" diffi wi_grad irow w_col ai ai_prev; *)
-       
-       let calc_pd () = 
-         if ff_len > 1
-         then
-           let cur_w = w_mat_arr.(irow).(w_col) in
-           let pd_prev : float = 2. *. diffi *. ai_deriv *. cur_w in
-           let last_pd_prev = Array.get pd_prev_arr_acc irow in
-           pd_prev_arr_acc.(irow) <- (pd_prev +. last_pd_prev) ;
-           (* Printf.printf "calc prev %d\n" ff_len ; *)
-       in
-
-       calc_pd ();
-       w_mat_arr.(irow).(w_col) <- wi_grad ;
-
-       bp_neuron_rec (irow - 1) w_col diffi ai ai_prev_arr
-  in
-
-  bp_neuron_rec w_row w_col diffi ai ai_prev_arr ;
-  {
-    wmat_arr = w_mat_arr;
-    pd_prev_arr = pd_prev_arr_acc
-  }
-
- *)
-
-let bp_fully_connected act act_prev meta params diff =
+let bp_fully_connected meta params
+      (Tensor1 act) (Tensor1 act_prev) (Tensor1 diff_mat) =
   let open Fully_Connected in
-  match diff, act, act_prev with
-     | Tensor1 diff_mat, Tensor1 act, Tensor1 act_prev ->
-        let open Mat in
-
-        let wmat = params.weight_mat in
-        let prev_diff_mat = make (dim1 wmat) (Col 1) 0. in
-
-        let grad_wmat =
-          mapi
-            (fun r c weight ->
-              let ai = get (Row 0) c act in
-              let ai_prev = get (Row 0) (Col (get_row r)) act_prev in
-              let diff  = get (Row 0) c diff_mat in
-              let ai_deriv = meta.activation ai in
-
-              let dw = 2. *. diff *. ai_deriv *. ai_prev in
-              let dprev = 2. *. diff *. ai_deriv *. weight in
-
-              get r (Col 0) prev_diff_mat
-              |> (+.) dprev
-              |> set r (Col 0) prev_diff_mat;
-              dw
-            ) wmat in
-
-        let grad_bmat =
-          mapi
-            (fun r c _ ->
-              let ai = get r c act in
-              let diff  = get r c diff_mat in
-              let db = 2. *. diff *. ai *. (1. -. ai) in
-              db
-            ) params.bias_mat in
-
-        let prev_diff = prev_diff_mat
-                        |> reshape (Row 1) (Col (wmat |> dim1 |> get_row))
-                        |> make_tens1
-        in
-          { prev_diff ;
-            grad = FullyConnectedParams {
-                       weight_mat = grad_wmat;
-                       bias_mat = grad_bmat;
-                     };
-          }
-     | _ -> invalid_arg "bp layer: Incompatible activation type."
+  let open Mat in
+  
+  let wmat = params.weight_mat in
+  let prev_diff_mat = make (dim1 wmat) (Col 1) 0. in
+  
+  let grad_wmat =
+    mapi
+      (fun r c weight ->
+        let ai = get (Row 0) c act in
+        let ai_prev = get (Row 0) (Col (get_row r)) act_prev in
+        let diff  = get (Row 0) c diff_mat in
+        let ai_deriv = meta.activation ai in
+        
+        let dw = 2. *. diff *. ai_deriv *. ai_prev in
+        let dprev = 2. *. diff *. ai_deriv *. weight in
+        
+        get r (Col 0) prev_diff_mat
+        |> (+.) dprev
+        |> set r (Col 0) prev_diff_mat;
+        dw
+      ) wmat in
+  
+  let grad_bmat =
+    mapi
+      (fun r c _ ->
+        let ai = get r c act in
+        let diff  = get r c diff_mat in
+        let db = 2. *. diff *. ai *. (1. -. ai) in
+        db
+      ) params.bias_mat in
+  
+  let prev_diff = prev_diff_mat
+                  |> reshape (Row 1) (Col (wmat |> dim1 |> get_row))
+                  |> make_tens1
+  in
+  { prev_diff ;
+    grad =
+      FullyConnectedParams {
+          weight_mat = grad_wmat;
+          bias_mat = grad_bmat;
+             };
+  }
 
 let flatten_bp (Tensor3 act_prev) (Tensor1 diff) =
   { prev_diff =
@@ -342,7 +304,7 @@ let conv2d_bp meta params prev_layer
                 }
      }
 
-let backprop_layer : type a b c. (a, b) layer -> bool -> a -> b -> b ->
+let backprop_layer : type a b. (a, b) layer -> bool -> a -> b -> b ->
                           (a, b) backprop_layer
   = fun layer prev_layer act_prev act diff_mat ->
   match layer with
@@ -351,7 +313,7 @@ let backprop_layer : type a b c. (a, b) layer -> bool -> a -> b -> b ->
        grad = Input3Params;
      }
   | FullyConnected (meta, params) ->
-     bp_fully_connected act act_prev meta params diff_mat
+     bp_fully_connected meta params act act_prev diff_mat
   | Conv2D (meta, params) ->
      conv2d_bp meta params prev_layer act act_prev diff_mat 
   | Pooling meta ->
@@ -384,7 +346,7 @@ let rec backprop_nn :
   
 let nn_gradient nn data  =
 
-  let rec bp_rec : type a b c. (a, b) nnet ->
+  let rec bp_rec : type a b. (a, b) nnet ->
                         (a, b) train_data ->
                         (a, b) nnet_params -> (a, b) nnet_params
     = fun nn data bp_grad_acc ->

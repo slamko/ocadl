@@ -360,7 +360,7 @@ let layer_zero : type a b.
   )
 
 let nn_params_map proc nn =
-  let rec nn_params_map : type a b c. (float -> float) ->
+  let rec nn_params_map : type a b. (float -> float) ->
                              (a, b) param_list -> 
                              (a, b) param_list =
   fun proc nn_params ->
@@ -442,8 +442,6 @@ let nn_apply_params proc nn params =
               }) in
 
           FF_Cons(new_lay, apply_rec t1 t2)
-       | FullyConnected (_, _), _ ->
-          failwith "nn apply params: Incompatible param list."
        | Conv2D (meta, nn_param), Conv2DParams apply_param ->
           let kernels = Mat.map2
                               (fun v1 v2 -> proc v1 v2)
@@ -460,11 +458,11 @@ let nn_apply_params proc nn params =
           failwith "nn apply params: Incompatible param list."
        | Input3 _, Input3Params ->
            FF_Cons (lay, apply_rec t1 t2)
-        | Pooling _, PoolingParams ->
-           FF_Cons (lay, apply_rec t1 t2)
-        | Flatten _, FlattenParams ->
-           FF_Cons (lay, apply_rec t1 t2)
-        | _ -> failwith "The world fucked up"
+       | Pooling _, PoolingParams ->
+          FF_Cons (lay, apply_rec t1 t2)
+       | Flatten _, FlattenParams ->
+          FF_Cons (lay, apply_rec t1 t2)
+       | _ -> failwith "The world fucked up"
        )
     | _ -> failwith "nn apply params: Incompatible list types"
   in
