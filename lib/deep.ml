@@ -166,69 +166,64 @@ let loss data nn =
        let ff = forward (get_data_input sample) nn in
        let expected = get_data_out sample in
 
-       (match ff.bp_data with
-        | BP_Nil ->
-           let (lay, _, res) = ff.bp_input in
-           (match lay with
-            | FullyConnected (_, _) ->
-               (match res, expected with
-                | Tensor1 res, Tensor1 exp -> 
-                   let diff = tens1_error res exp in
-                   loss_rec nn data_tail (err +. (diff *. diff))
+       let diff : float =
+           (match ff.bp_data with
+            | BP_Nil ->
+               let (lay, _, res) = ff.bp_input in
+               (match lay with
+                | FullyConnected (_, _) ->
+                   (match res, expected with
+                    | Tensor1 res, Tensor1 exp -> 
+                       tens1_error res exp
+                   )
+                | Conv2D (_, _) ->
+                   (match res, expected with
+                    | Tensor3 res, Tensor3 exp -> 
+                       tens3_error res exp
+                   )
+                | Pooling _ ->
+                   (match res, expected with
+                    | Tensor3 res, Tensor3 exp -> 
+                       tens3_error res exp
+                   )
+                | Input3 _ ->
+                   (match res, expected with
+                    | Tensor3 res, Tensor3 exp -> 
+                       tens3_error res exp
+                   )
                )
-            | Conv2D (_, _) ->
-               (match res, expected with
-                | Tensor3 res, Tensor3 exp -> 
-                   let diff = tens3_error res exp in
-                   loss_rec nn data_tail (err +. (diff *. diff))
-                 )
-            | Pooling _ ->
-               (match res, expected with
-                | Tensor3 res, Tensor3 exp -> 
-                   let diff = tens3_error res exp in
-                   loss_rec nn data_tail (err +. (diff *. diff))
-               )
-            | Input3 _ ->
-               (match res, expected with
-                | Tensor3 res, Tensor3 exp -> 
-                   let diff = tens3_error res exp in
-                   loss_rec nn data_tail (err +. (diff *. diff))
-               )
-           )
-        | BP_Cons((lay, _, res), _) ->
-           (match lay with
-            | FullyConnected (_, _) ->
-               (match res, expected with
-                | Tensor1 res, Tensor1 exp -> 
-                   let diff = tens1_error res exp in
-                   loss_rec nn data_tail (err +. (diff *. diff))
-               )
-            | Conv2D (_, _) ->
-               (match res, expected with
-                | Tensor3 res, Tensor3 exp -> 
-                   let diff = tens3_error res exp in
-                   loss_rec nn data_tail (err +. (diff *. diff))
-               )
-            | Flatten _ -> 
-               (match res, expected with
-                | Tensor1 res, Tensor1 exp -> 
-                   let diff = tens1_error res exp in
-                   loss_rec nn data_tail (err +. (diff *. diff))
-               )
-            | Pooling _ ->
-               (match res, expected with
-                | Tensor3 res, Tensor3 exp -> 
-                   let diff = tens3_error res exp in
-                   loss_rec nn data_tail (err +. (diff *. diff))
-               )
-            | Input3 _ ->
-               (match res, expected with
-                | Tensor3 res, Tensor3 exp -> 
-                   let diff = tens3_error res exp in
-                   loss_rec nn data_tail (err +. (diff *. diff))
+            | BP_Cons((lay, _, res), _) ->
+               (match lay with
+                | FullyConnected (_, _) ->
+                   (match res, expected with
+                    | Tensor1 res, Tensor1 exp -> 
+                       tens1_error res exp
+                   )
+                | Conv2D (_, _) ->
+                   (match res, expected with
+                    | Tensor3 res, Tensor3 exp -> 
+                       tens3_error res exp
+                   )
+                | Flatten _ -> 
+                   (match res, expected with
+                    | Tensor1 res, Tensor1 exp -> 
+                       tens1_error res exp
+                   )
+                | Pooling _ ->
+                   (match res, expected with
+                    | Tensor3 res, Tensor3 exp -> 
+                       tens3_error res exp
+                   )
+                | Input3 _ ->
+                   (match res, expected with
+                    | Tensor3 res, Tensor3 exp -> 
+                       tens3_error res exp
+                   )
                )
            )
-       )
+         in
+
+         loss_rec nn data_tail (err +. (diff *. diff))
 
        
   in
@@ -237,7 +232,7 @@ let loss data nn =
   let avg_loss = List.length data |> float_of_int |> (/.) @@ loss in
   Ok avg_loss
 
-let bp_fully_connected meta params
+let bp_fully_connected meta params prev
       (Tensor1 act) (Tensor1 act_prev) (Tensor1 diff_mat) =
   let open Fully_Connected in
   let open Mat in
@@ -256,9 +251,14 @@ let bp_fully_connected meta params
         let dw = 2. *. diff *. ai_deriv *. ai_prev in
         let dprev = 2. *. diff *. ai_deriv *. weight in
         
-        get r (Col 0) prev_diff_mat
-        |> (+.) dprev
-        |> set r (Col 0) prev_diff_mat;
+        (match prev with
+         | true -> 
+            get r (Col 0) prev_diff_mat
+            |> (+.) dprev
+            |> set r (Col 0) prev_diff_mat;
+         | false -> ()
+        );
+        
         dw
       ) wmat in
   
@@ -332,35 +332,37 @@ let pooling_bp meta (Tensor3 act_prev) (Tensor3 diff_mat) =
 
 let conv2d_bp meta params prev_layer
       (Tensor3 act) (Tensor3 act_prev) (Tensor3 diff_mat) =
+
   let open Mat in
   let open Conv2D in
-     let dact_f = map (map meta.deriv) act in  
-     let dz = map2 hadamard dact_f diff_mat in
-     let bias_mat = map sum dz in
-     let kernels = map3 (fun inp out kern ->
-                       convolve inp ~padding:meta.padding
-                         ~stride:meta.stride (get_shape kern) out)
-                     act_prev dz params.kernels
-     in
-
-     let prev_diff =
-       match prev_layer with
-       | true ->
-          map3 (fun inp dout kern ->
-              let kern_rot = rotate180 kern in
-              convolve dout ~padding:meta.padding
-                ~stride:meta.stride (get_shape inp) kern_rot)
-            act_prev dz params.kernels
-          |> make_tens3
-       | false -> diff_mat |> make_tens3  
-     in
-
-     { prev_diff;
-       grad = Conv2DParams
-                { kernels;
-                  bias_mat
-                }
-     }
+  let dact_f = map (map meta.deriv) act in  
+  let dz = map2 hadamard dact_f diff_mat in
+  let bias_mat = map sum dz in
+  let kernels = map3 (fun inp out kern ->
+                    convolve inp ~padding:meta.padding
+                      ~stride:meta.stride (get_shape kern) out)
+                  act_prev dz params.kernels
+  in
+  
+  let prev_diff =
+    match prev_layer with
+    | true  ->
+       map3 (fun inp dout kern ->
+           let kern_rot = rotate180 kern in
+           convolve dout ~padding:meta.padding
+             ~stride:meta.stride (get_shape inp) kern_rot)
+         act_prev dz params.kernels
+       |> make_tens3
+    | false -> diff_mat |> make_tens3  
+  in
+  
+  { prev_diff;
+    grad =
+      Conv2DParams
+        { kernels;
+          bias_mat
+        }
+  }
 
 let backprop_layer : type a b. (a, b) layer -> bool -> a -> b -> b ->
                           (a, b) backprop_layer
@@ -371,7 +373,7 @@ let backprop_layer : type a b. (a, b) layer -> bool -> a -> b -> b ->
        grad = Input3Params;
      }
   | FullyConnected (meta, params) ->
-     bp_fully_connected meta params act act_prev diff_mat
+     bp_fully_connected meta params prev_layer act act_prev diff_mat
   | Conv2D (meta, params) ->
      conv2d_bp meta params prev_layer act act_prev diff_mat 
   | Pooling meta ->
@@ -389,12 +391,15 @@ let rec backprop_nn :
   | BP_Nil ->
      grad_acc
 
-  | BP_Cons ((lay, input, out), BP_Nil) ->
-     let bp_layer = backprop_layer lay false input out diff in
-     PL_Cons (bp_layer.grad, grad_acc)
-
   | BP_Cons ((lay, input, out), tail) ->
-     let bp_layer = backprop_layer lay true input out diff in
+     let prev =
+       (match tail with
+        | BP_Nil | BP_Cons (_, BP_Nil) -> false
+        | _ -> true
+       )
+     in
+     
+     let bp_layer = backprop_layer lay prev input out diff in
 
      let param_list = PL_Cons (bp_layer.grad, grad_acc) in
      let prev_diff_mat = bp_layer.prev_diff in
@@ -416,7 +421,7 @@ let nn_gradient nn data =
 
        (* show_nnet ff_net.backprop_nn |> print_string; *)
        let expected = get_data_out cur_sample in
-         let res_diff : out =
+       let res_diff : out =
            (match ff_net.bp_data with
             | BP_Nil ->
                let (lay, _, res) = ff_net.bp_input in
@@ -489,7 +494,6 @@ let nn_gradient nn data =
   (* print_endline "Full nn"; *)
   let param_nn = nn_params_map (( *. ) scale_fact) newn in
   Ok param_nn
-
 (*
 let check_nn_geometry nn data =
   let sample = hd data in
@@ -504,12 +508,11 @@ let check_nn_geometry nn data =
   print_int (get_data_input sample |> single_dim_mat_len);
   if get_data_input sample |> single_dim_mat_len = Mat.dim1 (hd nn.wl)
   then
-    then Ok nn
     if get_data_out sample |> single_dim_mat_len = Mat.dim2 (hd (rev nn.wl))
+    then Ok nn
     else Error "Unmatched data geometry: number of output neurons should be equal to number of expected outputs"
   else Error "Unmatched data geometry: number of input neurons should be equal to number of data inputs."
  *)
- 
 
 let rec learn_rec pool pool_size data epoch_num
           learning_rate batch_size pools_per_batch grad_acc nn =
