@@ -1,7 +1,7 @@
 open Common
 
 module Mat = Matrix.Mat
-module Vec = Matrix.Vec
+module Vec = Matrix.Vector
 
 type mat = float Mat.t
 type vec = float Vec.t

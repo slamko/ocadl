@@ -90,7 +90,8 @@ type 'a t = {
    [@@deriving show]
 end
 
-module Tensor (T : Shaped with type 'a t = 'a TensorBase.t) = struct
+module Tensor (T : Shaped with type 'a t = 'a TensorBase.t)
+  = struct
   include TensorBase
   
 let size mat = get_row mat.rows |> ( * ) @@ get_col mat.cols
@@ -515,7 +516,79 @@ let sum mat =
   mat |> fold_left (+.) 0. 
   end
 
-module type Matrix = sig
+module MatShape = struct
+
+  type 'a t = 'a TensorBase.t
+
+  open TensorBase
+
+  let shape_match mat1 mat2 =
+    if row mat1.rows <> row mat2.rows || col mat1.cols <> col mat2.cols
+    then failwith "Matrix shapes do not match."
+   
+end
+
+module MatBase = Tensor (MatShape)
+
+module VectorShape = struct
+  type 'a t = 'a TensorBase.t
+
+  open TensorBase
+
+  let shape_match vec1 vec2 =
+    if col vec1.cols <> col vec2.cols
+    then failwith "Vector shapes mismatch"
+
+end
+
+module VectorBase = Tensor (VectorShape)
+
+
+module rec Vector : sig
+  include Tensor
+
+  val make : col -> float -> float t
+
+  val create : col -> (row -> col -> 'a) -> 'a t
+
+  val random : col -> float t
+
+  val of_array : col -> 'a array -> 'a t
+
+  val of_list : col -> 'a list -> 'a t
+
+  val to_mat : 'a t -> 'a Mat.t
+
+  val get : col -> 'a t -> 'a 
+
+end = struct
+  module Base = VectorBase
+
+  include Base
+
+  let make cols init =
+    Base.make (Row 1) cols init
+
+  let create cols finit =
+    Base.create (Row 1) cols finit
+
+  let random cols =
+    Base.random (Row 1) cols
+
+  let of_array cols arr =
+    Base.of_array (Row 1) cols arr
+
+  let of_list cols lst =
+    Base.of_list (Row 1) cols lst
+
+  let to_mat (vec : 'a Base.t) : 'a Mat.t =
+    Mat.of_array (Row 1) vec.cols vec.matrix
+
+  let get col vec =
+    get (Row 0) col vec
+
+end
+and Mat : sig
   include Tensor
   val make : row -> col -> float -> float t
 
@@ -536,26 +609,17 @@ module type Matrix = sig
   (* val convolve : float t -> padding:int -> stride:int -> shape -> *)
                  (* float t -> float t *)
 
-end
+  val to_vec: 'a t -> 'a Vector.t
 
-module MatShaped = struct
-
-  type 'a t = 'a TensorBase.t
-
-  open TensorBase
-
-  let shape_match mat1 mat2 =
-    if row mat1.rows <> row mat2.rows || col mat1.cols <> col mat2.cols
-    then failwith "Matrix shapes do not match."
-   
-end
-
-module MatBase = Tensor (MatShaped)
-
-module Mat : Matrix = struct 
+end = struct 
   include MatBase 
   open TensorBase
+  open MatShape
 
+  let to_vec mat =
+    Vector.of_array mat.cols mat.matrix
+
+  let zero_of_shape shape = shape
   let mult mat1 mat2 =
     if col mat1.cols <> row mat2.rows
     then invalid_arg "Mult: Matrix geometry does not match."
@@ -649,28 +713,4 @@ let convolve mat ~padding ~stride out_shape kernel =
 
     convolve_rec kernel 0 0 res_mat
 
-end
-
-module type Vector = sig
-  include Tensor
-
-  val make : col -> float -> float t
-
-  val create : col -> (row -> col -> 'a) -> 'a t
-
-  val random : col -> float t
-
-  val of_array : col -> 'a array -> 'a t
-
-  val of_list : col -> 'a list -> 'a t
-
-  val get : col -> 'a t -> 'a 
-
-end
-
-module Vec : Vector = struct
-  include Tensor
-
-  let get col vec =
-    Tensor.get (Row 0) col vec
 end
