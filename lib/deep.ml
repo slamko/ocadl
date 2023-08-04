@@ -138,21 +138,21 @@ let tens3_error res exp =
    let open Mat in
 
    fold_left2 (fun acc res exp ->
-       sub exp res 
+       sub res exp
        |> add acc)
      (res |> get_first |> get_shape |> zero_of_shape) res exp
    |> sum
 
 let tens1_error res exp =
-  Mat.sub exp res
+  Mat.sub res exp
   |> Mat.sum
 
 let tens1_diff res exp =
-  Mat.sub exp res
+  Mat.sub res exp
   |> make_tens1
 
 let tens3_diff res exp =
-  Mat.map2 Mat.sub exp res
+  Mat.map2 Mat.sub res exp
   |> make_tens3
 
 let loss data nn =
@@ -196,7 +196,6 @@ let loss data nn =
                )
            )
         | BP_Cons((lay, _, res), _) ->
-           Printf.printf "norm\n" ; 
            (match lay with
             | FullyConnected (_, _) ->
                (match res, expected with
@@ -416,98 +415,63 @@ let nn_gradient nn data =
        let ff_net      = forward (get_data_input cur_sample) nn in
 
        (* show_nnet ff_net.backprop_nn |> print_string; *)
-       (*
        let expected = get_data_out cur_sample in
          let res_diff : out =
-         (match ff_net.bp_data with
-        | BP_Nil ->
-           let (lay, _, res) = ff_net.bp_input in
-           (match lay with
-            | FullyConnected (_, _) ->
-               (match res, expected with
-                | Tensor1 res, Tensor1 exp -> 
-                   tens1_diff res exp
+           (match ff_net.bp_data with
+            | BP_Nil ->
+               let (lay, _, res) = ff_net.bp_input in
+               (match lay with
+                | FullyConnected (_, _) ->
+                   (match res, expected with
+                    | Tensor1 res, Tensor1 exp -> 
+                       tens1_diff res exp
+                   )
+                | Conv2D (_, _) ->
+                   (match res, expected with
+                    | Tensor3 res, Tensor3 exp -> 
+                       tens3_diff res exp
+                   )
+                | Pooling _ ->
+                   (match res, expected with
+                    | Tensor3 res, Tensor3 exp -> 
+                       tens3_diff res exp
+                   )
+                | Input3 _ ->
+                   (match res, expected with
+                    | Tensor3 res, Tensor3 exp -> 
+                       tens3_diff res exp
+                   )
                )
-            | Conv2D (_, _) ->
-               (match res, expected with
-                | Tensor3 res, Tensor3 exp -> 
-                   tens3_diff res exp
-                 )
-            | Pooling _ ->
-               (match res, expected with
-                | Tensor3 res, Tensor3 exp -> 
-                   tens3_diff res exp
-               )
-            | Input3 _ ->
-               (match res, expected with
-                | Tensor3 res, Tensor3 exp -> 
-                   tens3_diff res exp
+            | BP_Cons((lay, _, res), _) ->
+               (match lay with
+                | FullyConnected (_, _) ->
+                   (match res, expected with
+                    | Tensor1 res, Tensor1 exp -> 
+                       tens1_diff res exp
+                   )
+                | Conv2D (_, _) ->
+                   (match res, expected with
+                    | Tensor3 res, Tensor3 exp -> 
+                       tens3_diff res exp
+                   )
+                | Flatten _ -> 
+                   (match res, expected with
+                    | Tensor1 res, Tensor1 exp -> 
+                       tens1_diff res exp
+                   )
+                | Pooling _ ->
+                   (match res, expected with
+                    | Tensor3 res, Tensor3 exp -> 
+                       tens3_diff res exp
+                   )
+                | Input3 _ ->
+                   (match res, expected with
+                    | Tensor3 res, Tensor3 exp -> 
+                       tens3_diff res exp
+                   )
                )
            )
-        | BP_Cons((lay, _, res), _) ->
-           Printf.printf "bp ok\n" ;
-           (match lay with
-            | FullyConnected (_, _) ->
-               Printf.printf "SUKKKAA\n";
-               (match res, expected with
-                | Tensor1 res, Tensor1 exp -> 
-                   tens1_diff res exp
-               )
-            | Conv2D (_, _) ->
-               (match res, expected with
-                | Tensor3 res, Tensor3 exp -> 
-                   tens3_diff res exp
-               )
-            | Flatten _ -> 
-               (match res, expected with
-                | Tensor1 res, Tensor1 exp -> 
-                   tens1_diff res exp
-               )
-            | Pooling _ ->
-               (match res, expected with
-                | Tensor3 res, Tensor3 exp -> 
-                   tens3_diff res exp
-               )
-            | Input3 _ ->
-               (match res, expected with
-                | Tensor3 res, Tensor3 exp -> 
-                   tens3_diff res exp
-               )
-           )
-         )
-       in
-        *)
-       let BP_Cons ((lay, _, ff_res), _) = ff_net.bp_data in
-       let expected_res = get_data_out cur_sample in
-
-       let res_diff : out =
-         (match lay with
-          | FullyConnected (_, _) ->
-             (match ff_res, expected_res with
-              | Tensor1 res, Tensor1 exp -> 
-                 tens1_diff res exp
-             )
-          | Conv2D (_, _) ->
-             (match ff_res, expected_res with
-              | Tensor3 res, Tensor3 exp -> 
-                 tens3_diff res exp
-             )
-          | Flatten _ -> 
-             (match ff_res, expected_res with
-              | Tensor1 res, Tensor1 exp -> 
-                 tens1_diff res exp
-             )
-          | Pooling _ ->
-             (match ff_res, expected_res with
-              | Tensor3 res, Tensor3 exp -> 
-                 tens3_diff res exp
-             )
-          | Input3 _ ->
-             (match ff_res, expected_res with
-              | Tensor3 res, Tensor3 exp -> 
-                 tens3_diff res exp
-             )
-         ) in
+         in
 
        let bp_grad =
          { param_list = backprop_nn ff_net.bp_data res_diff PL_Nil } in
