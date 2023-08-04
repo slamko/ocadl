@@ -1,13 +1,96 @@
 open Common
 
-type col =
-  | Col of int [@@deriving show]
+type size =
+  | Empty
+  | Size of int
 
-type row =
-  | Row of int [@@deriving show]
+exception InvalidIndex
+module type Matrixable = sig
+  type 'a t 
 
-module Mat = struct 
- type 'a t = {
+  val make : row -> col -> float -> float t
+
+  val create : row -> col -> (row -> col -> 'a) -> 'a t
+
+  val random : row -> col -> float t
+
+  val zero : 'a t -> float t
+
+  val of_array : row -> col -> 'a array -> 'a t
+
+  val of_list : row -> col -> 'a list -> 'a t
+
+  val size : 'a t -> int
+
+  val get : row -> col -> 'a t -> 'a
+  val get : row -> col -> 'a t -> 'a
+
+  val set : row -> col -> 'a t -> 'a -> unit
+
+  val set_bind : row -> col -> 'a t -> 'a -> 'a t
+
+  (* val set_option : row -> col -> 'a t -> 'a option -> 'a t option *)
+
+  val reshape : row -> col -> 'a t -> 'a t
+
+  val flatten3d : 'a t array -> 'a array
+
+  val flatten : 'a t t -> 'a t
+
+  val compare : ('a -> 'b -> bool) -> 'a t -> 'b t -> bool
+
+  val compare_float : float t -> float t -> bool
+
+  (* val submatrix : row -> col -> row -> col -> 'a t -> 'a t *)
+
+  val shadow_submatrix : row -> col -> row -> col -> 'a t -> 'a t
+
+  val scale : float -> float t -> float t
+
+  val add_const : float -> float t -> float t
+
+  val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
+
+  val fold_right : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+
+  val map : ('a -> 'b) -> 'a t -> 'b t
+
+  val mapi : (row -> col -> 'a -> 'b) -> 'a t -> 'b t
+
+  val iteri2 : (row -> col -> 'a -> 'b -> unit) -> 'a t -> 'b t -> unit
+
+  val iter2 : ('a -> 'b -> unit) -> 'a t -> 'b t -> unit
+ 
+  val iteri : (row -> col -> 'a -> unit) -> 'a t -> unit
+
+  val foldi_left : (row -> col -> 'a -> 'b -> 'a) -> 'a -> 'b t -> 'a
+
+  val foldi_right : (row -> col -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+
+  val iter : ('a -> unit) -> 'a t -> unit
+  
+  val add : float t -> float t -> float t
+  
+  val sub : float t -> float t -> float t
+
+  val mult : float t -> float t -> float t
+
+  val sum : float t -> float
+
+  val convolve : float t -> padding:int -> stride:int -> shape ->
+                 float t -> float t
+
+  val dim1 : 'a t -> row
+
+  val dim2 : 'a t -> col
+
+  val print : float t -> unit
+
+   [@@deriving show]
+end
+
+module Matrixable : Matrixable = struct
+type 'a t = {
       matrix : 'a array;
       rows : row;
       cols : col;
@@ -16,33 +99,22 @@ module Mat = struct
       start_col : col;
       stride : int;
     }
+
    [@@deriving show]
 
-type size =
-  | Empty
-  | Size of int
+let size mat = get_row mat.rows |> ( * ) @@ get_col mat.cols
 
-end
+let get_size mat =
+  match size mat with
+  | 0 -> Empty
+  | size -> Size size
 
-type shape = {
-    dim1 : row;
-    dim2 : col;
-    dim3 : int;
-  } [@@deriving show]
-
-open Mat
-
-exception InvalidIndex
-
-let get_row (Row row) = row
-
-let get_col (Col col) = col
 let get_first_index mat =
-  (get_row mat.start_row * mat.stride) + get_col mat.start_col
-
-let get_index row col mat =
-  get_first_index mat + (row * mat.stride) + col
-
+   (get_row mat.start_row * mat.stride) + get_col mat.start_col
+ 
+ let get_index row col mat =
+   get_first_index mat + (row * mat.stride) + col
+ 
 let get_res (Row row) (Col col) mat =
   if row >= get_row mat.rows
   then Error "get: Matrix row index out of bounds"
@@ -63,7 +135,6 @@ let get (Row row) (Col col) mat =
 
 let get_raw row col mat =
   get (Row row) (Col col) mat
-
 
 let set_bind_res (Row row) (Col col) mat value =
   if row >= get_row mat.rows
@@ -93,45 +164,6 @@ let set row col mat value =
 
 let get_first mat = get (Row 0) (Col 0) mat
 
-let shape_size shape =
-  get_row shape.dim1
-  |> ( * ) @@ get_col shape.dim2 
-  |> ( * ) shape.dim3
-
-let size mat = get_row mat.rows |> ( * ) @@ get_col mat.cols
-
-let get_size mat =
-  match size mat with
-  | 0 -> Empty
-  | size -> Size size
-
-let make_shape3d dim1 dim2 dim3 = 
-  if get_row dim1 < 0 || get_col dim2 < 0 || dim3 < 0
-  then failwith "Invalid shape."
-  else { dim1;
-         dim2;
-         dim3;
-       }
-
-let make_shape rows cols = make_shape3d rows cols 1
-
-let get_shape mat =
-  make_shape mat.rows mat.cols
-
-let get_shape3d mat =
-  let first = get_first mat in
-  make_shape3d first.rows first.cols (size mat)
-
-let shape_eq shape1 shape2 =
-  if compare shape1 shape2 <> 0
-  then false
-  else true
-
-let shape_match mat1 mat2 =
-  let shape = get_shape mat2 in
-  match get_shape mat1 |> compare shape with
-  | 0 -> ()
-  | _ -> failwith "Matrix shapes do not match."
 
 let of_array rows cols matrix =
   if (get_row rows * get_col cols) > (matrix |> Array.length) ||
@@ -152,6 +184,8 @@ let of_array_size matrix =
 let make (Row rows) (Col cols) init_val =
   Array.make (rows * cols) init_val
   |> of_array (Row rows) (Col cols)
+
+open Shape
 
 let of_shape init_val shape =
   make shape.dim1 shape.dim2 init_val
@@ -602,3 +636,26 @@ let convolve mat ~padding ~stride out_shape kernel =
 
     convolve_rec kernel 0 0 res_mat
 
+  end
+
+module type Matrix = sig
+  include Matrixable
+end
+
+module Mat : Matrix = struct 
+  include Matrixable
+end
+
+module type Vector = sig
+  include Matrixable
+
+  val get : col -> 'a t -> 'a 
+end
+
+module Vec : Vector = struct
+  include Matrixable
+
+  let get col vec =
+    Matrixable.get (Row 0) col vec
+
+end

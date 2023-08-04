@@ -1,12 +1,13 @@
 open Common
-open Matrix
 
-module Mat = Matrix
-type mat = float Mat.Mat.t
-[@@deriving show]
+module Mat = Matrix.Mat
+module Vec = Matrix.Vec
 
-type 'a matrix = 'a Mat.Mat.t
-[@@deriving show]
+type mat = float Mat.t
+type vec = float Vec.t
+
+type 'a matrix = 'a Mat.t
+type 'a vector = 'a Vec.t
 
 let sigmoid (x : float) : float =
   1. /. (1. +. exp(-. x))
@@ -33,6 +34,7 @@ let pooling_avarage a b =
   (a +. b) /. 2.
 
 let pooling_max_deriv shape grad res_mat mat =
+  let open Mat in
   let _, r, c =
     Mat.foldi_left (fun cur_r cur_c (acc, r, c) value ->
         if value > acc
@@ -40,11 +42,12 @@ let pooling_max_deriv shape grad res_mat mat =
         else (acc, r, c)) (0., Row 0, Col 0) mat
   in
 
-  set r c res_mat grad
+  Mat.set r c res_mat grad
 
 let pooling_avarage_deriv shape grad res_mat _ =
+  let open Mat in
   let mat_size = shape_size shape |> float_of_int in
-  Mat.iteri (fun r c _ ->
+  iteri (fun r c _ ->
       set r c res_mat (grad /. mat_size))
 
 let make_zero_mat_list mat_list =

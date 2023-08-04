@@ -26,3 +26,18 @@ let unwrap res =
 
 type 'a res = ('a, string) result
 
+type col =
+  | Col of int [@@deriving show]
+
+type row =
+  | Row of int [@@deriving show]
+
+let get_row (Row row) = row
+
+let get_col (Col col) = col
+
+let row (Row row) = row
+
+let col (Col col) = col
+
+

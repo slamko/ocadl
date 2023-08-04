@@ -183,17 +183,17 @@ let make_conv2d ~kernel_shape ~kernel_num
   in
 
   let new_dim in_dim kern_dim =
-    ((in_dim + (2 * padding) - kern_dim)
-     / stride) + 1 in
+    ((in_dim + (2 * padding) - kern_dim) / stride) + 1 in
   
   let out_shape =
-    make_shape
+    make_shape3d
       (Row (new_dim
               (get_row prev_shape.dim1)
               (get_row kernel_shape.dim1)))
       (Col (new_dim
               (get_col prev_shape.dim2)
-              (get_col kernel_shape.dim2))) in
+              (get_col kernel_shape.dim2)))
+      1 in
 
   
   let meta = {
