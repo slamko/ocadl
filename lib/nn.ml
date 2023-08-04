@@ -29,9 +29,6 @@ let list_split n lst =
 
   split_rec n [] lst
 
-let build_nn layer_list =
-  { layers = layer_list; }
-
 let list_parse_train_data in_cols pair_list =
   List.map (fun (res_list, data_list) ->
       (res_list |> Mat.of_list (Row 1) @@ Col (List.length res_list),
@@ -138,22 +135,14 @@ let restore_nn_from_json fname nn =
 
 let make_input3d shape = 
   let in_layer = Input3 { shape; } in
-  Build_Cons (in_layer, Build_Nil)
-
-(*
-let ( |>> ) : type a b c n. ((a, b) layer -> (n succ, a, c) build_list) ->
-                   
-  = fun fbuilder layer_list ->
-  let prev = match layer_list with
-    | Build_Cons (lay, tail) -> lay
-  in
-  fbuilder prev layer_list
- *)
+  { build_input = in_layer;
+    build_list = Build_Cons (in_layer, Build_Nil);
+  }
 
 let make_fully_connected ~ncount ~act ~deriv layers =
   let open Mat in
   let prev_ncount =
-    match layers with
+    match layers.build_list with
     | Build_Cons (lay, _) ->
        (match lay with
         | FullyConnected (meta, _) -> meta.out_shape
@@ -177,15 +166,14 @@ let make_fully_connected ~ncount ~act ~deriv layers =
   in
 
   let layer = FullyConnected (meta, params); in
-  Build_Cons (layer, layers)
-
+  { layers with build_list = Build_Cons (layer, layers.build_list) }
 
 let make_conv2d ~kernel_shape ~kernel_num
       ~act ~deriv ~padding ~stride layers =
   let open Mat in
 
   let prev_shape =
-    match layers with
+    match layers.build_list with
     | Build_Cons (lay, _) ->
        (match lay with
         | Conv2D (meta, _) -> meta.out_shape
@@ -228,13 +216,13 @@ let make_conv2d ~kernel_shape ~kernel_num
     } in
 
   let layer = Conv2D (meta, params) in
-  Build_Cons(layer, layers)
+  { layers with build_list = Build_Cons(layer, layers.build_list) }
 
 let make_pooling ~filter_shape ~stride ~f ~fbp layers =
   let open Mat in
 
   let prev_shape =
-    match layers with
+    match layers.build_list with
     | Build_Cons (lay, _) ->
        (match lay with
         | Conv2D (meta, _) -> meta.out_shape
@@ -263,12 +251,12 @@ let make_pooling ~filter_shape ~stride ~f ~fbp layers =
              } in
 
   let layer = Pooling meta in
-  Build_Cons (layer, layers)
+  {layers with build_list = Build_Cons (layer, layers.build_list) }
 
 let make_flatten layers =
   let open Mat in
   let prev_shape =
-    match layers with
+    match layers.build_list with
     | Build_Cons (lay, _) ->
        (match lay with
         | Conv2D (meta, _) -> meta.out_shape
@@ -280,9 +268,10 @@ let make_flatten layers =
   let meta = { Flatten.out_shape =
                  make_shape (Row 1) (Col (shape_size prev_shape)) } in
   let layer = Flatten meta in
-  Build_Cons (layer, layers)
+  { layers with build_list = Build_Cons (layer, layers.build_list) }
 
 let rev_build_list blist =
+
   let rec rev_rec : type a b c n. (n, a, b) build_list ->
                                 (b, c) ff_list ->
                                 (a, c) ff_list
@@ -293,10 +282,13 @@ let rev_build_list blist =
        rev_rec tail (FF_Cons (lay, acc))
   in
 
-  rev_rec blist FF_Nil
+  rev_rec blist FF_Nil 
 
-let make_nn arch =
-  { layers = rev_build_list arch }
+let make_nn : type a b n. (n succ, a, b) build_nn -> (a, b) nnet =
+  fun arch ->
+  { input = arch.build_input;
+    layers = rev_build_list arch.build_list
+  }
 
 let fully_connected_map proc layer =
     let open Fully_Connected in
@@ -423,7 +415,7 @@ let nn_apply_params proc nn params =
                            (a, b) ff_list
     = fun pl1 pl2 ->
     match pl1, pl2 with
-    | FF_Nil, PL_Nil -> FF_Nil
+    | FF_Nil , PL_Nil -> FF_Nil
     | FF_Cons (lay, t1), PL_Cons (apply_param, t2) -> 
        (match lay, apply_param with
        | FullyConnected (meta, nn_param),
@@ -468,7 +460,7 @@ let nn_apply_params proc nn params =
   in
 
   let layers = apply_rec nn.layers params.param_list in
-  { layers }
+  { nn with layers = layers }
 
 let nn_params_zero nn_params =
   let rec params_zero : type a b. (a, b) param_list ->

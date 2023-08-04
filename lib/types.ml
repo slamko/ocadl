@@ -166,12 +166,17 @@ type (_, _) bp_list =
                (('a , 'b) layer * 'a * 'b, _) bp_list)
             -> (('a , 'c) layer * 'a * 'c, _) bp_list
 
+type ('n, 'a, 'b) build_nn = {
+    build_input : ('a, 'a) layer;
+    build_list : ('n, 'a, 'b) build_list;
+  }
 
 type ('a, 'b) nnet_params = {
     param_list : ('a, 'b) param_list;
   }
 
 type ('a, 'b) nnet = {
+    input : ('a, 'a) layer;
     layers : ('a, 'b) ff_list;
   }
 
@@ -181,6 +186,7 @@ let make_tens3 v = Tensor3 v
 (* let make_tens4 v = Tensor4 v *)
 
 type ('a, 'b, 'c) feed_forward = {
+    bp_input : ('a, 'a) layer * 'a * 'a;
     bp_data : (('a, 'b) layer * 'a * 'b, 'c) bp_list
   }
 
