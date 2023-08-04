@@ -175,9 +175,10 @@ type ('a, 'b) nnet_params = {
     param_list : ('a, 'b) param_list;
   }
 
-type ('a, 'b) nnet = {
+type ('n, 'a, 'b) nnet = {
     input : ('a, 'a) layer;
     layers : ('a, 'b) ff_list;
+    build_layers : ('n, 'a, 'b) build_list;
   }
 
 let make_tens1 v = Tensor1 v

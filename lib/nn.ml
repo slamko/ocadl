@@ -284,10 +284,11 @@ let rev_build_list blist =
 
   rev_rec blist FF_Nil 
 
-let make_nn : type a b n. (n succ, a, b) build_nn -> (a, b) nnet =
+let make_nn : type a b n. (n succ, a, b) build_nn -> (n succ, a, b) nnet =
   fun arch ->
   { input = arch.build_input;
-    layers = rev_build_list arch.build_list
+    layers = rev_build_list arch.build_list;
+    build_layers = arch.build_list;
   }
 
 let fully_connected_map proc layer =
@@ -487,4 +488,3 @@ let nn_zero_params nn =
   in                            
 
   { param_list = params_zero nn.layers }
-

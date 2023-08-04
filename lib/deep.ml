@@ -157,7 +157,7 @@ let tens3_diff res exp =
 
 let loss data nn =
 
-  let rec loss_rec : type a b. (a, b) nnet -> (a, b) train_data
+  let rec loss_rec : type a b n. (n, a, b) nnet -> (a, b) train_data
                           -> float -> (float, string) result =
     fun nn data err ->
     match data with
@@ -409,7 +409,7 @@ let rec backprop_nn :
   
 let nn_gradient nn data =
 
-  let rec bp_rec : type inp out. (inp, out) nnet ->
+  let rec bp_rec : type inp out n. (n, inp, out) nnet ->
                         (inp, out) train_data ->
                         (inp, out) nnet_params -> (inp, out) nnet_params
 
@@ -494,25 +494,65 @@ let nn_gradient nn data =
   (* print_endline "Full nn"; *)
   let param_nn = nn_params_map (( *. ) scale_fact) newn in
   Ok param_nn
-(*
-let check_nn_geometry nn data =
+
+let check_nn_geometry : type a b n. (n succ, a, b) nnet ->
+                             (a, b) train_data ->
+                             ((n succ, a, b) nnet, string) result =
+  fun nn data ->
   let sample = hd data in
 
-  let single_dim_mat_len m =
-    m
-    |> Mat.to_array
-    |> arr_get 0
-    |> Array.length
+  let inp_layer_shape =
+    match nn.input with
+    | Input3 meta -> meta.shape
+    | Conv2D (meta, _) -> meta.out_shape
+    | Pooling meta -> meta.out_shape
+    | FullyConnected (meta, _) -> meta.out_shape
   in
-  
-  print_int (get_data_input sample |> single_dim_mat_len);
-  if get_data_input sample |> single_dim_mat_len = Mat.dim1 (hd nn.wl)
+
+  let data_in = get_data_input sample in
+  let data_out = get_data_out sample in
+ 
+  let in_data_shape =
+    match nn.layers with
+    | FF_Nil -> inp_layer_shape
+    | FF_Cons (lay, _) ->
+       (match lay, data_in with
+        | FullyConnected (_,_), Tensor1 x ->
+           Mat.get_shape x
+        | Input3 _, Tensor3 x ->
+           Mat.get_shape3d x
+        | Flatten _, Tensor3 x ->
+           Mat.get_shape3d x
+        | Conv2D _, Tensor3 x ->
+           Mat.get_shape3d x
+        | Pooling _, Tensor3 x ->
+           Mat.get_shape3d x
+       )
+  in
+
+  let (out_layer_shape, out_data_shape) =
+    match nn.build_layers with
+    | Build_Cons (lay, _) ->
+       (match lay, data_out with
+        | FullyConnected (m, _) , Tensor1 x ->
+           m.out_shape, Mat.get_shape x
+        | Flatten m, Tensor1 x ->
+           m.out_shape, Mat.get_shape x
+        | Input3 m, Tensor3 x ->
+           m.shape, Mat.get_shape3d x
+       | Conv2D (m, _), Tensor3 x ->
+           m.out_shape, Mat.get_shape3d x
+        | Pooling m, Tensor3 x ->
+           m.out_shape, Mat.get_shape3d x
+       )
+  in
+ 
+  if Mat.shape_eq inp_layer_shape in_data_shape
   then
-    if get_data_out sample |> single_dim_mat_len = Mat.dim2 (hd (rev nn.wl))
+    if Mat.shape_eq out_layer_shape out_data_shape 
     then Ok nn
-    else Error "Unmatched data geometry: number of output neurons should be equal to number of expected outputs"
-  else Error "Unmatched data geometry: number of input neurons should be equal to number of data inputs."
- *)
+    else Error "Unmatchaed output data geometry."
+  else Error "Unmatched input data geometry"
 
 let rec learn_rec pool pool_size data epoch_num
           learning_rate batch_size pools_per_batch grad_acc nn =
@@ -586,8 +626,7 @@ let rec learn_rec pool pool_size data epoch_num
        learning_rate batch_size next_batch_epoch batch_grad new_nn
 
 let recomended_domain_num =
-  (* let rec_dom_cnt = Domain.recommended_domain_count () in *)
-  let rec_dom_cnt = 2 in
+  let rec_dom_cnt = Domain.recommended_domain_count () in
   if rec_dom_cnt = 0
   then 1
   else rec_dom_cnt
@@ -604,8 +643,8 @@ let learn data ?(epoch_num = 11) ?(learning_rate = 1.0) ?(batch_size = 1)
   if batch_size > epoch_num
   then Error "Batch size greater than the number of epochs"
   else
-    (* match check_nn_geometry nn.data data with *)
-    (* | Ok _ ->  *)
+    match check_nn_geometry nn data with
+    | Ok _ ->
        let pool = Task.setup_pool ~num_domains: domains_num () in
 
        let learn_task =
@@ -618,27 +657,4 @@ let learn data ?(epoch_num = 11) ?(learning_rate = 1.0) ?(batch_size = 1)
        
        Task.teardown_pool pool ;
        Ok res
-    (* | Error err -> Error err *)
-
-(*
-let test () =
-  Unix.time () |> int_of_float |> Random.init;
-
-  let nn =
-    make_input 1 2
-    |> make_fully_connected ~ncount:3 ~act:sigmoid ~deriv:sigmoid'
-    |> make_fully_connected ~ncount:1 ~act:sigmoid ~deriv:sigmoid'
-    |> make_nn in
-
-  (* show_nnet nn |> Printf.printf "nn: %s\n"; *)
-
-  let* res = loss xor_data nn in
-
-  let* tr_nn = lern xor_data nn 100000 in
-  let* new_res = loss xor_data tr_nn in
-
-  Printf.printf "initial loss: %f\n" res ;
-  Printf.printf "trained loss: %f\n" new_res ;
-  Ok ()
-
-  *)  
+    | Error err -> Error err

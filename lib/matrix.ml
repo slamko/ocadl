@@ -37,6 +37,61 @@ exception InvalidIndex
 let get_row (Row row) = row
 
 let get_col (Col col) = col
+let get_first_index mat =
+  (get_row mat.start_row * mat.stride) + get_col mat.start_col
+
+let get_index row col mat =
+  get_first_index mat + (row * mat.stride) + col
+
+let get_res (Row row) (Col col) mat =
+  if row >= get_row mat.rows
+  then Error "get: Matrix row index out of bounds"
+  else
+    if col >= get_col mat.cols
+    then Error "get: Matrix col index out of bounds"
+    else
+      Ok (get_index row col mat |> Array.get mat.matrix)
+
+let get (Row row) (Col col) mat =
+  if row >= get_row mat.rows
+  then invalid_arg "get: Matrix row index out of bounds"
+  else
+    if col >= get_col mat.cols
+    then invalid_arg "get: Matrix col index out of bounds"
+    else
+      get_index row col mat |> Array.get mat.matrix
+
+let get_raw row col mat =
+  get (Row row) (Col col) mat
+
+
+let set_bind_res (Row row) (Col col) mat value =
+  if row >= get_row mat.rows
+  then Error "set: Matrix row index out of bounds"
+  else
+    if col >= get_col mat.cols
+    then Error "set: Matrix col index out of bounds"
+    else
+      begin Array.set mat.matrix (get_index row col mat) value;
+            Ok (mat) end
+
+let set_res row col mat value =
+  set_bind_res row col mat value 
+
+let set_bind (Row row) (Col col) mat value =
+  if row >= get_row mat.rows
+  then invalid_arg "set: Matrix row index out of bounds"
+  else
+    if col >= get_col mat.cols
+    then invalid_arg "set: Matrix col index out of bounds"
+    else begin
+        Array.set mat.matrix (get_index row col mat) value;
+        mat end
+
+let set row col mat value =
+  set_bind row col mat value |> ignore
+
+let get_first mat = get (Row 0) (Col 0) mat
 
 let shape_size shape =
   get_row shape.dim1
@@ -64,7 +119,13 @@ let get_shape mat =
   make_shape mat.rows mat.cols
 
 let get_shape3d mat =
-  make_shape3d 
+  let first = get_first mat in
+  make_shape3d first.rows first.cols (size mat)
+
+let shape_eq shape1 shape2 =
+  if compare shape1 shape2 <> 0
+  then false
+  else true
 
 let shape_match mat1 mat2 =
   let shape = get_shape mat2 in
@@ -113,61 +174,6 @@ let create (Row rows) (Col cols) finit =
   |> of_array (Row rows) (Col cols)
 
 let empty () = of_array (Row 0) (Col 0) [| |]
-
-let get_first_index mat =
-  (get_row mat.start_row * mat.stride) + get_col mat.start_col
-
-let get_index row col mat =
-  get_first_index mat + (row * mat.stride) + col
-
-let get_res (Row row) (Col col) mat =
-  if row >= get_row mat.rows
-  then Error "get: Matrix row index out of bounds"
-  else
-    if col >= get_col mat.cols
-    then Error "get: Matrix col index out of bounds"
-    else
-      Ok (get_index row col mat |> Array.get mat.matrix)
-
-let get (Row row) (Col col) mat =
-  if row >= get_row mat.rows
-  then invalid_arg "get: Matrix row index out of bounds"
-  else
-    if col >= get_col mat.cols
-    then invalid_arg "get: Matrix col index out of bounds"
-    else
-      get_index row col mat |> Array.get mat.matrix
-
-let get_raw row col mat =
-  get (Row row) (Col col) mat
-
-let get_first mat = get (Row 0) (Col 0) mat
-
-let set_bind_res (Row row) (Col col) mat value =
-  if row >= get_row mat.rows
-  then Error "set: Matrix row index out of bounds"
-  else
-    if col >= get_col mat.cols
-    then Error "set: Matrix col index out of bounds"
-    else
-      begin Array.set mat.matrix (get_index row col mat) value;
-            Ok (mat) end
-
-let set_res row col mat value =
-  set_bind_res row col mat value 
-
-let set_bind (Row row) (Col col) mat value =
-  if row >= get_row mat.rows
-  then invalid_arg "set: Matrix row index out of bounds"
-  else
-    if col >= get_col mat.cols
-    then invalid_arg "set: Matrix col index out of bounds"
-    else begin
-        Array.set mat.matrix (get_index row col mat) value;
-        mat end
-
-let set row col mat value =
-  set_bind row col mat value |> ignore
 
 let iter proc mat =
   for r = 0 to get_row mat.rows - 1
