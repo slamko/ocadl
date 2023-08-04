@@ -5,24 +5,13 @@ type size =
   | Size of int
 
 exception InvalidIndex
-module type Matrixable = sig
+module type Tensor = sig
   type 'a t 
-
-  val make : row -> col -> float -> float t
-
-  val create : row -> col -> (row -> col -> 'a) -> 'a t
-
-  val random : row -> col -> float t
-
-  val zero : 'a t -> float t
-
-  val of_array : row -> col -> 'a array -> 'a t
-
-  val of_list : row -> col -> 'a list -> 'a t
 
   val size : 'a t -> int
 
   val get : row -> col -> 'a t -> 'a
+
   val get : row -> col -> 'a t -> 'a
 
   val set : row -> col -> 'a t -> 'a -> unit
@@ -37,14 +26,11 @@ module type Matrixable = sig
 
   val flatten : 'a t t -> 'a t
 
-  val compare : ('a -> 'b -> bool) -> 'a t -> 'b t -> bool
+  val compare : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
 
   val compare_float : float t -> float t -> bool
 
   (* val submatrix : row -> col -> row -> col -> 'a t -> 'a t *)
-
-  val shadow_submatrix : row -> col -> row -> col -> 'a t -> 'a t
-
   val scale : float -> float t -> float t
 
   val add_const : float -> float t -> float t
@@ -73,12 +59,7 @@ module type Matrixable = sig
   
   val sub : float t -> float t -> float t
 
-  val mult : float t -> float t -> float t
-
   val sum : float t -> float
-
-  val convolve : float t -> padding:int -> stride:int -> shape ->
-                 float t -> float t
 
   val dim1 : 'a t -> row
 
@@ -89,7 +70,13 @@ module type Matrixable = sig
    [@@deriving show]
 end
 
-module Matrixable : Matrixable = struct
+module type Shaped = sig
+  type 'a t
+
+  val shape_match : 'a t -> 'b t -> unit
+end
+
+module TensorBase = struct
 type 'a t = {
       matrix : 'a array;
       rows : row;
@@ -101,7 +88,11 @@ type 'a t = {
     }
 
    [@@deriving show]
+end
 
+module Tensor (T : Shaped with type 'a t = 'a TensorBase.t) = struct
+  include TensorBase
+  
 let size mat = get_row mat.rows |> ( * ) @@ get_col mat.cols
 
 let get_size mat =
@@ -185,20 +176,6 @@ let make (Row rows) (Col cols) init_val =
   Array.make (rows * cols) init_val
   |> of_array (Row rows) (Col cols)
 
-open Shape
-
-let of_shape init_val shape =
-  make shape.dim1 shape.dim2 init_val
-
-let empty_shape () =
-  { dim1 = Row 0;
-    dim2 = Col 0;
-    dim3 = 1;
-  }
-
-let zero_of_shape shape =
-  of_shape 0. shape
-
 let qcopy mat =
   of_array mat.rows mat.cols (Array.copy mat.matrix)
 
@@ -218,9 +195,6 @@ let iter proc mat =
 
 let random row col =
   create row col (fun _ _ -> (Random.float 2. -. 1.))
-
-let random_of_shape shape =
-  random shape.dim1 shape.dim2
 
 let opt_iter proc mat =
   let rec iter_rec (Row r) (Col c) proc mat =
@@ -245,10 +219,10 @@ let iteri proc mat =
   done
 
 let iteri3 proc mat1 mat2 mat3 =
-  shape_match mat1 mat2;
-  shape_match mat1 mat3;
+  T.shape_match mat1 mat2;
+  T.shape_match mat1 mat3;
 
-  for r = 0 to get_row mat1.rows - 1
+  for r = 0 to row mat1.rows - 1
   do for c = 0 to get_col mat1.cols - 1
      do
        proc (Row r) (Col c)
@@ -263,7 +237,7 @@ let iter3 proc mat1 mat2 mat3 =
   iteri3 (fun _ _ v1 v2 v3 -> proc v1 v2 v3) mat1 mat2 mat3
 
 let iter2 proc mat1 mat2 =
-  shape_match mat1 mat2 ;
+  T.shape_match mat1 mat2 ;
   for r = 0 to get_row mat1.rows - 1
   do for c = 0 to get_col mat1.cols - 1
      do
@@ -274,7 +248,7 @@ let iter2 proc mat1 mat2 =
   ()
 
 let iteri2 proc mat1 mat2 =
-  shape_match mat1 mat2 ;
+  T.shape_match mat1 mat2 ;
   for r = 0 to get_row mat1.rows - 1
   do for c = 0 to get_col mat1.cols - 1
      do get (Row r) (Col c) mat2
@@ -424,9 +398,6 @@ let dim2 mat =
 let reshape rows cols mat =
   of_array rows cols mat.matrix
 
-let reshape_of_shape mat shape  =
-  reshape shape.dim1 shape.dim2 mat
-
 let submatrix start_row start_col rows cols mat =
   if get_row start_row + get_row rows > get_row mat.rows
      || get_col start_col + get_col cols > get_col mat.cols
@@ -446,21 +417,6 @@ let submatrix start_row start_col rows cols mat =
   
   iteri (fun r c value -> set r c res_mat value) mat;
   res_mat
-
-let shadow_submatrix start_row start_col rows cols mat =
-  if get_row start_row + get_row rows > get_row mat.rows
-     || get_col start_col + get_col cols > get_col mat.cols
-  then invalid_arg "Shadow submatrix: Index out of bounds."
-  else
-    let res_mat = { matrix = mat.matrix;
-                    rows = rows;
-                    cols = cols;
-                    start_row = start_row;
-                    start_col = start_col;
-                    stride = get_col mat.cols;
-                  }
-    in
-    res_mat
 
 let fold_right proc mat init =
   let acc = ref init in
@@ -483,13 +439,13 @@ let foldi_left proc init mat =
   !acc
 
 let fold_left2 proc init mat1 mat2 =
-  shape_match mat1 mat2 ;
+  T.shape_match mat1 mat2 ;
   let acc = ref init in
   let _ = iter2 (fun val1 val2 -> acc := proc !acc val1 val2) mat1 mat2 in
   !acc
 
 let fold_right2 proc mat1 mat2 init =
-  shape_match mat1 mat2 ;
+  T.shape_match mat1 mat2 ;
   let acc = ref init in
   let _ = iter2 (fun val1 val2 -> acc := proc val1 val2 !acc) mat1 mat2 in
   !acc
@@ -557,12 +513,54 @@ let rotate180 mat =
 
 let sum mat =
   mat |> fold_left (+.) 0. 
+  end
 
-let mult mat1 mat2 =
-  if get_col mat1.cols <> get_row mat2.rows
-  then invalid_arg "Mult: Matrix geometry does not match."
-  else
-    let res_mat =
+module type Matrix = sig
+  include Tensor
+  val make : row -> col -> float -> float t
+
+  val create : row -> col -> (row -> col -> 'a) -> 'a t
+
+  val random : row -> col -> float t
+
+  val zero : 'a t -> float t
+
+  val of_array : row -> col -> 'a array -> 'a t
+
+  val of_list : row -> col -> 'a list -> 'a t
+
+  val shadow_submatrix : row -> col -> row -> col -> 'a t -> 'a t
+
+  val mult : float t -> float t -> float t
+
+  (* val convolve : float t -> padding:int -> stride:int -> shape -> *)
+                 (* float t -> float t *)
+
+end
+
+module MatShaped = struct
+
+  type 'a t = 'a TensorBase.t
+
+  open TensorBase
+
+  let shape_match mat1 mat2 =
+    if row mat1.rows <> row mat2.rows || col mat1.cols <> col mat2.cols
+    then failwith "Matrix shapes do not match."
+   
+end
+
+module MatBase = Tensor (MatShaped)
+
+module Mat : Matrix = struct 
+  include MatBase 
+  open TensorBase
+
+  let mult mat1 mat2 =
+    if col mat1.cols <> row mat2.rows
+    then invalid_arg "Mult: Matrix geometry does not match."
+    else
+      let res_mat =
       Array.make (get_row mat1.rows * get_col mat2.cols) 0.
       |> of_array mat1.rows mat2.cols
     in
@@ -601,6 +599,21 @@ let padded padding mat =
         else 0.
       )
 
+let shadow_submatrix start_row start_col rows cols mat =
+  if get_row start_row + get_row rows > get_row mat.rows
+     || get_col start_col + get_col cols > get_col mat.cols
+  then invalid_arg "Shadow submatrix: Index out of bounds."
+  else
+    let res_mat = { matrix = mat.matrix;
+                    rows = rows;
+                    cols = cols;
+                    start_row = start_row;
+                    start_col = start_col;
+                    stride = get_col mat.cols;
+                  }
+    in
+    res_mat
+
 let convolve mat ~padding ~stride out_shape kernel =
   (* let kern_arr = kernel |> Mat.to_array in *)
   let kern_rows = dim1 kernel |> get_row in
@@ -636,26 +649,28 @@ let convolve mat ~padding ~stride out_shape kernel =
 
     convolve_rec kernel 0 0 res_mat
 
-  end
-
-module type Matrix = sig
-  include Matrixable
-end
-
-module Mat : Matrix = struct 
-  include Matrixable
 end
 
 module type Vector = sig
-  include Matrixable
+  include Tensor
+
+  val make : col -> float -> float t
+
+  val create : col -> (row -> col -> 'a) -> 'a t
+
+  val random : col -> float t
+
+  val of_array : col -> 'a array -> 'a t
+
+  val of_list : col -> 'a list -> 'a t
 
   val get : col -> 'a t -> 'a 
+
 end
 
 module Vec : Vector = struct
-  include Matrixable
+  include Tensor
 
   let get col vec =
-    Matrixable.get (Row 0) col vec
-
+    Tensor.get (Row 0) col vec
 end
