@@ -5,12 +5,27 @@ type size =
   | Size of int
 
 exception InvalidIndex
+
 module type Tensor = sig
-  type 'a t [@@deriving show]
+type 'a t [@@deriving show]
+
+  type shape
+
+  val shape_match : 'a t -> 'b t -> unit
+
+  val shape_size : shape -> int
+
+  val get_shape : 'a t -> shape
+
+  val shape_zero : unit -> shape 
 
   val size : 'a t -> int
 
   val get : row -> col -> 'a t -> 'a
+
+  val get_first : 'a t -> 'a
+
+  val get_first_opt : 'a t -> 'a option
 
   val get : row -> col -> 'a t -> 'a
 
@@ -61,11 +76,7 @@ module type Tensor = sig
 
   val sum : float t -> float
 
-  val dim1 : 'a t -> row
-
-  val dim2 : 'a t -> col
-
-  val print : float t -> unit
+   val print : float t -> unit
 
 end
 
@@ -83,24 +94,40 @@ type 'a t = {
    [@@deriving show]
 end
 
-module type Shaped = sig
-  type 'a t = 'a TensorBase.t
+module Tensor = struct
+  type 'a t = {
+      matrix : 'a array;
+      rows : row;
+      cols : col;
+
+      start_row : row;
+      start_col : col;
+      stride : int;
+    }
+
    [@@deriving show]
-
-  type shape
-
-  val shape_match : 'a t -> 'b t -> unit
-
-  val shape_size : shape -> int
-
-  val get_shape : 'a t -> shape
-end
-
-
-module Tensor (T : Shaped) = struct
-  include TensorBase
   
   let size mat = get_row mat.rows |> ( * ) @@ get_col mat.cols
+
+  type shape = {
+      dim1 : row;
+      dim2 : col;
+    }
+
+  let get_shape mat =
+    { dim1 = mat.rows;
+      dim2 = mat.cols
+    }
+
+  let shape_size shape =
+    row shape.dim1 * col shape.dim2
+
+  let shape_match mat1 mat2 =
+    if row mat1.rows <> row mat2.rows || col mat1.cols <> col mat2.cols
+    then failwith "Matrix shapes mismatch."
+   
+  let shape_zero () =
+    { dim1 = (Row 0) ; dim2 = (Col 0) }
   
   let get_size mat =
     match size mat with
@@ -162,6 +189,10 @@ let set row col mat value =
 
 let get_first mat = get (Row 0) (Col 0) mat
 
+let get_first_opt mat =
+  try Some (get (Row 0) (Col 0) mat)
+  with
+  | Invalid_argument _ -> None
 
 let of_array rows cols matrix =
   if (get_row rows * get_col cols) > (matrix |> Array.length) ||
@@ -226,8 +257,8 @@ let iteri proc mat =
   done
 
 let iteri3 proc mat1 mat2 mat3 =
-  T.shape_match mat1 mat2;
-  T.shape_match mat1 mat3;
+  shape_match mat1 mat2;
+  shape_match mat1 mat3;
 
   for r = 0 to row mat1.rows - 1
   do for c = 0 to get_col mat1.cols - 1
@@ -244,7 +275,7 @@ let iter3 proc mat1 mat2 mat3 =
   iteri3 (fun _ _ v1 v2 v3 -> proc v1 v2 v3) mat1 mat2 mat3
 
 let iter2 proc mat1 mat2 =
-  T.shape_match mat1 mat2 ;
+  shape_match mat1 mat2 ;
   for r = 0 to get_row mat1.rows - 1
   do for c = 0 to get_col mat1.cols - 1
      do
@@ -255,7 +286,7 @@ let iter2 proc mat1 mat2 =
   ()
 
 let iteri2 proc mat1 mat2 =
-  T.shape_match mat1 mat2 ;
+  shape_match mat1 mat2 ;
   for r = 0 to get_row mat1.rows - 1
   do for c = 0 to get_col mat1.cols - 1
      do get (Row r) (Col c) mat2
@@ -446,13 +477,13 @@ let foldi_left proc init mat =
   !acc
 
 let fold_left2 proc init mat1 mat2 =
-  T.shape_match mat1 mat2 ;
+  shape_match mat1 mat2 ;
   let acc = ref init in
   let _ = iter2 (fun val1 val2 -> acc := proc !acc val1 val2) mat1 mat2 in
   !acc
 
 let fold_right2 proc mat1 mat2 init =
-  T.shape_match mat1 mat2 ;
+  shape_match mat1 mat2 ;
   let acc = ref init in
   let _ = iter2 (fun val1 val2 -> acc := proc val1 val2 !acc) mat1 mat2 in
   !acc
@@ -522,57 +553,9 @@ let sum mat =
   mat |> fold_left (+.) 0. 
   end
 
-module MatShape : Shaped = struct
-
-  type 'a t = 'a TensorBase.t [@@deriving show]
-  open TensorBase
-
-  type shape = {
-      dim1 : row;
-      dim2 : col;
-    }
-
-  let get_shape mat =
-    { dim1 = mat.rows;
-      dim2 = mat.cols
-    }
-
-  let shape_size shape =
-    row shape.dim1 * col shape.dim2
-
-  let shape_match mat1 mat2 =
-    if row mat1.rows <> row mat2.rows || col mat1.cols <> col mat2.cols
-    then failwith "Matrix shapes mismatch."
-   
-end
-
-module MatBase = Tensor (MatShape)
-
-module VectorShape : Shaped = struct
-  type 'a t = 'a TensorBase.t [@@deriving show] 
-  open TensorBase
-
-  type shape = {
-      dim1 : col
-    }
-
-  let get_shape vec =
-    { dim1 = vec.cols }
-
-  let shape_size shape =
-    col shape.dim1
-
-  let shape_match vec1 vec2 =
-    if col vec1.cols <> col vec2.cols
-    then failwith "Vector shapes mismatch"
-
-end
-
-module VectorBase = Tensor (VectorShape)
-
-
 module rec Vector : sig
   include Tensor
+
 
   val make : col -> float -> float t
 
@@ -588,31 +571,34 @@ module rec Vector : sig
 
   val get : col -> 'a t -> 'a 
 
-end = struct
-  module Base = VectorBase
+  val dim1 : 'a t -> col
 
-  include Base 
+end = struct
+  include Tensor
 
   let make cols init =
-    Base.make (Row 1) cols init
+    make (Row 1) cols init
 
   let create cols finit =
-    Base.create (Row 1) cols finit
+    Tensor.create (Row 1) cols finit
 
   let random cols =
-    Base.random (Row 1) cols
+    Tensor.random (Row 1) cols
 
   let of_array cols arr =
-    Base.of_array (Row 1) cols arr
+    Tensor.of_array (Row 1) cols arr
 
   let of_list cols lst =
-    Base.of_list (Row 1) cols lst
+    Tensor.of_list (Row 1) cols lst
 
-  let to_mat (vec : 'a Base.t) : 'a Mat.t =
+  let to_mat (vec : 'a Tensor.t) : 'a Mat.t =
     Mat.of_array (Row 1) vec.cols vec.matrix
 
   let get col vec =
     get (Row 0) col vec
+
+  let dim1 vec =
+    vec.cols
 
 end
 and Mat : sig
@@ -637,11 +623,14 @@ and Mat : sig
   (* val convolve : float t -> padding:int -> stride:int -> shape -> *)
                  (* float t -> float t *)
 
+  val dim1 : 'a t -> row
+
+  val dim2 : 'a t -> col
+
   val to_vec: 'a t -> 'a Vector.t
 
 end = struct 
-  include MatBase 
-  open MatShape
+  include Tensor
 
   let to_vec mat =
     Vector.of_array mat.cols mat.matrix

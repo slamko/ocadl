@@ -3,42 +3,65 @@ open Matrix
 open Alias
 
 type _ shape =
-  | ShapeMatVec : (MatShape.shape * VectorShape.shape)  ->
-                  mat vector tensor shape
-  | ShapeMatMat : (MatShape.shape * MatShape.shape)     ->
-                  mat matrix tensor shape
-  | ShapeVec    : (VectorShape.shape) -> vec tensor shape
-  | ShapeMat    : (MatShape.shape)    -> mat tensor shape
+  | ShapeMatVec : (Mat.shape * Vec.shape) -> mat vector tensor shape
+  | ShapeMatMat : (Mat.shape * Mat.shape) -> mat matrix tensor shape
+  | ShapeVec    : (Vec.shape) -> vec tensor shape
+  | ShapeMat    : (Mat.shape) -> mat tensor shape
 
 let shape_size shape =
   match shape with
-  | ShapeMatVec (m, v) -> MatShape.shape_size m * VectorShape.shape_size v
-  | ShapeMatMat (m1, m2) -> MatShape.shape_size m1 * MatShape.shape_size m2
-  | ShapeVec v -> VectorShape.shape_size v
-  | ShapeMat v -> MatShape.shape_size v
+  | ShapeMatVec (m, v) -> Mat.shape_size m * Vec.shape_size v
+  | ShapeMatMat (m1, m2) -> Mat.shape_size m1 * Mat.shape_size m2
+  | ShapeVec v -> Vec.shape_size v
+  | ShapeMat v -> Mat.shape_size v
 
 let get_shape : type a. a tensor -> a tensor shape =
   fun tensor ->
   match tensor with
-  | Tensor1 x -> ShapeVec (VectorShape.get_shape x)
-  | Tensor2 x -> ShapeMat (MatShape.get_shape x)
-  | Tensor3 x -> ShapeMatVec (MatShape.get_shape x, VectorShape.get_shape x)
-  | Tensor4 x -> ShapeMatMat (MatShape.get_shape x, MatShape.get_shape x)
+  | Tensor1 x -> ShapeVec (Vec.get_shape x)
+  | Tensor2 x -> ShapeMat (Mat.get_shape x)
+  | Tensor3 vec ->
+     (match Vec.get_first_opt vec with
+     | Some first -> ShapeMatVec (Mat.get_shape first, Vec.get_shape vec)
+     | None -> ShapeMatVec (Mat.shape_zero (), Vec.get_shape vec)
+     )
+  | Tensor4 mat ->
+     (match Mat.get_first_opt mat with
+      | Some first -> ShapeMatMat (Mat.get_shape first, Mat.get_shape mat)
+      | None -> ShapeMatMat (Mat.shape_zero (), Mat.get_shape mat)
+     )
 
-let get_shape mat =
-  
-  make_shape mat.rows mat.cols
+type _ witness =
+  | Int : int witness
+  | Bool : bool witness
 
-let shape_eq shape1 shape2 =
-  if compare shape1 shape2 <> 0
-  then false
-  else true
+let mator : type a. a witness -> a witness -> bool =
+  fun w1 w2 ->
+  match w1, w2 with
+  | Int, Int -> false
+  | Bool, Bool -> true
 
-let empty_shape () =
-  { dim1 = Row 0;
-    dim2 = Col 0;
-    dim3 = 1;
-  }
+
+
+let shape_eq : type a. a shape -> a shape -> bool =
+  fun shape1 shape2 ->
+  match shape1, shape2 with
+  | ShapeMatVec (m1, v1), ShapeMatVec (m2, v2) ->
+     (if compare m1 m2 <> 0 || compare v1 v2 <> 0
+      then false
+      else true)
+  | ShapeMatMat (m1, m3), ShapeMatMat (m2, m4) ->
+     (if compare m1 m2 <> 0 || compare m3 m4 <> 0
+      then false
+      else true)
+  | ShapeVec v1, ShapeVec v2 ->
+     (if compare v1 v2 <> 0 
+      then false
+      else true)
+  | ShapeMat m1, ShapeMat m2 ->
+     (if compare m1 m2 <> 0 
+      then false
+      else true)
 
 let shape_match mat1 mat2 =
   let shape = get_shape mat2 in
