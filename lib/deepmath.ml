@@ -1,13 +1,5 @@
 open Common
-
-module Mat = Matrix.Mat
-module Vec = Matrix.Vector
-
-type mat = float Mat.t
-type vec = float Vec.t
-
-type 'a matrix = 'a Mat.t
-type 'a vector = 'a Vec.t
+open Types
 
 let sigmoid (x : float) : float =
   1. /. (1. +. exp(-. x))

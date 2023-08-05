@@ -1,17 +1,10 @@
-open Deepmath
 open Matrix
-open Ppxlib
+open Alias
 
 type _ tensor =
   | Tensor1 : float matrix -> float matrix tensor
   | Tensor3 : float matrix matrix -> float matrix matrix tensor
 (* [@@deriving show] *)
-
-type weight_list = mat list
-[@@deriving show]
-
-type bias_list = mat list
-[@@deriving show]
 
 type activation = float -> float
 [@@deriving show]

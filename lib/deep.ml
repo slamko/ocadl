@@ -11,9 +11,9 @@ type backprop_neuron = {
     pd_prev_arr : float array
   }
 
-type ('a, 'b) backprop_layer = {
-    prev_diff : 'a;
-    grad : ('a, 'b) layer_params;
+type ('inp, 'out) backprop_layer = {
+    prev_diff : 'inp;
+    grad : ('inp, 'out) layer_params;
   }
 
 let fully_connected_forward meta params tens =

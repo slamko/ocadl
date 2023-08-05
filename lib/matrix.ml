@@ -6,7 +6,7 @@ type size =
 
 exception InvalidIndex
 module type Tensor = sig
-  type 'a t 
+  type 'a t [@@deriving show]
 
   val size : 'a t -> int
 
@@ -67,13 +67,6 @@ module type Tensor = sig
 
   val print : float t -> unit
 
-   [@@deriving show]
-end
-
-module type Shaped = sig
-  type 'a t
-
-  val shape_match : 'a t -> 'b t -> unit
 end
 
 module TensorBase = struct
@@ -90,32 +83,45 @@ type 'a t = {
    [@@deriving show]
 end
 
-module Tensor (T : Shaped with type 'a t = 'a TensorBase.t)
-  = struct
+module type Shaped = sig
+  type 'a t = 'a TensorBase.t
+   [@@deriving show]
+
+  type shape
+
+  val shape_match : 'a t -> 'b t -> unit
+
+  val shape_size : shape -> int
+
+  val get_shape : 'a t -> shape
+end
+
+
+module Tensor (T : Shaped) = struct
   include TensorBase
   
-let size mat = get_row mat.rows |> ( * ) @@ get_col mat.cols
-
-let get_size mat =
-  match size mat with
-  | 0 -> Empty
-  | size -> Size size
-
-let get_first_index mat =
-   (get_row mat.start_row * mat.stride) + get_col mat.start_col
- 
- let get_index row col mat =
-   get_first_index mat + (row * mat.stride) + col
- 
-let get_res (Row row) (Col col) mat =
-  if row >= get_row mat.rows
-  then Error "get: Matrix row index out of bounds"
-  else
-    if col >= get_col mat.cols
-    then Error "get: Matrix col index out of bounds"
+  let size mat = get_row mat.rows |> ( * ) @@ get_col mat.cols
+  
+  let get_size mat =
+    match size mat with
+    | 0 -> Empty
+    | size -> Size size
+  
+  let get_first_index mat =
+    (get_row mat.start_row * mat.stride) + get_col mat.start_col
+  
+  let get_index row col mat =
+    get_first_index mat + (row * mat.stride) + col
+  
+  let get_res (Row row) (Col col) mat =
+    if row >= get_row mat.rows
+    then Error "get: Matrix row index out of bounds"
     else
+      if col >= get_col mat.cols
+    then Error "get: Matrix col index out of bounds"
+      else
       Ok (get_index row col mat |> Array.get mat.matrix)
-
+  
 let get (Row row) (Col col) mat =
   if row >= get_row mat.rows
   then invalid_arg "get: Matrix row index out of bounds"
@@ -516,24 +522,45 @@ let sum mat =
   mat |> fold_left (+.) 0. 
   end
 
-module MatShape = struct
+module MatShape : Shaped = struct
 
-  type 'a t = 'a TensorBase.t
-
+  type 'a t = 'a TensorBase.t [@@deriving show]
   open TensorBase
+
+  type shape = {
+      dim1 : row;
+      dim2 : col;
+    }
+
+  let get_shape mat =
+    { dim1 = mat.rows;
+      dim2 = mat.cols
+    }
+
+  let shape_size shape =
+    row shape.dim1 * col shape.dim2
 
   let shape_match mat1 mat2 =
     if row mat1.rows <> row mat2.rows || col mat1.cols <> col mat2.cols
-    then failwith "Matrix shapes do not match."
+    then failwith "Matrix shapes mismatch."
    
 end
 
 module MatBase = Tensor (MatShape)
 
-module VectorShape = struct
-  type 'a t = 'a TensorBase.t
-
+module VectorShape : Shaped = struct
+  type 'a t = 'a TensorBase.t [@@deriving show] 
   open TensorBase
+
+  type shape = {
+      dim1 : col
+    }
+
+  let get_shape vec =
+    { dim1 = vec.cols }
+
+  let shape_size shape =
+    col shape.dim1
 
   let shape_match vec1 vec2 =
     if col vec1.cols <> col vec2.cols
@@ -564,7 +591,7 @@ module rec Vector : sig
 end = struct
   module Base = VectorBase
 
-  include Base
+  include Base 
 
   let make cols init =
     Base.make (Row 1) cols init
@@ -590,6 +617,7 @@ end = struct
 end
 and Mat : sig
   include Tensor
+
   val make : row -> col -> float -> float t
 
   val create : row -> col -> (row -> col -> 'a) -> 'a t
@@ -613,7 +641,6 @@ and Mat : sig
 
 end = struct 
   include MatBase 
-  open TensorBase
   open MatShape
 
   let to_vec mat =
