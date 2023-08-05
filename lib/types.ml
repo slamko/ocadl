@@ -1,129 +1,26 @@
-open Matrix
-open Alias
-
-type _ tensor =
-  | Tensor1 : float matrix -> float matrix tensor
-  | Tensor3 : float matrix matrix -> float matrix matrix tensor
-(* [@@deriving show] *)
-
-type activation = float -> float
-[@@deriving show]
-
-type deriv = float -> float
-[@@deriving show]
-
-module Fully_Connected = struct
-type params = {
-    weight_mat : mat;
-    bias_mat : mat;
-  }
-[@@deriving show]
-
-type meta = {
-    activation : activation;
-    derivative : deriv;
-    out_shape : shape;
-  }
-[@@deriving show]
-
-type input = float matrix tensor
-type out = float matrix tensor
-
-type t = meta * params
-[@@deriving show]
-end
-
-module Conv2D = struct 
-type params = {
-    kernels : mat matrix;
-    bias_mat : mat;
-  }
-[@@deriving show]
-
-type meta = {
-    padding : int;
-    stride : int;
-    act : activation;
-    deriv : deriv;
-    kernel_num : int;
-    out_shape : shape;
-  }
-[@@deriving show]
-
-type input = mat matrix tensor
-type out = mat matrix tensor
-
-type t = meta * params
-[@@deriving show]
-end
-
-module Pooling = struct 
-type meta = {
-    fselect : float -> float -> float;
-    fderiv : shape -> float -> mat -> mat -> unit;
-    stride : int;
-    filter_shape : shape;
-    out_shape : shape;
-  }
-[@@deriving show]
-
-type input = mat matrix tensor
-type out = mat matrix tensor
-
-type t = meta
-[@@deriving show]
-end
-
-module Input3D = struct
-
-type meta = {
-    shape : shape;
-  }
-[@@deriving show]
-
-type input = mat matrix tensor
-type out = mat matrix tensor
-
-type t = meta
-end
-
-module Flatten = struct
-type meta = {
-    out_shape : shape;
-  }
-[@@deriving show]
-
-type input = float matrix matrix tensor
-type out = float matrix tensor
-
-type t = meta
-end
-
-
 type layer_meta =
-  | FullyConnectedMeta of Fully_Connected.meta
-  | Conv2DMeta of Conv2D.meta
+  | FullyConnectedMeta of Fully_connected.meta
+  | Conv3DMeta of Conv3D.meta
   | PoolingMeta of Pooling.meta
   | FlattenMeta of Flatten.meta
   | InputMeta of Input3D.meta 
-[@@deriving show]
 
 type (_, _) layer_params =
-  | FullyConnectedParams : Fully_Connected.params ->
-      (Fully_Connected.input, Fully_Connected.out)  layer_params
+  | FullyConnectedParams : Fully_connected.params ->
+      (Fully_connected.input, Fully_connected.out)  layer_params
 
-  | Conv2DParams : Conv2D.params ->
-      (Conv2D.input, Conv2D.out) layer_params
+  | Conv3DParams : Conv3D.params ->
+      (Conv3D.input, Conv3D.out) layer_params
 
   | PoolingParams : (Pooling.input, Pooling.out) layer_params
   | FlattenParams : (Flatten.input, Flatten.out) layer_params
   | Input3Params : (Input3D.input, Input3D.out) layer_params
 
 type (_, _) layer =
-  | FullyConnected  : Fully_Connected.t ->
-                      (Fully_Connected.input, Fully_Connected.out) layer
+  | FullyConnected  : Fully_connected.t ->
+                      (Fully_connected.input, Fully_connected.out) layer
 
-  | Conv2D          : Conv2D.t  -> (Conv2D.input, Conv2D.out) layer
+  | Conv3D          : Conv3D.t  -> (Conv3D.input, Conv3D.out) layer
   | Pooling         : Pooling.t -> (Pooling.input, Pooling.out) layer
   | Flatten         : Flatten.t -> (Flatten.input, Flatten.out) layer
   | Input3          : Input3D.t -> (Input3D.input, Input3D.out) layer
@@ -173,11 +70,6 @@ type ('n, 'a, 'b) nnet = {
     layers : ('a, 'b) ff_list;
     build_layers : ('n, 'a, 'b) build_list;
   }
-
-let make_tens1 v = Tensor1 v
-(* let make_tens2 v = Tensor2 v *)
-let make_tens3 v = Tensor3 v
-(* let make_tens4 v = Tensor4 v *)
 
 type ('a, 'b, 'c) feed_forward = {
     bp_input : ('a, 'a) layer * 'a * 'a;

@@ -1,12 +1,14 @@
 open Common
-open Types
 open Matrix
+open Alias
 
 type _ shape =
-  | ShapeMatVec : (MatShape.shape * VectorShape.shape)  -> mat vector shape
-  | ShapeMatMat : (MatShape.shape * MatShape.shape)     -> mat matrix shape
-  | ShapeVec    : (VectorShape.shape) -> vec shape
-  | ShapeMat    : (MatShape.shape)    -> mat shape
+  | ShapeMatVec : (MatShape.shape * VectorShape.shape)  ->
+                  mat vector tensor shape
+  | ShapeMatMat : (MatShape.shape * MatShape.shape)     ->
+                  mat matrix tensor shape
+  | ShapeVec    : (VectorShape.shape) -> vec tensor shape
+  | ShapeMat    : (MatShape.shape)    -> mat tensor shape
 
 let shape_size shape =
   match shape with
@@ -15,9 +17,13 @@ let shape_size shape =
   | ShapeVec v -> VectorShape.shape_size v
   | ShapeMat v -> MatShape.shape_size v
 
-let get_shape : type a. a -> a shape =
+let get_shape : type a. a tensor -> a tensor shape =
   fun tensor ->
-
+  match tensor with
+  | Tensor1 x -> ShapeVec (VectorShape.get_shape x)
+  | Tensor2 x -> ShapeMat (MatShape.get_shape x)
+  | Tensor3 x -> ShapeMatVec (MatShape.get_shape x, VectorShape.get_shape x)
+  | Tensor4 x -> ShapeMatMat (MatShape.get_shape x, MatShape.get_shape x)
 
 let get_shape mat =
   
