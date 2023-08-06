@@ -40,4 +40,7 @@ let row (Row row) = row
 
 let col (Col col) = col
 
+type size =
+  | Empty
+  | Size of int
 

@@ -4,8 +4,8 @@ open Alias
 
 type _ shape =
   | ShapeMatVec : (Mat.shape * Vec.shape) -> mat vector tensor shape
-  | ShapeMatMat : (Mat.shape * Mat.shape) -> mat matrix tensor shape
   | ShapeVec    : (Vec.shape) -> vec tensor shape
+  | ShapeMatMat : (Mat.shape * Mat.shape) -> mat matrix tensor shape
   | ShapeMat    : (Mat.shape) -> mat tensor shape
 
 let shape_size : type a. a shape -> int =
@@ -53,6 +53,15 @@ let shape_eq : type a. a shape -> a shape -> bool =
 
 let make_shape_vec vec_shape =
   ShapeVec vec_shape
+
+let make_shape_mat mat_shape =
+  ShapeMat mat_shape
+
+let make_shape_mat_mat mat1_shape  mat2_shape =
+  ShapeMatMat (mat1_shape, mat2_shape)
+
+let make_shape_mat_vec mat1_shape vec2_shape =
+  ShapeMatVec (mat1_shape, vec2_shape)
 
 let shape_match mat1 mat2 =
   let shape = get_shape mat2 in

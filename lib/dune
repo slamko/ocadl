@@ -2,6 +2,7 @@
   (dev
     (flags (:standard -warn-error -A))))
 
+(include_subdirs unqualified)
 
 (library
  (public_name ocadl)

@@ -187,14 +187,16 @@ let make_conv3d ~kernel_shape ~kernel_num
     ((in_dim + (2 * padding) - kern_dim) / stride) + 1 in
   
   let out_shape =
-    make_shape3d
-      (Row (new_dim
-              (get_row prev_shape.dim1)
-              (get_row kernel_shape.dim1)))
-      (Col (new_dim
-              (get_col prev_shape.dim2)
-              (get_col kernel_shape.dim2)))
-      1
+    Shape.make_shape_mat_vec
+      (Mat.make_shape
+         (Row (new_dim
+                 (get_row prev_shape.dim1)
+                 (get_row kernel_shape.dim1)))
+         (Col (new_dim
+                 (get_col prev_shape.dim2)
+                 (get_col kernel_shape.dim2))))
+
+      (Vec.make_shape (Col kernel_num))
   in
 
   

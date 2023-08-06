@@ -5,21 +5,17 @@ type layer_meta =
   | FlattenMeta of Flatten.meta
   | InputMeta of Input3D.meta 
 
+module FC = Fully_connected 
+
 type (_, _) layer_params =
-  | FullyConnectedParams : Fully_connected.params ->
-      (Fully_connected.input, Fully_connected.out)  layer_params
-
-  | Conv3DParams : Conv3D.params ->
-      (Conv3D.input, Conv3D.out) layer_params
-
+  | FullyConnectedParams : FC.params -> (FC.input, FC.out)  layer_params
+  | Conv3DParams : Conv3D.params -> (Conv3D.input, Conv3D.out) layer_params
   | PoolingParams : (Pooling.input, Pooling.out) layer_params
   | FlattenParams : (Flatten.input, Flatten.out) layer_params
   | Input3Params : (Input3D.input, Input3D.out) layer_params
 
 type (_, _) layer =
-  | FullyConnected  : Fully_connected.t ->
-                      (Fully_connected.input, Fully_connected.out) layer
-
+  | FullyConnected  : FC.t -> (FC.input, FC.out) layer
   | Conv3D          : Conv3D.t  -> (Conv3D.input, Conv3D.out) layer
   | Pooling         : Pooling.t -> (Pooling.input, Pooling.out) layer
   | Flatten         : Flatten.t -> (Flatten.input, Flatten.out) layer
