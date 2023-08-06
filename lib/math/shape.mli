@@ -1,7 +1,11 @@
 open Alias
 open Matrix
 
-type _ shape
+type _ shape = private
+  | ShapeMatVec : (Mat.shape * Vec.shape) -> mat vector tensor shape
+  | ShapeVec    : (Vec.shape) -> vec tensor shape
+  | ShapeMatMat : (Mat.shape * Mat.shape) -> mat matrix tensor shape
+  | ShapeMat    : (Mat.shape) -> mat tensor shape
 
 val shape_size : 'a shape -> int
 

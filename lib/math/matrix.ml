@@ -50,6 +50,10 @@ module type MATRIX_COMMON = sig
 
   val map : ('a -> 'b) -> 'a t -> 'b t
 
+  val map2 : ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
+  
+  val map3 : ('a -> 'b -> 'c -> 'd) -> 'a t -> 'b t -> 'c t -> 'd t
+
   val iter : ('a -> unit) -> 'a t -> unit
   
   val add : float t -> float t -> float t
@@ -231,8 +235,9 @@ and Mat : sig
 
   val sum : float t -> float
 
-   val print : float t -> unit
-
+  val print : float t -> unit
+  
+  val random_of_shape : shape -> float t
 
   val shadow_submatrix : row -> col -> row -> col -> 'a t -> 'a t
 

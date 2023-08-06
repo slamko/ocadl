@@ -185,20 +185,22 @@ let make_conv3d ~kernel_shape ~kernel_num
 
   let new_dim in_dim kern_dim =
     ((in_dim + (2 * padding) - kern_dim) / stride) + 1 in
+
+  let Shape.ShapeMatVec(prev_image_shape, prev_vec) = prev_shape in
+  (* warning due to ocaml bug *)
   
   let out_shape =
     Shape.make_shape_mat_vec
       (Mat.make_shape
          (Row (new_dim
-                 (get_row prev_shape.dim1)
+                 (get_row prev_image_shape.dim1)
                  (get_row kernel_shape.dim1)))
          (Col (new_dim
-                 (get_col prev_shape.dim2)
+                 (get_col prev_image_shape.dim2)
                  (get_col kernel_shape.dim2))))
 
       (Vec.make_shape (Col kernel_num))
   in
-
   
   let meta = {
       Conv3D.
@@ -210,7 +212,7 @@ let make_conv3d ~kernel_shape ~kernel_num
       out_shape;
    } in
 
-  let kernels = create (Row kernel_num) (Col prev_shape.dim3) 
+  let kernels = create (Row kernel_num) prev_vec.dim2
                      (fun _ _ -> random_of_shape kernel_shape) in
 
   let params = {
@@ -229,7 +231,7 @@ let make_pooling ~filter_shape ~stride ~f ~fbp layers =
     match layers.build_list with
     | Build_Cons (lay, _) ->
        (match lay with
-        | Conv2D (meta, _) -> meta.out_shape
+        | Conv3D (meta, _) -> meta.out_shape
         | Pooling meta -> meta.out_shape
         | Input3 meta -> meta.shape
        )
@@ -238,6 +240,9 @@ let make_pooling ~filter_shape ~stride ~f ~fbp layers =
   let new_dim in_dim filt_dim =
     ((in_dim +  - filt_dim)
      / stride) + 1 in
+
+  let Shape.ShapeMatVec(prev_image_shape, prev_vec) = prev_shape in
+  let Shape.ShapeMat (filter_mat_shape) = filter_shape in
   
   let meta = { Pooling.
                fselect = f;
@@ -245,13 +250,15 @@ let make_pooling ~filter_shape ~stride ~f ~fbp layers =
                stride;
                filter_shape;
                out_shape =
-                 make_shape
+                 Shape.make_shape_mat_vec
+                   (Mat.make_shape
                    (Row (new_dim
-                           (get_row prev_shape.dim1)
-                           (get_row filter_shape.dim1)))
+                           (get_row prev_image_shape.dim1)
+                           (get_row filter_mat_shape.dim1)))
                    (Col (new_dim
-                           (get_col prev_shape.dim2)
-                           (get_col filter_shape.dim2)))
+                           (get_col prev_image_shape.dim2)
+                           (get_col filter_mat_shape.dim2))))
+               (Vec.make_shape (Col 
              } in
 
   let layer = Pooling meta in
@@ -296,29 +303,29 @@ let make_nn : type a b n. (n succ, a, b) build_nn -> (n succ, a, b) nnet =
   }
 
 let fully_connected_map proc layer =
-    let open Fully_Connected in
+    let open Fully_connected in
     FullyConnectedParams {
-      weight_mat = Mat.map proc layer.Fully_Connected.weight_mat;
-      bias_mat = Mat.map proc layer.Fully_Connected.bias_mat;
+      weight_mat = Mat.map proc layer.Fully_connected.weight_mat;
+      bias_mat = Mat.map proc layer.Fully_connected.bias_mat;
     }
 
 let conv2d_map proc layer =
-  let open Conv2D in
-  Conv2DParams {
+  let open Conv3D in
+  Conv3DParams {
     kernels = layer.kernels |> Mat.map @@ Mat.map proc;
     bias_mat = Mat.map proc layer.bias_mat
   }
 
 let fully_connected_zero layer =
-  let open Fully_Connected in
+  let open Fully_connected in
   FullyConnectedParams
     { weight_mat = Mat.zero layer.weight_mat;
        bias_mat  = Mat.zero layer.bias_mat;
     }
 
 let conv2d_zero layer =
-  let open Conv2D in
-  Conv2DParams
+  let open Conv3D in
+  Conv3DParams
     { kernels  = layer.kernels  |> Mat.map Mat.zero ;
       bias_mat = layer.bias_mat |> Mat.zero ;
     }
@@ -330,7 +337,7 @@ let param_map : type a b. (float -> float) ->
   fun proc lay ->
   (match lay with
    | FullyConnectedParams fc -> fully_connected_map proc fc
-   | Conv2DParams cn -> conv2d_map proc cn
+   | Conv3DParams cn -> conv2d_map proc cn
    | empty -> empty
   )
 
@@ -340,7 +347,7 @@ let param_zero : type a b.
   fun lay ->
   (match lay with
    | FullyConnectedParams fc -> fully_connected_zero fc
-   | Conv2DParams cn -> conv2d_zero cn
+   | Conv3DParams cn -> conv2d_zero cn
    | empty -> empty
   )
 
@@ -350,7 +357,7 @@ let layer_zero : type a b.
   fun lay ->
   (match lay with
    | FullyConnected (_, fc) -> fully_connected_zero fc
-   | Conv2D (_, cn) -> conv2d_zero cn
+   | Conv3D (_, cn) -> conv2d_zero cn
    | Flatten _ -> FlattenParams
    | Pooling _ -> PoolingParams
    | Input3 _ -> Input3Params
@@ -389,9 +396,9 @@ let nn_params_apply proc nn1 nn2 =
                } in
            let tail = apply_rec t1 t2 in
            PL_Cons(new_lay, tail)
-        | Conv2DParams cv1, Conv2DParams cv2 ->
+        | Conv3DParams cv1, Conv3DParams cv2 ->
            let new_lay =
-             Conv2DParams {
+             Conv3DParams {
                kernels = Mat.map2
                            (fun v1 v2 -> proc v1 v2)
                            cv1.kernels cv2.kernels;
@@ -405,7 +412,7 @@ let nn_params_apply proc nn1 nn2 =
            PL_Cons (PoolingParams, apply_rec t1 t2)
         | FlattenParams, FlattenParams ->
            PL_Cons (FlattenParams, apply_rec t1 t2)
-        | _ -> failwith "The world fucked up"
+        | _ -> failwith "Param list arity mismatch"
        )
     | _ -> failwith "The world fucked up"
   in
@@ -439,19 +446,19 @@ let nn_apply_params proc nn params =
               }) in
 
           FF_Cons(new_lay, apply_rec t1 t2)
-       | Conv2D (meta, nn_param), Conv2DParams apply_param ->
+       | Conv3D (meta, nn_param), Conv3DParams apply_param ->
           let kernels = Mat.map2
                               (fun v1 v2 -> proc v1 v2)
                               nn_param.kernels apply_param.kernels in
           let bias_mat = proc nn_param.bias_mat apply_param.bias_mat in
              
           let new_lay =
-            Conv2D (meta, {
+            Conv3D (meta, {
                   kernels;
                   bias_mat;
               }) in
           FF_Cons(new_lay, apply_rec t1 t2)
-       | Conv2D (_, _), _ -> 
+       | Conv3D (_, _), _ -> 
           failwith "nn apply params: Incompatible param list."
        | Input3 _, Input3Params ->
            FF_Cons (lay, apply_rec t1 t2)
