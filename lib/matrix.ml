@@ -6,10 +6,35 @@ type size =
 
 exception InvalidIndex
 
+module type Matrixable = sig
+  type 'a t = {
+      matrix : 'a array;
+      rows : row;
+      cols : col;
+
+      start_row : row;
+      start_col : col;
+      stride : int;
+    } [@@deriving show]
+end
+ 
+
 module type Tensor = sig
-type 'a t [@@deriving show]
+  include Matrixable
 
   type shape
+
+  val make : row -> col -> float -> float t
+
+  val create : row -> col -> (row -> col -> 'a) -> 'a t
+
+  val random : row -> col -> float t
+
+  val zero : 'a t -> float t
+
+  val of_array : row -> col -> 'a array -> 'a t
+
+  val of_list : row -> col -> 'a list -> 'a t
 
   val shape_match : 'a t -> 'b t -> unit
 
@@ -94,19 +119,9 @@ type 'a t = {
    [@@deriving show]
 end
 
-module Tensor = struct
-  type 'a t = {
-      matrix : 'a array;
-      rows : row;
-      cols : col;
-
-      start_row : row;
-      start_col : col;
-      stride : int;
-    }
-
-   [@@deriving show]
-  
+module Tensor (T : Matrixable) = struct
+  include T
+ 
   let size mat = get_row mat.rows |> ( * ) @@ get_col mat.cols
 
   type shape = {
@@ -551,10 +566,128 @@ let rotate180 mat =
 
 let sum mat =
   mat |> fold_left (+.) 0. 
-  end
+end
+
+
+module VectorT : Matrixable = struct
+  type 'a t = {
+      matrix : 'a array;
+      rows : row;
+      cols : col;
+
+      start_row : row;
+      start_col : col;
+      stride : int;
+    } [@@deriving show]
+end
+
+module MatrixT : Matrixable = struct
+  type 'a t = {
+      matrix : 'a array;
+      rows : row;
+      cols : col;
+
+      start_row : row;
+      start_col : col;
+      stride : int;
+    } [@@deriving show]
+end
+
+module VectorBase = Tensor (VectorT)
+
+module MatrixBase = Tensor (MatrixT)
 
 module rec Vector : sig
-  include Tensor
+   type 'a t = {
+      matrix : 'a array;
+      rows : row;
+      cols : col;
+
+      start_row : row;
+      start_col : col;
+      stride : int;
+    } [@@deriving show]
+
+  type shape
+
+  val make : row -> col -> float -> float t
+
+  val create : row -> col -> (row -> col -> 'a) -> 'a t
+
+  val random : row -> col -> float t
+
+  val zero : 'a t -> float t
+
+  val of_array : row -> col -> 'a array -> 'a t
+
+  val of_list : row -> col -> 'a list -> 'a t
+
+  val shape_match : 'a t -> 'b t -> unit
+
+  val shape_size : shape -> int
+
+  val get_shape : 'a t -> shape
+
+  val shape_zero : unit -> shape 
+
+  val size : 'a t -> int
+
+  val get : row -> col -> 'a t -> 'a
+
+  val get_first : 'a t -> 'a
+
+  val get_first_opt : 'a t -> 'a option
+
+  val get : row -> col -> 'a t -> 'a
+
+  val set : row -> col -> 'a t -> 'a -> unit
+
+  val set_bind : row -> col -> 'a t -> 'a -> 'a t
+
+  (* val set_option : row -> col -> 'a t -> 'a option -> 'a t option *)
+
+  val reshape : row -> col -> 'a t -> 'a t
+
+  val flatten3d : 'a t array -> 'a array
+
+  val flatten : 'a t t -> 'a t
+
+  val compare : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
+
+  val compare_float : float t -> float t -> bool
+
+  (* val submatrix : row -> col -> row -> col -> 'a t -> 'a t *)
+  val scale : float -> float t -> float t
+
+  val add_const : float -> float t -> float t
+
+  val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
+
+  val fold_right : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+
+  val map : ('a -> 'b) -> 'a t -> 'b t
+
+  val mapi : (row -> col -> 'a -> 'b) -> 'a t -> 'b t
+
+  val iteri2 : (row -> col -> 'a -> 'b -> unit) -> 'a t -> 'b t -> unit
+
+  val iter2 : ('a -> 'b -> unit) -> 'a t -> 'b t -> unit
+ 
+  val iteri : (row -> col -> 'a -> unit) -> 'a t -> unit
+
+  val foldi_left : (row -> col -> 'a -> 'b -> 'a) -> 'a -> 'b t -> 'a
+
+  val foldi_right : (row -> col -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+
+  val iter : ('a -> unit) -> 'a t -> unit
+  
+  val add : float t -> float t -> float t
+  
+  val sub : float t -> float t -> float t
+
+  val sum : float t -> float
+
+   val print : float t -> unit
 
 
   val make : col -> float -> float t
@@ -574,24 +707,25 @@ module rec Vector : sig
   val dim1 : 'a t -> col
 
 end = struct
-  include Tensor
+  include VectorBase
+  module Base = VectorBase
 
   let make cols init =
-    make (Row 1) cols init
+    VectorBase.make (Row 1) cols init
 
   let create cols finit =
-    Tensor.create (Row 1) cols finit
+    Base.create (Row 1) cols finit
 
   let random cols =
-    Tensor.random (Row 1) cols
+    Base.random (Row 1) cols
 
   let of_array cols arr =
-    Tensor.of_array (Row 1) cols arr
+    Base.of_array (Row 1) cols arr
 
   let of_list cols lst =
-    Tensor.of_list (Row 1) cols lst
+    Base.of_list (Row 1) cols lst
 
-  let to_mat (vec : 'a Tensor.t) : 'a Mat.t =
+  let to_mat (vec : 'a t) : 'a Mat.t =
     Mat.of_array (Row 1) vec.cols vec.matrix
 
   let get col vec =
@@ -602,7 +736,17 @@ end = struct
 
 end
 and Mat : sig
-  include Tensor
+   type 'a t = {
+      matrix : 'a array;
+      rows : row;
+      cols : col;
+
+      start_row : row;
+      start_col : col;
+      stride : int;
+    } [@@deriving show]
+
+  type shape
 
   val make : row -> col -> float -> float t
 
@@ -615,6 +759,74 @@ and Mat : sig
   val of_array : row -> col -> 'a array -> 'a t
 
   val of_list : row -> col -> 'a list -> 'a t
+
+  val shape_match : 'a t -> 'b t -> unit
+
+  val shape_size : shape -> int
+
+  val get_shape : 'a t -> shape
+
+  val shape_zero : unit -> shape 
+
+  val size : 'a t -> int
+
+  val get : row -> col -> 'a t -> 'a
+
+  val get_first : 'a t -> 'a
+
+  val get_first_opt : 'a t -> 'a option
+
+  val get : row -> col -> 'a t -> 'a
+
+  val set : row -> col -> 'a t -> 'a -> unit
+
+  val set_bind : row -> col -> 'a t -> 'a -> 'a t
+
+  (* val set_option : row -> col -> 'a t -> 'a option -> 'a t option *)
+
+  val reshape : row -> col -> 'a t -> 'a t
+
+  val flatten3d : 'a t array -> 'a array
+
+  val flatten : 'a t t -> 'a t
+
+  val compare : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
+
+  val compare_float : float t -> float t -> bool
+
+  (* val submatrix : row -> col -> row -> col -> 'a t -> 'a t *)
+  val scale : float -> float t -> float t
+
+  val add_const : float -> float t -> float t
+
+  val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
+
+  val fold_right : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+
+  val map : ('a -> 'b) -> 'a t -> 'b t
+
+  val mapi : (row -> col -> 'a -> 'b) -> 'a t -> 'b t
+
+  val iteri2 : (row -> col -> 'a -> 'b -> unit) -> 'a t -> 'b t -> unit
+
+  val iter2 : ('a -> 'b -> unit) -> 'a t -> 'b t -> unit
+ 
+  val iteri : (row -> col -> 'a -> unit) -> 'a t -> unit
+
+  val foldi_left : (row -> col -> 'a -> 'b -> 'a) -> 'a -> 'b t -> 'a
+
+  val foldi_right : (row -> col -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+
+  val iter : ('a -> unit) -> 'a t -> unit
+  
+  val add : float t -> float t -> float t
+  
+  val sub : float t -> float t -> float t
+
+  val sum : float t -> float
+
+   val print : float t -> unit
+
 
   val shadow_submatrix : row -> col -> row -> col -> 'a t -> 'a t
 
@@ -630,7 +842,7 @@ and Mat : sig
   val to_vec: 'a t -> 'a Vector.t
 
 end = struct 
-  include Tensor
+  include MatrixBase
 
   let to_vec mat =
     Vector.of_array mat.cols mat.matrix

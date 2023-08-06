@@ -8,8 +8,8 @@ type _ shape =
   | ShapeVec    : (Vec.shape) -> vec tensor shape
   | ShapeMat    : (Mat.shape) -> mat tensor shape
 
-let shape_size shape =
-  match shape with
+let shape_size : type a. a shape -> int =
+  function 
   | ShapeMatVec (m, v) -> Mat.shape_size m * Vec.shape_size v
   | ShapeMatMat (m1, m2) -> Mat.shape_size m1 * Mat.shape_size m2
   | ShapeVec v -> Vec.shape_size v
@@ -30,18 +30,6 @@ let get_shape : type a. a tensor -> a tensor shape =
       | Some first -> ShapeMatMat (Mat.get_shape first, Mat.get_shape mat)
       | None -> ShapeMatMat (Mat.shape_zero (), Mat.get_shape mat)
      )
-
-type _ witness =
-  | Int : int witness
-  | Bool : bool witness
-
-let mator : type a. a witness -> a witness -> bool =
-  fun w1 w2 ->
-  match w1, w2 with
-  | Int, Int -> false
-  | Bool, Bool -> true
-
-
 
 let shape_eq : type a. a shape -> a shape -> bool =
   fun shape1 shape2 ->

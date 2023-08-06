@@ -1,0 +1,28 @@
+*** Type safe deepl learning framework for OCaml written from scratch
+
+**** Currently supporting
+- Fully connected
+- Convolutional 3D
+- Pooling 3D
+- Flatten 3D
+layers
+
+**** The main idea behind
+is to check the Neural Network architecture at compile time,
+making code like:
+#+begin_src ocaml
+   make_input3 [| 28; 28; 1|]
+   |> make_conv3d (* some params*)
+   |> make_fully_connected (* fully connected layer after the convolutional 3D one does not make any sense *)
+#+end_src
+
+absolutely impossible.
+This is something that makes the hole codebase much safer and something
+that is not done by Owl deep learning library.
+
+Initially I was using Lapack linear algebra bindings for OCaml
+but it makes the operations like matrix reshape or flatten
+extremely complicated and expensive so the matrix library for this framework
+is also written from scratch.
+
+This repo is an experimental project and a work in progress so sometimes it doesn't even compile

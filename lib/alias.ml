@@ -22,13 +22,3 @@ let make_tens1 v = Tensor1 v
 let make_tens2 v = Tensor2 v
 let make_tens3 v = Tensor3 v
 let make_tens4 v = Tensor4 v
-
-
-let get_shape : type a. a tensor -> a tensor -> bool =
-  fun t1 t2->
-  match t1, t2 with
-  | Tensor1 x, Tensor1 _ -> false 
-  | Tensor2 x, Tensor2 _ -> true 
-  | Tensor3 vec, Tensor3 _ ->  false
-  | Tensor4 mat, Tensor4 _-> true 
-
