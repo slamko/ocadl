@@ -17,93 +17,6 @@ module type Matrixable = sig
       stride : int;
     } [@@deriving show]
 end
- 
-
-module type Tensor = sig
-  include Matrixable
-
-  type shape
-
-  val make : row -> col -> float -> float t
-
-  val create : row -> col -> (row -> col -> 'a) -> 'a t
-
-  val random : row -> col -> float t
-
-  val zero : 'a t -> float t
-
-  val of_array : row -> col -> 'a array -> 'a t
-
-  val of_list : row -> col -> 'a list -> 'a t
-
-  val shape_match : 'a t -> 'b t -> unit
-
-  val shape_size : shape -> int
-
-  val get_shape : 'a t -> shape
-
-  val shape_zero : unit -> shape 
-
-  val size : 'a t -> int
-
-  val get : row -> col -> 'a t -> 'a
-
-  val get_first : 'a t -> 'a
-
-  val get_first_opt : 'a t -> 'a option
-
-  val get : row -> col -> 'a t -> 'a
-
-  val set : row -> col -> 'a t -> 'a -> unit
-
-  val set_bind : row -> col -> 'a t -> 'a -> 'a t
-
-  (* val set_option : row -> col -> 'a t -> 'a option -> 'a t option *)
-
-  val reshape : row -> col -> 'a t -> 'a t
-
-  val flatten3d : 'a t array -> 'a array
-
-  val flatten : 'a t t -> 'a t
-
-  val compare : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
-
-  val compare_float : float t -> float t -> bool
-
-  (* val submatrix : row -> col -> row -> col -> 'a t -> 'a t *)
-  val scale : float -> float t -> float t
-
-  val add_const : float -> float t -> float t
-
-  val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
-
-  val fold_right : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
-
-  val map : ('a -> 'b) -> 'a t -> 'b t
-
-  val mapi : (row -> col -> 'a -> 'b) -> 'a t -> 'b t
-
-  val iteri2 : (row -> col -> 'a -> 'b -> unit) -> 'a t -> 'b t -> unit
-
-  val iter2 : ('a -> 'b -> unit) -> 'a t -> 'b t -> unit
- 
-  val iteri : (row -> col -> 'a -> unit) -> 'a t -> unit
-
-  val foldi_left : (row -> col -> 'a -> 'b -> 'a) -> 'a -> 'b t -> 'a
-
-  val foldi_right : (row -> col -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
-
-  val iter : ('a -> unit) -> 'a t -> unit
-  
-  val add : float t -> float t -> float t
-  
-  val sub : float t -> float t -> float t
-
-  val sum : float t -> float
-
-   val print : float t -> unit
-
-end
 
 module TensorBase = struct
 type 'a t = {
@@ -143,6 +56,9 @@ module Tensor (T : Matrixable) = struct
    
   let shape_zero () =
     { dim1 = (Row 0) ; dim2 = (Col 0) }
+
+  let make_shape row col =
+    { dim1 = row; dim2 = col }
   
   let get_size mat =
     match size mat with
@@ -248,6 +164,9 @@ let iter proc mat =
 
 let random row col =
   create row col (fun _ _ -> (Random.float 2. -. 1.))
+
+let random_of_shape shape =
+  create shape.dim1 shape.dim2 (fun _ _ -> (Random.float 2. -. 1.))
 
 let opt_iter proc mat =
   let rec iter_rec (Row r) (Col c) proc mat =
@@ -608,25 +527,18 @@ module rec Vector : sig
       stride : int;
     } [@@deriving show]
 
-  type shape
-
-  val make : row -> col -> float -> float t
-
-  val create : row -> col -> (row -> col -> 'a) -> 'a t
-
-  val random : row -> col -> float t
-
-  val zero : 'a t -> float t
-
-  val of_array : row -> col -> 'a array -> 'a t
-
-  val of_list : row -> col -> 'a list -> 'a t
+   type shape = {
+       dim1 : row;
+       dim2 : col;
+     }
 
   val shape_match : 'a t -> 'b t -> unit
 
   val shape_size : shape -> int
 
   val get_shape : 'a t -> shape
+
+  val make_shape : col -> shape
 
   val shape_zero : unit -> shape 
 
@@ -638,9 +550,9 @@ module rec Vector : sig
 
   val get_first_opt : 'a t -> 'a option
 
-  val get : row -> col -> 'a t -> 'a
+  val get : col -> 'a t -> 'a
 
-  val set : row -> col -> 'a t -> 'a -> unit
+  val set : col -> 'a t -> 'a -> unit
 
   val set_bind : row -> col -> 'a t -> 'a -> 'a t
 
@@ -656,7 +568,6 @@ module rec Vector : sig
 
   val compare_float : float t -> float t -> bool
 
-  (* val submatrix : row -> col -> row -> col -> 'a t -> 'a t *)
   val scale : float -> float t -> float t
 
   val add_const : float -> float t -> float t
@@ -687,12 +598,11 @@ module rec Vector : sig
 
   val sum : float t -> float
 
-   val print : float t -> unit
-
-
-  val make : col -> float -> float t
+  val print : float t -> unit
 
   val create : col -> (row -> col -> 'a) -> 'a t
+
+  val make : col -> 'a -> 'a t
 
   val random : col -> float t
 
@@ -731,8 +641,14 @@ end = struct
   let get col vec =
     get (Row 0) col vec
 
+  let set col vec =
+    set (Row 0) col vec
+
   let dim1 vec =
     vec.cols
+
+  let make_shape cols =
+    make_shape (Row 1) cols
 
 end
 and Mat : sig
@@ -746,9 +662,12 @@ and Mat : sig
       stride : int;
     } [@@deriving show]
 
-  type shape
+   type shape = {
+       dim1 : row;
+       dim2 : col;
+     }
 
-  val make : row -> col -> float -> float t
+  val make : row -> col -> 'a -> 'a t
 
   val create : row -> col -> (row -> col -> 'a) -> 'a t
 
@@ -763,6 +682,10 @@ and Mat : sig
   val shape_match : 'a t -> 'b t -> unit
 
   val shape_size : shape -> int
+
+  val make_shape : row -> col -> shape
+
+  val rotate180 : 'a t -> 'a t
 
   val get_shape : 'a t -> shape
 
@@ -832,8 +755,8 @@ and Mat : sig
 
   val mult : float t -> float t -> float t
 
-  (* val convolve : float t -> padding:int -> stride:int -> shape -> *)
-                 (* float t -> float t *)
+  val convolve : float t -> padding:int -> stride:int -> shape ->
+                 float t -> float t
 
   val dim1 : 'a t -> row
 
@@ -847,7 +770,9 @@ end = struct
   let to_vec mat =
     Vector.of_array mat.cols mat.matrix
 
-  let zero_of_shape shape = shape
+  let zero_of_shape shape =
+    make shape.dim1 shape.dim2 0.
+
   let mult mat1 mat2 =
     if col mat1.cols <> row mat2.rows
     then invalid_arg "Mult: Matrix geometry does not match."

@@ -1,4 +1,6 @@
 open Types
+open Alias
+open Common
 open Deepmath
 
 let data arr =
@@ -42,17 +44,17 @@ let read_mnist_train_data fname shape =
   |> List.map @@ list_split 1 
   |> List.map
        (fun (res_list, data_list) ->
-         let res_mat = Mat.make (Row 1) (Col 10) 0. in
-         let (Col col) = Mat.Col (List.hd res_list |> int_of_float) in
-         Mat.set (Row 0) (Col col) res_mat 1.;
+         let res_vec = Vec.make (Col 10) 0. in
+         let (Col col) = Col (List.hd res_list |> int_of_float) in
+         Vec.set (Col col) res_vec 1.;
          let inp =
            (data_list
             |> Mat.of_list
                  shape.Mat.dim1
                  shape.Mat.dim2)
-           |> Mat.make (Row 1) (Col shape.Mat.dim3) in
+           |> Vec.make (Col 1) in
 
-         (Tensor1 res_mat,
+         (Tensor1 res_vec,
           Tensor3 inp))
 
 let to_json_list proc l =
@@ -140,35 +142,34 @@ let make_input3d shape =
   }
 
 let make_fully_connected ~ncount ~act ~deriv layers =
-  let open Mat in
   let prev_ncount =
     match layers.build_list with
     | Build_Cons (lay, _) ->
        (match lay with
         | FullyConnected (meta, _) -> meta.out_shape
         | Flatten meta -> meta.out_shape
-       ) |> shape_size
+       ) |> Shape.shape_size
   in
 
   let meta =
-    { Fully_Connected.
+    { Fully_connected.
       activation = act;
       derivative = deriv;
-      out_shape  = make_shape (Row 1) (Col ncount);
+      out_shape  = Shape.make_shape_vec (Vec.make_shape (Col ncount));
     }
   in
 
   let params =
-    { Fully_Connected.
-      weight_mat = random (Row prev_ncount) (Col ncount);
-      bias_mat = random (Row 1) (Col ncount);
+    { Fully_connected.
+      weight_mat = Mat.random (Row prev_ncount) (Col ncount);
+      bias_mat = Mat.random (Row 1) (Col ncount);
     } 
   in
 
   let layer = FullyConnected (meta, params); in
   { layers with build_list = Build_Cons (layer, layers.build_list) }
 
-let make_conv2d ~kernel_shape ~kernel_num
+let make_conv3d ~kernel_shape ~kernel_num
       ~act ~deriv ~padding ~stride layers =
   let open Mat in
 
@@ -176,7 +177,7 @@ let make_conv2d ~kernel_shape ~kernel_num
     match layers.build_list with
     | Build_Cons (lay, _) ->
        (match lay with
-        | Conv2D (meta, _) -> meta.out_shape
+        | Conv3D (meta, _) -> meta.out_shape
         | Pooling meta -> meta.out_shape
         | Input3 meta -> meta.shape
        )
@@ -193,11 +194,12 @@ let make_conv2d ~kernel_shape ~kernel_num
       (Col (new_dim
               (get_col prev_shape.dim2)
               (get_col kernel_shape.dim2)))
-      1 in
+      1
+  in
 
   
   let meta = {
-      Conv2D.
+      Conv3D.
       padding;
       stride;
       act;
@@ -210,12 +212,12 @@ let make_conv2d ~kernel_shape ~kernel_num
                      (fun _ _ -> random_of_shape kernel_shape) in
 
   let params = {
-      Conv2D.
+      Conv3D.
       kernels;
       bias_mat = random (Row 1) kernels.cols
     } in
 
-  let layer = Conv2D (meta, params) in
+  let layer = Conv3D (meta, params) in
   { layers with build_list = Build_Cons(layer, layers.build_list) }
 
 let make_pooling ~filter_shape ~stride ~f ~fbp layers =

@@ -1,5 +1,6 @@
 open Common
 open Types
+open Alias
 
 let sigmoid (x : float) : float =
   1. /. (1. +. exp(-. x))

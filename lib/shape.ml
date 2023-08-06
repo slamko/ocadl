@@ -49,7 +49,10 @@ let shape_eq : type a. a shape -> a shape -> bool =
   | ShapeMat m1, ShapeMat m2 ->
      (if compare m1 m2 <> 0 
       then false
-      else true)
+      else true) 
+
+let make_shape_vec vec_shape =
+  ShapeVec vec_shape
 
 let shape_match mat1 mat2 =
   let shape = get_shape mat2 in
