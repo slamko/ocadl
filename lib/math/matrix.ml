@@ -11,6 +11,7 @@ module VectorT : MATRIXABLE = struct
       start_col : col;
       stride : int;
     } [@@deriving show]
+
 end
 
 module MatrixT : MATRIXABLE = struct
@@ -23,6 +24,7 @@ module MatrixT : MATRIXABLE = struct
       start_col : col;
       stride : int;
     } [@@deriving show]
+
 end
 
 module VectorBase = Tensor (VectorT)
@@ -67,23 +69,11 @@ module type MATRIX_COMMON = sig
 end
 
 module rec Vector : sig
-   type shape = {
-       dim1 : row;
-       dim2 : col;
-     }
+  include MATRIX_COMMON
 
-   include MATRIX_COMMON
-
-  val shape_match : 'a t -> 'b t -> unit
-
-  val shape_size : shape -> int
-
-  val get_shape : 'a t -> shape
-
-  val make_shape : col -> shape
-
-  val shape_zero : unit -> shape 
-
+  type shape = {
+      dim1 : col
+    }
   val size : 'a t -> int
 
   val get : row -> col -> 'a t -> 'a
@@ -130,12 +120,28 @@ module rec Vector : sig
 
   val dim1 : 'a t -> col
 
+  val shape_size : shape -> int
+
+  val get_shape : 'a t -> shape
+
+  val make_shape : col -> shape
+
 end = struct
   include VectorBase
   module Base = VectorBase
 
+  type shape = {
+      dim1 : col
+    }
+
+  let get_shape vec =
+    { dim1 = vec.cols }
+
+  let shape_size shape =
+    col shape.dim1
+
   let make cols init =
-    VectorBase.make (Row 1) cols init
+    Base.make (Row 1) cols init
 
   let create cols finit =
     Base.create (Row 1) cols finit
@@ -161,8 +167,8 @@ end = struct
   let dim1 vec =
     vec.cols
 
-  let make_shape cols =
-    make_shape (Row 1) cols
+  let make_shape dim1 =
+    { dim1 }
 
 end
 and Mat : sig
@@ -353,5 +359,9 @@ let convolve mat ~padding ~stride out_shape kernel =
     in
 
     convolve_rec kernel 0 0 res_mat
+
+
+  let random_of_shape shape =
+    create shape.dim1 shape.dim2 (fun _ _ -> (Random.float 2. -. 1.))
 
 end
