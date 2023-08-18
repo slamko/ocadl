@@ -1,22 +1,30 @@
 open Common
 
 module type MATRIXABLE = sig
-  type 'a t = {
-      matrix : 'a array;
-      rows : row;
-      cols : col;
+  type 'a t [@@deriving show]
 
-      start_row : row;
-      start_col : col;
-      stride : int;
-    } 
+  val matrix : 'a t -> 'a array
+
+  val rows : 'a t -> row 
+  val cols : 'a t -> col 
+
+  val irows : 'a t -> int 
+  val icols : 'a t -> int 
+
+  val stride : 'a t -> int
+  val start_row : 'a t -> row
+  val start_col : 'a t -> col
+
+  val init : 'a array -> row -> col -> int -> row -> col -> 'a t
 end
 
 
 module Tensor (T : MATRIXABLE) = struct
   include T
  
-  let size mat = get_row mat.rows |> ( * ) @@ get_col mat.cols
+  let size mat = rows mat
+                 |> get_row
+                 |> ( * ) @@ get_col @@ cols mat
 
   type shape = {
       dim1 : row;
@@ -24,15 +32,15 @@ module Tensor (T : MATRIXABLE) = struct
     }
 
   let get_shape mat =
-    { dim1 = mat.rows;
-      dim2 = mat.cols
+    { dim1 = rows mat;
+      dim2 = cols mat;
     }
 
   let shape_size shape =
     row shape.dim1 * col shape.dim2
 
   let shape_match mat1 mat2 =
-    if row mat1.rows <> row mat2.rows || col mat1.cols <> col mat2.cols
+    if irows mat1 <> irows mat2 || icols mat1 <> icols mat2
     then failwith "Matrix shapes mismatch."
    
   let shape_zero () =
@@ -47,53 +55,54 @@ module Tensor (T : MATRIXABLE) = struct
     | size -> Size size
   
   let get_first_index mat =
-    (get_row mat.start_row * mat.stride) + get_col mat.start_col
+    (row @@ start_row mat) * stride mat
+    |> (+) @@ get_col @@ start_col mat
   
   let get_index row col mat =
-    get_first_index mat + (row * mat.stride) + col
+    get_first_index mat + (row * stride mat) + col
   
   let get_res (Row row) (Col col) mat =
-    if row >= get_row mat.rows
+    if row >= irows mat
     then Error "get: Matrix row index out of bounds"
     else
-      if col >= get_col mat.cols
+      if col >= icols mat
     then Error "get: Matrix col index out of bounds"
       else
-      Ok (get_index row col mat |> Array.get mat.matrix)
+      Ok (get_index row col mat |> Array.get @@ matrix mat)
   
 let get (Row row) (Col col) mat =
-  if row >= get_row mat.rows
+  if row >= irows mat
   then invalid_arg "get: Matrix row index out of bounds"
   else
-    if col >= get_col mat.cols
+    if col >= icols mat
     then invalid_arg "get: Matrix col index out of bounds"
     else
-      get_index row col mat |> Array.get mat.matrix
+      get_index row col mat |> Array.get (matrix mat)
 
 let get_raw row col mat =
   get (Row row) (Col col) mat
 
 let set_bind_res (Row row) (Col col) mat value =
-  if row >= get_row mat.rows
+  if row >= irows mat
   then Error "set: Matrix row index out of bounds"
   else
-    if col >= get_col mat.cols
+    if col >= icols mat
     then Error "set: Matrix col index out of bounds"
     else
-      begin Array.set mat.matrix (get_index row col mat) value;
+      begin Array.set (matrix mat) (get_index row col mat) value;
             Ok (mat) end
 
 let set_res row col mat value =
   set_bind_res row col mat value 
 
 let set_bind (Row row) (Col col) mat value =
-  if row >= get_row mat.rows
+  if row >= irows mat
   then invalid_arg "set: Matrix row index out of bounds"
   else
-    if col >= get_col mat.cols
+    if col >= icols mat
     then invalid_arg "set: Matrix col index out of bounds"
     else begin
-        Array.set mat.matrix (get_index row col mat) value;
+        Array.set (matrix mat) (get_index row col mat) value;
         mat end
 
 let set row col mat value =
@@ -115,9 +124,9 @@ let of_array rows cols matrix =
     let stride = col in
     let start_row = Row 0 in
     let start_col = Col 0 in
-    { matrix; rows; cols; start_row; start_col; stride }
+    init matrix rows cols stride start_row start_col
 
-let qto_array mat = mat.matrix
+let qto_array mat = matrix mat
 
 let of_array_size matrix =
   of_array (Row 1) (Col (Array.length matrix)) matrix
@@ -127,7 +136,7 @@ let make (Row rows) (Col cols) init_val =
   |> of_array (Row rows) (Col cols)
 
 let qcopy mat =
-  of_array mat.rows mat.cols (Array.copy mat.matrix)
+  of_array (rows mat) (cols mat) (Array.copy @@ matrix mat)
 
 let create (Row rows) (Col cols) finit =
   Array.init (rows * cols) (fun i ->
@@ -137,8 +146,8 @@ let create (Row rows) (Col cols) finit =
 let empty () = of_array (Row 0) (Col 0) [| |]
 
 let iter proc mat =
-  for r = 0 to get_row mat.rows - 1
-  do for c = 0 to get_col mat.cols - 1
+  for r = 0 to irows mat - 1
+  do for c = 0 to icols mat - 1
      do proc @@ get (Row r) (Col c) mat;
      done
   done
@@ -151,9 +160,9 @@ let random_of_shape shape =
 
 let opt_iter proc mat =
   let rec iter_rec (Row r) (Col c) proc mat =
-    if r >= get_row mat.rows
+    if r >= irows mat
     then Ok ()
-    else if c >= get_col mat.cols
+    else if c >= icols mat
     then iter_rec (Row (r + 1)) (Col 0) proc mat
     else 
       match proc @@ get_raw r c mat with
@@ -165,8 +174,8 @@ let opt_iter proc mat =
   iter_rec (Row 0) (Col 0) proc mat
 
 let iteri proc mat =
-  for r = 0 to get_row mat.rows - 1
-  do for c = 0 to get_col mat.cols - 1
+  for r = 0 to irows mat - 1
+  do for c = 0 to icols mat - 1
      do proc (Row r) (Col c) @@ get (Row r) (Col c) mat;
      done
   done
@@ -175,8 +184,8 @@ let iteri3 proc mat1 mat2 mat3 =
   shape_match mat1 mat2;
   shape_match mat1 mat3;
 
-  for r = 0 to row mat1.rows - 1
-  do for c = 0 to get_col mat1.cols - 1
+  for r = 0 to irows mat1- 1
+  do for c = 0 to icols mat1 - 1
      do
        proc (Row r) (Col c)
          (get (Row r) (Col c) mat1)
@@ -191,8 +200,8 @@ let iter3 proc mat1 mat2 mat3 =
 
 let iter2 proc mat1 mat2 =
   shape_match mat1 mat2 ;
-  for r = 0 to get_row mat1.rows - 1
-  do for c = 0 to get_col mat1.cols - 1
+  for r = 0 to irows mat1 - 1
+  do for c = 0 to icols mat1 - 1
      do
        get (Row r) (Col c) mat2
        |> proc @@ get (Row r) (Col c) mat1 ;
@@ -202,8 +211,8 @@ let iter2 proc mat1 mat2 =
 
 let iteri2 proc mat1 mat2 =
   shape_match mat1 mat2 ;
-  for r = 0 to get_row mat1.rows - 1
-  do for c = 0 to get_col mat1.cols - 1
+  for r = 0 to irows mat1 - 1
+  do for c = 0 to icols mat1 - 1
      do get (Row r) (Col c) mat2
         |> proc (Row r) (Col c) @@ get (Row r) (Col c) mat1;
      done
@@ -221,7 +230,7 @@ let mapi3 proc mat1 mat2 mat3 =
                      (mat1 |> get_first)
                      (mat2 |> get_first)
                      (mat3 |> get_first)
-                   |> make mat1.rows mat1.cols in
+                   |> make (rows mat1) (cols mat1) in
      
     iteri3 (fun r c value1 value2 value3 ->
         proc r c value1 value2 value3
@@ -239,7 +248,7 @@ let mapi2 proc mat1 mat2 =
      let res_mat = proc (Row 0) (Col 0)
                      (mat1 |> get_first)
                      (mat2 |> get_first)
-                   |> make mat1.rows mat1.cols in
+                   |> make (rows mat1) (cols mat1) in
      
      let _ = iteri2 (fun r c value1 value2  ->
                  proc r c value1 value2 |> set r c res_mat)
@@ -256,7 +265,7 @@ let mapi proc mat =
      let res_mat = mat
                    |> get_first
                    |> proc (Row 0) (Col 0)
-                   |> make mat.rows mat.cols in
+                   |> make (rows mat) (cols mat) in
      
      iteri (fun r c value1 ->
          proc r c value1
@@ -270,12 +279,12 @@ let map proc mat =
 
 let opt_mapi proc mat =
   let* res_mat = proc (Row 0) (Col 0) (mat |> get_first)
-                 >>| make mat.rows mat.cols in
+                 >>| make (rows mat) (cols mat) in
   
   let rec map_rec (Row r) (Col c) proc mat =
-    if r >= get_row mat.rows
+    if r >= get_row (rows mat)
     then Ok res_mat
-    else if c >= get_col mat.cols
+    else if c >= get_col (cols mat)
     then map_rec (Row (r + 1)) (Col 0) proc mat
     else 
       match proc (Row r) (Col c) @@ get_raw r c mat with
@@ -309,7 +318,7 @@ let scale value mat =
 let add_const value mat =
   mat |> map @@ ( +. ) value
 let zero mat =
-  make mat.rows mat.cols 0.
+  make (rows mat) (cols mat) 0.
 
 let of_list rows cols lst =
   let matrix = Array.of_list lst in
@@ -318,7 +327,7 @@ let of_list rows cols lst =
   let start_row = Row 0 in
   let start_col = Col 0 in
   
-  { matrix; rows; cols; start_row; start_col; stride }
+  T.init matrix rows cols stride start_row start_col 
 
 let print mat =
   iteri (fun (Row r) (Col c) value ->
@@ -343,30 +352,22 @@ let sub mat1 mat2 =
   map2 (-.) mat1 mat2 
 
 let dim1 mat =
-  mat.rows
+  (rows mat)
 
 let dim2 mat =
-  mat.cols
+  (cols mat)
 
 let reshape rows cols mat =
-  of_array rows cols mat.matrix
+  of_array rows cols @@ matrix mat
 
 let submatrix start_row start_col rows cols mat =
-  if get_row start_row + get_row rows > get_row mat.rows
-     || get_col start_col + get_col cols > get_col mat.cols
+  if get_row start_row + get_row rows > irows mat
+     || get_col start_col + get_col cols > icols mat
   then invalid_arg "Submatrix: Index out of bounds."
   else
   
-  let res_arr = Array.make (get_row rows * get_col cols) mat.matrix.(0) in
-  let stride (Col col) = col in
-  let res_mat = { matrix = res_arr;
-                  rows = rows;
-                  cols = cols;
-                  start_row = start_row;
-                  start_col = start_col;
-                  stride = stride cols;
-                }
-  in
+  let res_arr = Array.make (get_row rows * get_col cols) (matrix mat).(0) in
+  let res_mat = T.init res_arr rows cols (col cols) start_row start_col in
   
   iteri (fun r c value -> set r c res_mat value) mat;
   res_mat
@@ -416,7 +417,7 @@ let flatten mat_mat =
      
      iter (fun  mat ->
          iter (fun value ->
-             res_mat.matrix.(!index) <- value;
+             (matrix res_mat).(!index) <- value;
              index := !index + 1) mat) mat_mat;
      
      res_mat
@@ -439,14 +440,14 @@ let reshape3d base mat =
   if base_size <> size mat
   then failwith "Reshape3D: invalid matrix size.";
 
-  let res_mat = make base.rows base.cols (get_first base) in
+  let res_mat = make (rows base) (cols base) (get_first base) in
   
   foldi_left (fun r c index inner ->
       
       let subm = submatrix
                    (Row 0) (Col index)
                    (Row 1) (Col (size inner)) mat
-                 |> reshape inner.rows inner.cols
+                 |> reshape (rows inner) (cols inner)
       in
 
       set r c res_mat subm ;
@@ -456,8 +457,8 @@ let reshape3d base mat =
   res_mat
 
 let rotate180 mat =
-  let mrows = get_row mat.rows in
-  let mcols = get_col mat.cols in
+  let mrows = get_row (rows mat) in
+  let mcols = get_col (cols mat) in
   mapi (fun (Row r) (Col c) _ ->
       get_raw (mrows - r - 1) (mcols - c - 1) mat 
       (* |> set_raw r c mat; *)

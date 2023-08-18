@@ -2,23 +2,36 @@ open Common
 open Tensor
 
 module VectorT : MATRIXABLE = struct
-  type ('a, 'b) mat = {
+  type 'a vec = {
       matrix : 'a array;
-      rows : row;
       cols : col;
+      start_col : col
+    }[@@deriving show]
 
-      start_row : row;
-      start_col : col;
-      stride : int;
-    }
+  type 'a t = 'a vec [@@deriving show]
 
-  type 'a t = ('a, 'a) mat
+  let matrix vec = vec.matrix
 
+  let rows _ = Row 1
+  let cols vec = vec.cols
+
+  let irows _ = 1
+  let icols vec = col vec.cols
+
+  let stride _ = 1
+
+  let start_row _ = Row 0
+  let start_col vec = vec.start_col
+
+  let init matrix rows cols stride start_row start_col =
+    if row rows <> 1 || stride <> 1 || row start_row <> 0
+    then invalid_arg "Invalid vector initializer"
+    else {matrix; cols; start_col}
 
 end
 
 module MatrixT : MATRIXABLE = struct
-  type ('a, 'b) t = {
+  type 'a mat = {
       matrix : 'a array;
       rows : row;
       cols : col;
@@ -26,7 +39,25 @@ module MatrixT : MATRIXABLE = struct
       start_row : row;
       start_col : col;
       stride : int;
-    } [@@deriving show]
+    }[@@deriving show]
+
+  type 'a t = 'a mat [@@deriving show]
+
+  let matrix mat = mat.matrix
+
+  let rows mat = mat.rows
+  let cols mat = mat.cols
+
+  let irows mat = row mat.rows
+  let icols mat = col mat.cols
+
+  let stride mat = mat.stride
+
+  let start_row mat = mat.start_row
+  let start_col mat = mat.start_col
+
+  let init matrix rows cols stride start_row start_col =
+    {matrix; rows; cols; stride; start_row; start_col}
 
 end
 
@@ -34,24 +65,9 @@ module VectorBase = Tensor (VectorT)
 
 module MatrixBase = Tensor (MatrixT)
 
-module type DEF = sig
- type ('a, 'b) mat = {
-      matrix : 'a array;
-      rows : row;
-      cols : col;
-
-      start_row : row;
-      start_col : col;
-      stride : int;
-    } [@@deriving show]
-
-end
-
 module rec Vector : sig
-  include DEF
-  type v 
 
-  type 'a t = ('a, v) mat
+  type 'a t = 'a VectorT.t [@@deriving show]
 
   val flatten3d : 'a t array -> 'a array
 
@@ -145,26 +161,12 @@ end = struct
   include VectorBase
   module Base = VectorBase
 
- type ('a, 'b) mat = {
-      matrix : 'a array;
-      rows : row;
-      cols : col;
-
-      start_row : row;
-      start_col : col;
-      stride : int;
-    } [@@deriving show]
-  type v 
-
-  type 'a t = ('a, v) mat
-
-
   type shape = {
       dim1 : col
     }
 
   let get_shape vec =
-    { dim1 = vec.cols }
+    { dim1 = cols vec }
 
   let shape_size shape =
     col shape.dim1
@@ -185,7 +187,7 @@ end = struct
     Base.of_list (Row 1) cols lst
 
   let to_mat (vec : 'a t) : 'a Mat.t =
-    Mat.of_array (Row 1) vec.cols vec.matrix
+    Mat.of_array (Row 1) (cols vec) (matrix vec)
 
   let get col vec =
     get (Row 0) col vec
@@ -194,7 +196,7 @@ end = struct
     set (Row 0) col vec
 
   let dim1 vec =
-    vec.cols
+    cols vec
 
   let make_shape dim1 =
     { dim1 }
@@ -205,10 +207,8 @@ and Mat : sig
       dim1 : row;
       dim2 : col;
     }
- include DEF
-  type v 
 
-  type 'a t = ('a, v) mat
+  type 'a t = 'a MatrixT.t [@@deriving show]
 
   val flatten3d : 'a t array -> 'a array
 
@@ -324,37 +324,24 @@ and Mat : sig
 end = struct 
   include MatrixBase
 
- type ('a, 'b) mat = {
-      matrix : 'a array;
-      rows : row;
-      cols : col;
-
-      start_row : row;
-      start_col : col;
-      stride : int;
-    } [@@deriving show]
-  type v 
-
-  type 'a t = ('a, v) mat
-
   let to_vec mat =
-    Vector.of_array mat.cols mat.matrix
+    Vector.of_array (cols mat) (matrix mat)
 
   let zero_of_shape shape =
     make shape.dim1 shape.dim2 0.
 
   let mult mat1 mat2 =
-    if col mat1.cols <> row mat2.rows
+    if col (cols mat1) <> row (rows mat2)
     then invalid_arg "Mult: Matrix geometry does not match."
     else
       let res_mat =
-      Array.make (get_row mat1.rows * get_col mat2.cols) 0.
-      |> of_array mat1.rows mat2.cols
+      Array.make (get_row (rows mat1) * get_col (cols mat2)) 0.
+      |> of_array (rows mat1) (cols mat2)
     in
     
-    for r = 0 to get_row res_mat.rows - 1
-    do for ac = 0 to get_col mat1.cols - 1 
-       do for c = 0 to get_col res_mat.cols - 1 
+    for r = 0 to irows res_mat - 1
+    do for ac = 0 to get_col (cols mat1) - 1 
+       do for c = 0 to icols res_mat - 1 
           do get_raw r ac mat1
              |> ( *. ) @@ get_raw ac c mat2
              |> ( +. ) @@ get_raw r c res_mat
@@ -387,17 +374,12 @@ let padded padding mat =
       )
 
 let shadow_submatrix start_row start_col rows cols mat =
-  if get_row start_row + get_row rows > get_row mat.rows
-     || get_col start_col + get_col cols > get_col mat.cols
+  if get_row start_row + get_row rows > irows mat
+     || get_col start_col + get_col cols > icols mat
   then invalid_arg "Shadow submatrix: Index out of bounds."
   else
-    let res_mat = { matrix = mat.matrix;
-                    rows = rows;
-                    cols = cols;
-                    start_row = start_row;
-                    start_col = start_col;
-                    stride = get_col mat.cols;
-                  }
+    let res_mat =
+      MatrixBase.init (matrix mat) rows cols (icols mat) start_row start_col 
     in
     res_mat
 
@@ -424,7 +406,7 @@ let convolve mat ~padding ~stride out_shape kernel =
         (* let a = 4 in *)
         (* Printf.eprintf "r: %d; c: %d\n" r c ; *)
         let submat = shadow_submatrix (Row r) (Col c)
-                       kernel.rows kernel.cols base in
+                       (rows kernel) (cols kernel) base in
 
         shape_match kernel submat;
         let conv = fold_left2

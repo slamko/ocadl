@@ -16,14 +16,6 @@
 (documentation https://url/to/documentation)
 
 (package
- (name mpp)
- (synopsis "A short synopsis")
- (description "A longer description")
- (depends ocaml dune)
- (tags
-  (topics "to describe" your project)))
-
-(package
  (name ocadl)
  (synopsis "A short synopsis")
  (description "A longer description")

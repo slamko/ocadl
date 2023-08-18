@@ -4,9 +4,9 @@ open Alias
 
 type _ shape =
   | ShapeMatVec : (Mat.shape * Vec.shape) -> mat vector tensor shape
+  | ShapeMat    : (Mat.shape) -> mat tensor shape
   | ShapeVec    : (Vec.shape) -> vec tensor shape
   | ShapeMatMat : (Mat.shape * Mat.shape) -> mat matrix tensor shape
-  | ShapeMat    : (Mat.shape) -> mat tensor shape
 
 let shape_size : type a. a shape -> int =
   function 
