@@ -17,7 +17,7 @@ type ('inp, 'out) backprop_layer = {
   }
 
 let fully_connected_forward meta params tens =
-  let open Fully_Connected in
+  let open Fully_connected in
   Mat.mult tens params.weight_mat
   |> Mat.add params.bias_mat
   |> Mat.map meta.activation

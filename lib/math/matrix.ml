@@ -2,7 +2,7 @@ open Common
 open Tensor
 
 module VectorT : MATRIXABLE = struct
-  type 'a t = {
+  type ('a, 'b) mat = {
       matrix : 'a array;
       rows : row;
       cols : col;
@@ -10,12 +10,15 @@ module VectorT : MATRIXABLE = struct
       start_row : row;
       start_col : col;
       stride : int;
-    } [@@deriving show]
+    }
+
+  type 'a t = ('a, 'a) mat
+
 
 end
 
 module MatrixT : MATRIXABLE = struct
-  type 'a t = {
+  type ('a, 'b) t = {
       matrix : 'a array;
       rows : row;
       cols : col;
@@ -31,9 +34,25 @@ module VectorBase = Tensor (VectorT)
 
 module MatrixBase = Tensor (MatrixT)
 
-module type MATRIX_COMMON = sig
-  include MATRIXABLE
-  
+module type DEF = sig
+ type ('a, 'b) mat = {
+      matrix : 'a array;
+      rows : row;
+      cols : col;
+
+      start_row : row;
+      start_col : col;
+      stride : int;
+    } [@@deriving show]
+
+end
+
+module rec Vector : sig
+  include DEF
+  type v 
+
+  type 'a t = ('a, v) mat
+
   val flatten3d : 'a t array -> 'a array
 
   val flatten : 'a t t -> 'a t
@@ -66,14 +85,10 @@ module type MATRIX_COMMON = sig
 
   val print : float t -> unit
 
-end
-
-module rec Vector : sig
-  include MATRIX_COMMON
-
   type shape = {
       dim1 : col
     }
+
   val size : 'a t -> int
 
   val get : row -> col -> 'a t -> 'a
@@ -130,6 +145,20 @@ end = struct
   include VectorBase
   module Base = VectorBase
 
+ type ('a, 'b) mat = {
+      matrix : 'a array;
+      rows : row;
+      cols : col;
+
+      start_row : row;
+      start_col : col;
+      stride : int;
+    } [@@deriving show]
+  type v 
+
+  type 'a t = ('a, v) mat
+
+
   type shape = {
       dim1 : col
     }
@@ -176,8 +205,42 @@ and Mat : sig
       dim1 : row;
       dim2 : col;
     }
+ include DEF
+  type v 
 
-  include MATRIX_COMMON
+  type 'a t = ('a, v) mat
+
+  val flatten3d : 'a t array -> 'a array
+
+  val flatten : 'a t t -> 'a t
+
+  val compare : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
+
+  val compare_float : float t -> float t -> bool
+
+  val scale : float -> float t -> float t
+
+  val add_const : float -> float t -> float t
+
+  val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
+
+  val fold_right : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+
+  val map : ('a -> 'b) -> 'a t -> 'b t
+
+  val map2 : ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
+  
+  val map3 : ('a -> 'b -> 'c -> 'd) -> 'a t -> 'b t -> 'c t -> 'd t
+
+  val iter : ('a -> unit) -> 'a t -> unit
+  
+  val add : float t -> float t -> float t
+  
+  val sub : float t -> float t -> float t
+
+  val sum : float t -> float
+
+  val print : float t -> unit
 
   val make : row -> col -> 'a -> 'a t
 
@@ -260,6 +323,19 @@ and Mat : sig
 
 end = struct 
   include MatrixBase
+
+ type ('a, 'b) mat = {
+      matrix : 'a array;
+      rows : row;
+      cols : col;
+
+      start_row : row;
+      start_col : col;
+      stride : int;
+    } [@@deriving show]
+  type v 
+
+  type 'a t = ('a, v) mat
 
   let to_vec mat =
     Vector.of_array mat.cols mat.matrix

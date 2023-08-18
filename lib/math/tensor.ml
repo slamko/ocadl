@@ -9,7 +9,7 @@ module type MATRIXABLE = sig
       start_row : row;
       start_col : col;
       stride : int;
-    } [@@deriving show]
+    } 
 end
 
 
@@ -403,7 +403,7 @@ let fold_right2 proc mat1 mat2 init =
   let _ = iter2 (fun val1 val2 -> acc := proc val1 val2 !acc) mat1 mat2 in
   !acc
 
-let flatten (mat_mat : 'a t t) =
+let flatten mat_mat =
   match get_size mat_mat with
   | Empty -> empty ()
   | Size _ -> 
