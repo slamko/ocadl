@@ -13,7 +13,7 @@ type meta = {
     out_shape : vec tensor shape;
   }
 
-type input = float matrix tensor
-type out = float matrix tensor
+type input = float vector tensor
+type out = float vector tensor
 
 type t = meta * params

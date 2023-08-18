@@ -135,6 +135,9 @@ let restore_nn_from_json fname nn =
   (* List.hd weights |> List.length |> print_int *)
  *)
 
+(* let x = *)
+  (* (Build_Cons (FullyConnected {FullyConnected}, (Build_Cons (Input3, Build_Nil)))) *)
+
 let make_input3d shape = 
   let in_layer = Input3 { shape; } in
   { build_input = in_layer;
@@ -212,7 +215,7 @@ let make_conv3d ~kernel_shape ~kernel_num
       out_shape;
    } in
 
-  let kernels = create (Row kernel_num) prev_vec.dim2
+  let kernels = create (Row kernel_num) prev_vec.dim1
                      (fun _ _ -> random_of_shape kernel_shape) in
 
   let params = {
@@ -241,7 +244,7 @@ let make_pooling ~filter_shape ~stride ~f ~fbp layers =
     ((in_dim +  - filt_dim)
      / stride) + 1 in
 
-  let Shape.ShapeMatVec(prev_image_shape, prev_vec) = prev_shape in
+  let Shape.ShapeMatVec(prev_image_shape, prev_out_shape) = prev_shape in
   let Shape.ShapeMat (filter_mat_shape) = filter_shape in
   
   let meta = { Pooling.
@@ -252,32 +255,40 @@ let make_pooling ~filter_shape ~stride ~f ~fbp layers =
                out_shape =
                  Shape.make_shape_mat_vec
                    (Mat.make_shape
-                   (Row (new_dim
-                           (get_row prev_image_shape.dim1)
-                           (get_row filter_mat_shape.dim1)))
-                   (Col (new_dim
-                           (get_col prev_image_shape.dim2)
-                           (get_col filter_mat_shape.dim2))))
-               (Vec.make_shape (Col 
+                      (Row (new_dim
+                              (get_row prev_image_shape.dim1)
+                              (get_row filter_mat_shape.dim1)))
+                      (Col (new_dim
+                              (get_col prev_image_shape.dim2)
+                              (get_col filter_mat_shape.dim2))))
+                   prev_out_shape
              } in
 
   let layer = Pooling meta in
   {layers with build_list = Build_Cons (layer, layers.build_list) }
 
 let make_flatten layers =
-  let open Mat in
-  let prev_shape =
+  let Shape.ShapeMatVec (prev_image_shape, prev_out_shape) =
     match layers.build_list with
     | Build_Cons (lay, _) ->
        (match lay with
-        | Conv2D (meta, _) -> meta.out_shape
+        | Conv3D (meta, _) -> meta.out_shape
         | Pooling meta -> meta.out_shape
         | Input3 meta -> meta.shape
        )
   in
 
-  let meta = { Flatten.out_shape =
-                 make_shape (Row 1) (Col (shape_size prev_shape)) } in
+  let meta =
+    { Flatten.
+      out_shape =
+        Shape.make_shape_vec
+        @@ Vec.make_shape
+             (Col
+                ((Mat.shape_size prev_image_shape) *
+                   (Vec.shape_size prev_out_shape)))
+
+    } in
+
   let layer = Flatten meta in
   { layers with build_list = Build_Cons (layer, layers.build_list) }
 

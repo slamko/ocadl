@@ -1,7 +1,7 @@
 open Common
 open Tensor
 
-module VectorT : MATRIXABLE = struct
+module VectorT = struct
   type 'a vec = {
       matrix : 'a array;
       cols : col;
@@ -30,7 +30,7 @@ module VectorT : MATRIXABLE = struct
 
 end
 
-module MatrixT : MATRIXABLE = struct
+module MatrixT = struct
   type 'a mat = {
       matrix : 'a array;
       rows : row;

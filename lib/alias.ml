@@ -5,12 +5,12 @@ type activation = float -> float [@@deriving show]
 
 type deriv = float -> float [@@deriving show]
 
-type mat = float Mat.t 
+type mat = float Mat.t [@@deriving show]
 
-type vec = float Vec.t 
+type vec = float Vec.t [@@deriving show]
 
-type 'a matrix = 'a Mat.t 
-type 'a vector = 'a Vec.t 
+type 'a matrix = 'a Mat.t [@@deriving show]
+type 'a vector = 'a Vec.t [@@deriving show]
 
 module New = struct
   type t = {b : float}
