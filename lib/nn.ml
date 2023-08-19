@@ -151,6 +151,7 @@ let make_fully_connected ~ncount ~act ~deriv layers =
        (match lay with
         | FullyConnected (meta, _) -> meta.out_shape
         | Flatten meta -> meta.out_shape
+        | Flatten2D meta -> meta.out_shape
        ) |> Shape.shape_size
   in
 
@@ -189,8 +190,7 @@ let make_conv3d ~kernel_shape ~kernel_num
   let new_dim in_dim kern_dim =
     ((in_dim + (2 * padding) - kern_dim) / stride) + 1 in
 
-  let Shape.ShapeMatVec(prev_image_shape, prev_vec) = prev_shape in
-  (* warning due to ocaml bug *)
+  let Shape.ShapeMatVec(prev_image_shape, _) = prev_shape in
   
   let out_shape =
     Shape.make_shape_mat_vec

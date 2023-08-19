@@ -1,10 +1,3 @@
-type layer_meta =
-  | FullyConnectedMeta of Fully_connected.meta
-  | Conv3DMeta of Conv3D.meta
-  | PoolingMeta of Pooling.meta
-  | FlattenMeta of Flatten.meta
-  | InputMeta of Input3D.meta 
-
 module FC = Fully_connected 
 
 type (_, _) layer_params =
@@ -13,6 +6,10 @@ type (_, _) layer_params =
   | PoolingParams : (Pooling.input, Pooling.out) layer_params
   | FlattenParams : (Flatten.input, Flatten.out) layer_params
   | Input3Params : (Input3D.input, Input3D.out) layer_params
+  | Conv2DParams : Conv2D.params -> (Conv2D.input, Conv2D.out) layer_params
+  | Pooling2DParams : (Pooling2D.input, Pooling2D.out) layer_params
+  | Flatten2DParams : (Flatten2D.input, Flatten2D.out) layer_params
+  | Input2Params : (Input2D.input, Input2D.out) layer_params
 
 type (_, _) layer =
   | FullyConnected  : FC.t -> (FC.input, FC.out) layer
@@ -20,13 +17,15 @@ type (_, _) layer =
   | Pooling         : Pooling.t -> (Pooling.input, Pooling.out) layer
   | Flatten         : Flatten.t -> (Flatten.input, Flatten.out) layer
   | Input3          : Input3D.t -> (Input3D.input, Input3D.out) layer
+  | Conv2D          : Conv2D.t  -> (Conv2D.input, Conv2D.out) layer
+  | Pooling2D       : Pooling2D.t -> (Pooling2D.input, Pooling2D.out) layer
+  | Flatten2D       : Flatten2D.t -> (Flatten2D.input, Flatten2D.out) layer
+  | Input2          : Input2D.t -> (Input2D.input, Input2D.out) layer
 
 type zero = unit
 
 type _ succ =
   | Succ : 'n -> 'n succ
-
-type one = zero succ
 
 type (_, _,_) build_list =
   | Build_Nil : (zero, 'a, 'a) build_list
