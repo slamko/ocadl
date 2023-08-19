@@ -275,15 +275,16 @@ let bp_fully_connected meta params prev
   
   let grad_bmat =
     Vec.mapi
-      (fun r c _ ->
-        let ai = get r c act in
-        let diff  = get r c diff_mat in
+      (fun _ c _ ->
+        let ai = Vec.get c act in
+        let diff  = Vec.get c diff_mat in
         let db = 2. *. diff *. ai *. (1. -. ai) in
         db
       ) params.bias_mat in
   
   let prev_diff = prev_diff_mat
                   |> reshape (Row 1) (Col (wmat |> dim1 |> get_row))
+                  |> Mat.to_vec
                   |> make_tens1
   in
 
@@ -315,25 +316,24 @@ let pooling_bp meta (Tensor3 act_prev) (Tensor3 diff_mat) =
     else
       let cur_diff = get (Row cur_row) (Col cur_col) diff_mat in
 
+      let Shape.ShapeMat ({dim1; dim2}) = meta.filter_shape in
       let res_submat = acc 
                        |> shadow_submatrix
                             (Row (cur_row * meta.stride))
-                            (Col (cur_col * meta.stride))
-                            meta.filter_shape.dim1 meta.filter_shape.dim2
+                            (Col (cur_col * meta.stride)) dim1 dim2
       in
 
       mat
       |> shadow_submatrix
            (Row (cur_row * meta.stride))
-           (Col (cur_col * meta.stride))
-           meta.filter_shape.dim1 meta.filter_shape.dim2
+           (Col (cur_col * meta.stride)) dim1 dim2
       |> meta.fderiv meta.filter_shape cur_diff res_submat ;
 
       pool_rec meta mat diff_mat (Row cur_row) (Col (cur_col + 1)) acc
   in
 
   let prev_diff =
-    map2 (fun input diff ->
+    Vec.map2 (fun input diff ->
         (* print diff ; *)
         pool_rec meta input diff (Row 0) (Col 0)
              (zero_of_shape (get_shape input)))
@@ -342,11 +342,11 @@ let pooling_bp meta (Tensor3 act_prev) (Tensor3 diff_mat) =
   in
   { prev_diff = prev_diff |> make_tens3; grad = PoolingParams}
 
-let conv2d_bp meta params prev_layer
+let conv3d_bp meta params prev_layer
       (Tensor3 act) (Tensor3 act_prev) (Tensor3 diff_mat) =
 
   let open Mat in
-  let open Conv2D in
+  let open Conv3D in
   let dact_f = map (map meta.deriv) act in  
   let dz = map2 hadamard dact_f diff_mat in
   let bias_mat = map sum dz in
@@ -386,8 +386,8 @@ let backprop_layer : type a b. (a, b) layer -> bool -> a -> b -> b ->
      }
   | FullyConnected (meta, params) ->
      bp_fully_connected meta params prev_layer act act_prev diff_mat
-  | Conv2D (meta, params) ->
-     conv2d_bp meta params prev_layer act act_prev diff_mat 
+  | Conv3D (meta, params) ->
+     conv3d_bp meta params prev_layer act act_prev diff_mat 
   | Pooling meta ->
      pooling_bp meta act_prev diff_mat
   | Flatten _ -> 

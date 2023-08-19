@@ -338,7 +338,7 @@ let conv2d_zero layer =
   let open Conv3D in
   Conv3DParams
     { kernels  = layer.kernels  |> Vec.map Mat.zero ;
-      bias_mat = layer.bias_mat |> Mat.zero ;
+      bias_mat = layer.bias_mat |> Vec.zero ;
     }
 
 
@@ -403,7 +403,10 @@ let nn_params_apply proc nn1 nn2 =
            let new_lay =
              FullyConnectedParams {
                  weight_mat = proc fc1.weight_mat fc2.weight_mat;
-                 bias_mat = proc fc1.bias_mat fc2.bias_mat;
+                 bias_mat = proc
+                              (Vec.to_mat fc1.bias_mat)
+                              (Vec.to_mat fc2.bias_mat)
+                            |> Mat.to_vec ;
                } in
            let tail = apply_rec t1 t2 in
            PL_Cons(new_lay, tail)
@@ -413,7 +416,10 @@ let nn_params_apply proc nn1 nn2 =
                kernels = Vec.map2
                            (fun v1 v2 -> proc v1 v2)
                            cv1.kernels cv2.kernels;
-               bias_mat = proc cv1.bias_mat cv2.bias_mat;
+               bias_mat = proc
+                            (Vec.to_mat cv1.bias_mat)
+                            (Vec.to_mat cv2.bias_mat)
+                          |> Mat.to_vec ;
                } in
            let tail = apply_rec t1 t2 in
            PL_Cons (new_lay, tail)
@@ -448,8 +454,11 @@ let nn_apply_params proc nn params =
           (* (get_row (dim1 nn_param.weight_mat)) *)
           (* (get_col (dim2 nn_param.weight_mat)) ; *)
           let wmat = proc nn_param.weight_mat apply_param.weight_mat in
-          let bmat = proc nn_param.bias_mat   apply_param.bias_mat   in
-          
+          let bmat = proc
+                       (Vec.to_mat nn_param.bias_mat)
+                       (Vec.to_mat apply_param.bias_mat)
+                     |> Mat.to_vec in
+                     
           let new_lay =
             FullyConnected (meta, {
                   weight_mat = wmat;
@@ -461,7 +470,10 @@ let nn_apply_params proc nn params =
           let kernels = Vec.map2
                               (fun v1 v2 -> proc v1 v2)
                               nn_param.kernels apply_param.kernels in
-          let bias_mat = proc nn_param.bias_mat apply_param.bias_mat in
+          let bias_mat = proc
+                       (Vec.to_mat nn_param.bias_mat)
+                       (Vec.to_mat apply_param.bias_mat)
+                     |> Mat.to_vec in
              
           let new_lay =
             Conv3D (meta, {
@@ -477,9 +489,9 @@ let nn_apply_params proc nn params =
           FF_Cons (lay, apply_rec t1 t2)
        | Flatten _, FlattenParams ->
           FF_Cons (lay, apply_rec t1 t2)
-       | _ -> failwith "The world fucked up"
+       | _ -> failwith "Incompatible list types"
        )
-    | _ -> failwith "nn apply params: Incompatible list types"
+    | _ -> failwith "nn apply params: Incompatible list lengths"
   in
 
   let layers = apply_rec nn.layers params.param_list in

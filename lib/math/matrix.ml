@@ -69,6 +69,8 @@ module rec Vector : sig
 
   type 'a t = 'a VectorT.t [@@deriving show]
 
+  val zero : float t -> float t
+
   val flatten3d : 'a t array -> 'a array
 
   val flatten : 'a t t -> 'a t
