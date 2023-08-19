@@ -1,8 +1,8 @@
 open Common
 open Deepmath
 open Deep
-open Matrix
 open Nn
+open Alias
 open Types
 
 let xor_in =
@@ -12,7 +12,7 @@ let xor_in =
     data [|1.; 0.|] ;
     data [|1.; 1.|] ;
   ]
-
+(*
 let xor_data =
   [
     (Tensor1 (one_data 0.), Tensor1 (data [|0.; 0.|])) ;
@@ -20,6 +20,7 @@ let xor_data =
     (Tensor1 (one_data 1.), Tensor1 (data [|1.; 0.|])) ;
     (Tensor1 (one_data 0.), Tensor1 (data [|1.; 1.|]))
   ]
+ *)
 
 let rec perform nn data =
   match data with
@@ -38,12 +39,14 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   let train_data =
     if Sys.file_exists train_data_fname
     then read_mnist_train_data train_data_fname
-           {dim1 = (Row 28) ; dim2 = (Col 28); dim3 = 1}
+           @@ Mat.make_shape (Row 28) (Col 28)
     else failwith "No train file"
   in
 
   let base_nn =
-    make_input3d @@ make_shape3d (Row 28) (Col 28) 1
+    make_input3d @@ Shape.make_shape_mat_vec
+                      (Mat.make_shape (Row 28) (Col 28))
+                      (Vec.make_shape (Col 1))
     |> make_flatten
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
@@ -51,13 +54,16 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     |> make_nn in
 
   let conv_nn =
-    make_input3d @@ make_shape3d (Row 28) (Col 28) 1
-    |> make_conv2d ~padding:1 ~stride:1 ~act:relu ~deriv:relu'
-         ~kernel_shape:(make_shape (Row 4) (Col 4))
+    make_input3d @@ Shape.make_shape_mat_vec
+                      (Mat.make_shape (Row 28) (Col 28))
+                      (Vec.make_shape (Col 1))
+
+    |> make_conv3d ~padding:1 ~stride:1 ~act:relu ~deriv:relu'
+         ~kernel_shape:(Mat.make_shape (Row 4) (Col 4))
          ~kernel_num:1
 
     |> make_pooling ~stride:2 ~f:pooling_max ~fbp:pooling_max_deriv
-         ~filter_shape:(make_shape (Row 4) (Col 4))
+         ~filter_shape:(Mat.make_shape (Row 4) (Col 4))
 
 (*
     |> make_conv2d ~padding:1 ~stride:1 ~act:relu ~deriv:relu'

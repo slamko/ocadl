@@ -245,22 +245,22 @@ let make_pooling ~filter_shape ~stride ~f ~fbp layers =
      / stride) + 1 in
 
   let Shape.ShapeMatVec(prev_image_shape, prev_out_shape) = prev_shape in
-  let Shape.ShapeMat (filter_mat_shape) = filter_shape in
+  (* let Shape.ShapeMat (filter_mat_shape) = filter_shape in *)
   
   let meta = { Pooling.
                fselect = f;
                fderiv = fbp;
                stride;
-               filter_shape;
+               filter_shape = Shape.make_shape_mat filter_shape;
                out_shape =
                  Shape.make_shape_mat_vec
                    (Mat.make_shape
                       (Row (new_dim
                               (get_row prev_image_shape.dim1)
-                              (get_row filter_mat_shape.dim1)))
+                              (get_row filter_shape.dim1)))
                       (Col (new_dim
                               (get_col prev_image_shape.dim2)
-                              (get_col filter_mat_shape.dim2))))
+                              (get_col filter_shape.dim2))))
                    prev_out_shape
              } in
 

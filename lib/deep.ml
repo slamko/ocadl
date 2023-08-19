@@ -20,7 +20,7 @@ type ('inp, 'out) backprop_layer = {
 let fully_connected_forward meta params tens =
   let open Fully_connected in
   Mat.mult (Vec.to_mat tens) params.weight_mat
-  |> Mat.add params.bias_mat
+  |> Mat.add (Vec.to_mat params.bias_mat)
   |> Mat.map meta.activation
   |> Mat.to_vec
   |> make_tens1
@@ -69,7 +69,7 @@ let conv3d_forward meta params tens =
             ~padding:meta.padding
             single_out_shape kernel
           |> add acc) res_mat tens
-      |> add_const (params.bias_mat |> get (Row 0) (Col c))
+      |> add_const (params.bias_mat |> Vec.get (Col c))
       |> map meta.act 
     ) params.kernels
   |> make_tens3
@@ -277,7 +277,7 @@ let bp_fully_connected meta params prev
     Vec.mapi
       (fun _ c _ ->
         let ai = Vec.get c act in
-        let diff  = Vec.get c diff_mat in
+        let diff = Vec.get c diff_mat in
         let db = 2. *. diff *. ai *. (1. -. ai) in
         db
       ) params.bias_mat in
@@ -299,7 +299,9 @@ let bp_fully_connected meta params prev
 let flatten_bp (Tensor3 act_prev) (Tensor1 diff) =
   { prev_diff =
       diff
-      |> Mat.reshape3d act_prev
+      |> Vec.to_mat
+      |> Mat.reshape3d (Vec.to_mat act_prev)
+      |> Mat.to_vec
       |> make_tens3;
     grad = FlattenParams;
   }
@@ -516,7 +518,8 @@ let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
   let data_in = get_data_input sample in
   let data_out = get_data_out sample in
 
-  let (inp_layer_shape, inp_data_shape) : (inp Shape.shape * inp Shape.shape) =
+  let (inp_layer_shape, inp_data_shape)
+      : (inp Shape.shape * inp Shape.shape) =
     match nn.input, data_in with
     | Input3 meta, Tensor3 _ ->
        (meta.shape, Shape.get_shape data_in)
@@ -528,7 +531,8 @@ let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
        (meta.out_shape, Shape.get_shape data_in)
   in
 
-  let (out_layer_shape, out_data_shape) : (out Shape.shape * out Shape.shape) =
+  let (out_layer_shape, out_data_shape)
+      : (out Shape.shape * out Shape.shape) =
     match nn.build_layers with
     | Build_Cons (lay, _) ->
        (match lay, data_out with

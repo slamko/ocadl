@@ -23,10 +23,10 @@ module VectorT = struct
   let start_row _ = Row 0
   let start_col vec = vec.start_col
 
-  let init matrix rows cols stride start_row start_col =
-    if row rows <> 1 || stride <> 1 || row start_row <> 0
+  let init matrix rows (Col cols) stride start_row start_col =
+    if row rows <> 1 || stride <> cols || row start_row <> 0
     then invalid_arg "Invalid vector initializer"
-    else {matrix; cols; start_col}
+    else {matrix; cols = Col cols; start_col}
 
 end
 
@@ -293,6 +293,8 @@ and Mat : sig
   (* val set_option : row -> col -> 'a t -> 'a option -> 'a t option *)
 
   val reshape : row -> col -> 'a t -> 'a t
+
+  val reshape3d : 'a t t -> 'a t -> 'a t t
 
   val mapi : (row -> col -> 'a -> 'b) -> 'a t -> 'b t
 
