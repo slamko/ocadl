@@ -2,8 +2,8 @@ open Alias
 open Shape
 
 type params = {
-    kernels : mat matrix;
-    bias_mat : mat;
+    kernels : mat vector;
+    bias_mat : vec;
   }
 
 type meta = {

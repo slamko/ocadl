@@ -83,6 +83,8 @@ module rec Vector : sig
 
   val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
 
+  val fold_left2 : ('a -> 'b -> 'c -> 'a) -> 'a -> 'b t -> 'c t -> 'a
+
   val fold_right : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
 
   val map : ('a -> 'b) -> 'a t -> 'b t
@@ -224,6 +226,8 @@ and Mat : sig
 
   val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
 
+  val fold_left2 : ('a -> 'b -> 'c -> 'a) -> 'a -> 'b t -> 'c t -> 'a
+
   val fold_right : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
 
   val map : ('a -> 'b) -> 'a t -> 'b t
@@ -249,6 +253,8 @@ and Mat : sig
   val random : row -> col -> float t
 
   val zero : 'a t -> float t
+
+  val zero_of_shape : shape -> float t
 
   val of_array : row -> col -> 'a array -> 'a t
 

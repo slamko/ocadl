@@ -165,7 +165,7 @@ let make_fully_connected ~ncount ~act ~deriv layers =
   let params =
     { Fully_connected.
       weight_mat = Mat.random (Row prev_ncount) (Col ncount);
-      bias_mat = Mat.random (Row 1) (Col ncount);
+      bias_mat = Vec.random (Col ncount);
     } 
   in
 
@@ -215,13 +215,13 @@ let make_conv3d ~kernel_shape ~kernel_num
       out_shape;
    } in
 
-  let kernels = create (Row kernel_num) prev_vec.dim1
+  let kernels = Vec.create (Col kernel_num)
                      (fun _ _ -> random_of_shape kernel_shape) in
 
   let params = {
       Conv3D.
       kernels;
-      bias_mat = random (Row 1) kernels.cols
+      bias_mat = Vec.random kernels.cols
     } in
 
   let layer = Conv3D (meta, params) in
@@ -317,27 +317,27 @@ let fully_connected_map proc layer =
     let open Fully_connected in
     FullyConnectedParams {
       weight_mat = Mat.map proc layer.Fully_connected.weight_mat;
-      bias_mat = Mat.map proc layer.Fully_connected.bias_mat;
+      bias_mat = Vec.map proc layer.Fully_connected.bias_mat;
     }
 
 let conv2d_map proc layer =
   let open Conv3D in
   Conv3DParams {
-    kernels = layer.kernels |> Mat.map @@ Mat.map proc;
-    bias_mat = Mat.map proc layer.bias_mat
+    kernels = layer.kernels |> Vec.map @@ Mat.map proc;
+    bias_mat = Vec.map proc layer.bias_mat
   }
 
 let fully_connected_zero layer =
   let open Fully_connected in
   FullyConnectedParams
     { weight_mat = Mat.zero layer.weight_mat;
-       bias_mat  = Mat.zero layer.bias_mat;
+       bias_mat  = Vec.zero layer.bias_mat;
     }
 
 let conv2d_zero layer =
   let open Conv3D in
   Conv3DParams
-    { kernels  = layer.kernels  |> Mat.map Mat.zero ;
+    { kernels  = layer.kernels  |> Vec.map Mat.zero ;
       bias_mat = layer.bias_mat |> Mat.zero ;
     }
 
@@ -410,7 +410,7 @@ let nn_params_apply proc nn1 nn2 =
         | Conv3DParams cv1, Conv3DParams cv2 ->
            let new_lay =
              Conv3DParams {
-               kernels = Mat.map2
+               kernels = Vec.map2
                            (fun v1 v2 -> proc v1 v2)
                            cv1.kernels cv2.kernels;
                bias_mat = proc cv1.bias_mat cv2.bias_mat;
@@ -458,7 +458,7 @@ let nn_apply_params proc nn params =
 
           FF_Cons(new_lay, apply_rec t1 t2)
        | Conv3D (meta, nn_param), Conv3DParams apply_param ->
-          let kernels = Mat.map2
+          let kernels = Vec.map2
                               (fun v1 v2 -> proc v1 v2)
                               nn_param.kernels apply_param.kernels in
           let bias_mat = proc nn_param.bias_mat apply_param.bias_mat in

@@ -3,7 +3,7 @@ open Shape
 
 type params = {
     weight_mat : mat;
-    bias_mat : mat;
+    bias_mat : vec;
   }
 [@@deriving show]
 

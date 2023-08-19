@@ -1,10 +1,11 @@
 open List
 open Types
+open Alias
 open Nn
 open Domainslib
 open Deepmath
+open Matrix
 open Common
-open Ppxlib
 
 type backprop_neuron = {
     wmat_arr : float array array;
@@ -18,64 +19,63 @@ type ('inp, 'out) backprop_layer = {
 
 let fully_connected_forward meta params tens =
   let open Fully_connected in
-  Mat.mult tens params.weight_mat
+  Mat.mult (Vec.to_mat tens) params.weight_mat
   |> Mat.add params.bias_mat
   |> Mat.map meta.activation
+  |> Mat.to_vec
   |> make_tens1
 
 let pooling_forward meta tens =
-  let open Mat in
   let open Pooling in
 
   let rec pool_rec meta mat (Row cur_row) (Col cur_col) acc =
+    let open Mat in
     if cur_row >= (dim1 acc |> get_row)
     then acc
     else if cur_col >= (dim2 acc |> get_col)
     then pool_rec meta mat (Row (cur_row + 1)) (Col 0) acc
-    else mat
+    else
+      let Shape.ShapeMat ({dim1; dim2}) = meta.filter_shape in
+      mat
          |> shadow_submatrix
               (Row (cur_row * meta.stride))
-              (Col (cur_col * meta.stride))
-              meta.filter_shape.dim1 meta.filter_shape.dim2
+              (Col (cur_col * meta.stride)) dim1 dim2
          |> (fun subm -> fold_left meta.fselect (get_first subm) subm)
          |> set_bind (Row cur_row) (Col cur_col) acc
          |> pool_rec meta mat (Row cur_row) (Col (cur_col + 1))  
   in
 
-    map (fun mat ->
-           zero_of_shape meta.out_shape
-           |> pool_rec meta mat (Row 0) (Col 0)) tens
-    |> make_tens3
+  let Shape.ShapeMatVec (single_out_shape, _) = meta.out_shape in
+
+  Vec.map
+    (fun mat ->
+      Mat.zero_of_shape single_out_shape
+      |> pool_rec meta mat (Row 0) (Col 0)) tens
+  |> make_tens3
 
 let conv3d_forward meta params tens =
-  let open Mat in
-  let open Conv2D in
-  let res_mat = map
-                  (fun _ -> zero_of_shape meta.out_shape)
-                  params.kernels in
+  let open Conv3D in
 
-  mapi
-    (fun _ (Col c) mat ->
-      let kernel = shadow_submatrix (Row c) (Col 0)
-                     (Row 1) (dim2 params.kernels)
-                     params.kernels in
+  let Shape.ShapeMatVec (single_out_shape, _) = meta.out_shape in
 
-          (* show_mat mat |> print_string; *)
-      fold_left2 (fun acc kern in_ch ->
-          let re = convolve in_ch
-                     ~stride:meta.stride
-                     ~padding:meta.padding
-                     meta.out_shape kern
-          |> add acc in
-          re 
-        ) mat kernel tens
+  Vec.mapi
+    (fun _ (Col c) kernel ->
+      let open Mat in
+      let res_mat = zero_of_shape single_out_shape in
+
+      Vec.fold_left (fun acc in_ch ->
+          convolve in_ch
+            ~stride:meta.stride
+            ~padding:meta.padding
+            single_out_shape kernel
+          |> add acc) res_mat tens
       |> add_const (params.bias_mat |> get (Row 0) (Col c))
       |> map meta.act 
-    ) res_mat
+    ) params.kernels
   |> make_tens3
 
 let conv2d_forward meta params tens =
-  Mat.make (Row 1) (Col 1) tens
+  Vec.make (Col 1) tens
   |> conv3d_forward meta params
 
 let forward_layer : type a b. a -> (a, b) layer -> b
@@ -88,7 +88,7 @@ let forward_layer : type a b. a -> (a, b) layer -> b
         tens
         |> fully_connected_forward fc fcp
      )
-  | Conv2D (cn, cnp) -> 
+  | Conv3D (cn, cnp) -> 
      (match input with
      | Tensor3 tens -> 
         tens
@@ -98,7 +98,9 @@ let forward_layer : type a b. a -> (a, b) layer -> b
      (match input with
      | Tensor3 tens ->
         tens
+        |> Vec.to_mat
         |> Mat.flatten
+        |> Mat.to_vec
         |> make_tens1
      )
   | Pooling pl ->
@@ -130,29 +132,38 @@ let forward input nn =
 let get_err : type t. t tensor -> float =
   fun tens ->
   match tens with
-  | Tensor1 mat -> Mat.sum mat
-  | Tensor3 mat ->
-     Mat.fold_left (fun acc m -> Mat.sum m +. acc) 0. mat
+  | Tensor1 vec -> Vec.sum vec
+  | Tensor2 mat -> Mat.sum mat
+  | Tensor3 mat_vec ->
+     Vec.fold_left (fun acc m -> Mat.sum m +. acc) 0. mat_vec
+  | Tensor4 mat_mat ->
+     Mat.fold_left (fun acc m -> Mat.sum m +. acc) 0. mat_mat
+
+
+let tens1_error res exp =
+  Mat.sub (Vec.to_mat res) (Vec.to_mat exp)
+  |> Mat.sum
 
 let tens3_error res exp =
    let open Mat in
+   let zero_mat =
+     (res
+      |> Vec.get_first
+      |> get_shape
+      |> zero_of_shape) in
 
-   fold_left2 (fun acc res exp ->
-       sub res exp
-       |> add acc)
-     (res |> get_first |> get_shape |> zero_of_shape) res exp
+   Vec.fold_left2
+     (fun acc res exp ->
+       sub res exp |> add acc) zero_mat res exp
    |> sum
 
-let tens1_error res exp =
-  Mat.sub res exp
-  |> Mat.sum
-
 let tens1_diff res exp =
-  Mat.sub res exp
+  Mat.sub (Vec.to_mat res) (Vec.to_mat exp)
+  |> Mat.to_vec
   |> make_tens1
 
 let tens3_diff res exp =
-  Mat.map2 Mat.sub res exp
+  Vec.map2 Mat.sub res exp
   |> make_tens3
 
 let loss data nn =
@@ -176,7 +187,7 @@ let loss data nn =
                     | Tensor1 res, Tensor1 exp -> 
                        tens1_error res exp
                    )
-                | Conv2D (_, _) ->
+                | Conv3D (_, _) ->
                    (match res, expected with
                     | Tensor3 res, Tensor3 exp -> 
                        tens3_error res exp
@@ -199,7 +210,7 @@ let loss data nn =
                     | Tensor1 res, Tensor1 exp -> 
                        tens1_error res exp
                    )
-                | Conv2D (_, _) ->
+                | Conv3D (_, _) ->
                    (match res, expected with
                     | Tensor3 res, Tensor3 exp -> 
                        tens3_error res exp
@@ -234,7 +245,7 @@ let loss data nn =
 
 let bp_fully_connected meta params prev
       (Tensor1 act) (Tensor1 act_prev) (Tensor1 diff_mat) =
-  let open Fully_Connected in
+  let open Fully_connected in
   let open Mat in
   
   let wmat = params.weight_mat in
@@ -243,9 +254,9 @@ let bp_fully_connected meta params prev
   let grad_wmat =
     mapi
       (fun r c weight ->
-        let ai = get (Row 0) c act in
-        let ai_prev = get (Row 0) (Col (get_row r)) act_prev in
-        let diff  = get (Row 0) c diff_mat in
+        let ai = Vec.get c act in
+        let ai_prev = Vec.get (Col (get_row r)) act_prev in
+        let diff  = Vec.get c diff_mat in
         let ai_deriv = meta.activation ai in
         
         let dw = 2. *. diff *. ai_deriv *. ai_prev in
@@ -263,7 +274,7 @@ let bp_fully_connected meta params prev
       ) wmat in
   
   let grad_bmat =
-    mapi
+    Vec.mapi
       (fun r c _ ->
         let ai = get r c act in
         let diff  = get r c diff_mat in
@@ -275,12 +286,13 @@ let bp_fully_connected meta params prev
                   |> reshape (Row 1) (Col (wmat |> dim1 |> get_row))
                   |> make_tens1
   in
+
   { prev_diff ;
     grad =
       FullyConnectedParams {
           weight_mat = grad_wmat;
           bias_mat = grad_bmat;
-             };
+        };
   }
 
 let flatten_bp (Tensor3 act_prev) (Tensor1 diff) =
