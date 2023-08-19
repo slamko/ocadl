@@ -224,6 +224,8 @@ and Mat : sig
 
   val scale : float -> float t -> float t
 
+  val hadamard : float t -> float t -> float t
+
   val add_const : float -> float t -> float t
 
   val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a

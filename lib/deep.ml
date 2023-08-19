@@ -347,10 +347,10 @@ let conv3d_bp meta params prev_layer
 
   let open Mat in
   let open Conv3D in
-  let dact_f = map (map meta.deriv) act in  
-  let dz = map2 hadamard dact_f diff_mat in
-  let bias_mat = map sum dz in
-  let kernels = map3 (fun inp out kern ->
+  let dact_f = Vec.map (map meta.deriv) act in  
+  let dz = Vec.map2 hadamard dact_f diff_mat in
+  let bias_mat = Vec.map sum dz in
+  let kernels = Vec.map3 (fun inp out kern ->
                     convolve inp ~padding:meta.padding
                       ~stride:meta.stride (get_shape kern) out)
                   act_prev dz params.kernels
@@ -359,7 +359,7 @@ let conv3d_bp meta params prev_layer
   let prev_diff =
     match prev_layer with
     | true  ->
-       map3 (fun inp dout kern ->
+       Vec.map3 (fun inp dout kern ->
            let kern_rot = rotate180 kern in
            convolve dout ~padding:meta.padding
              ~stride:meta.stride (get_shape inp) kern_rot)
@@ -370,7 +370,7 @@ let conv3d_bp meta params prev_layer
   
   { prev_diff;
     grad =
-      Conv2DParams
+      Conv3DParams
         { kernels;
           bias_mat
         }
@@ -443,7 +443,7 @@ let nn_gradient nn data =
                     | Tensor1 res, Tensor1 exp -> 
                        tens1_diff res exp
                    )
-                | Conv2D (_, _) ->
+                | Conv3D (_, _) ->
                    (match res, expected with
                     | Tensor3 res, Tensor3 exp -> 
                        tens3_diff res exp
@@ -466,7 +466,7 @@ let nn_gradient nn data =
                     | Tensor1 res, Tensor1 exp -> 
                        tens1_diff res exp
                    )
-                | Conv2D (_, _) ->
+                | Conv3D (_, _) ->
                    (match res, expected with
                     | Tensor3 res, Tensor3 exp -> 
                        tens3_diff res exp
@@ -507,61 +507,47 @@ let nn_gradient nn data =
   let param_nn = nn_params_map (( *. ) scale_fact) newn in
   Ok param_nn
 
-let check_nn_geometry : type a b n. (n succ, a, b) nnet ->
-                             (a, b) train_data ->
-                             ((n succ, a, b) nnet, string) result =
+let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
+                             (inp, out) train_data ->
+                             ((n succ, inp, out) nnet, string) result =
   fun nn data ->
   let sample = hd data in
 
-  let inp_layer_shape =
-    match nn.input with
-    | Input3 meta -> meta.shape
-    | Conv2D (meta, _) -> meta.out_shape
-    | Pooling meta -> meta.out_shape
-    | FullyConnected (meta, _) -> meta.out_shape
-  in
-
   let data_in = get_data_input sample in
   let data_out = get_data_out sample in
- 
-  let in_data_shape =
-    match nn.layers with
-    | FF_Nil -> inp_layer_shape
-    | FF_Cons (lay, _) ->
-       (match lay, data_in with
-        | FullyConnected (_,_), Tensor1 x ->
-           Mat.get_shape x
-        | Input3 _, Tensor3 x ->
-           Mat.get_shape3d x
-        | Flatten _, Tensor3 x ->
-           Mat.get_shape3d x
-        | Conv2D _, Tensor3 x ->
-           Mat.get_shape3d x
-        | Pooling _, Tensor3 x ->
-           Mat.get_shape3d x
-       )
+
+  let (inp_layer_shape, inp_data_shape) : (inp Shape.shape * inp Shape.shape) =
+    match nn.input, data_in with
+    | Input3 meta, Tensor3 _ ->
+       (meta.shape, Shape.get_shape data_in)
+    | FullyConnected (meta, _), Tensor1 _ ->
+       (meta.out_shape, Shape.get_shape data_in)
+    | Conv3D (meta, _), Tensor3 _ ->
+       (meta.out_shape, Shape.get_shape data_in)
+    | Pooling meta, Tensor3 _ ->
+       (meta.out_shape, Shape.get_shape data_in)
   in
 
-  let (out_layer_shape, out_data_shape) =
+  let (out_layer_shape, out_data_shape) : (out Shape.shape * out Shape.shape) =
     match nn.build_layers with
     | Build_Cons (lay, _) ->
        (match lay, data_out with
-        | FullyConnected (m, _) , Tensor1 x ->
-           m.out_shape, Mat.get_shape x
-        | Flatten m, Tensor1 x ->
-           m.out_shape, Mat.get_shape x
-        | Input3 m, Tensor3 x ->
-           m.shape, Mat.get_shape3d x
-       | Conv2D (m, _), Tensor3 x ->
-           m.out_shape, Mat.get_shape3d x
-        | Pooling m, Tensor3 x ->
-           m.out_shape, Mat.get_shape3d x
+        | FullyConnected (m, _) , Tensor1 _ ->
+           m.out_shape, Shape.get_shape data_out
+        | Flatten m, Tensor1 _ ->
+           m.out_shape, Shape.get_shape data_out
+        | Input3 m, Tensor3 _ ->
+           m.shape, Shape.get_shape data_out
+       | Conv3D (m, _), Tensor3 _ ->
+           m.out_shape, Shape.get_shape data_out
+        | Pooling m, Tensor3 _ ->
+           m.out_shape, Shape.get_shape data_out
        )
   in
  
-  if Mat.shape_eq inp_layer_shape in_data_shape
+  if Shape.shape_eq inp_layer_shape inp_data_shape
   then
-    if Mat.shape_eq out_layer_shape out_data_shape 
+    if Shape.shape_eq out_layer_shape out_data_shape 
     then Ok nn
     else Error "Unmatchaed output data geometry."
   else Error "Unmatched input data geometry"
