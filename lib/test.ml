@@ -4,6 +4,9 @@ open Deep
 open Nn
 open Alias
 open Types
+open Ctypes
+open Foreign
+open PosixTypes
 
 let xor_in =
   [
@@ -107,6 +110,11 @@ let test train_data_fname save_file epochs learning_rate batch_size =
 
   Printf.printf "initial loss: %f\n" res ;
   Printf.printf "trained loss: %f\n" new_res ;
+
+  let m1 = Mat.random (Row 64) (Col 64) in
+  let m2 = Mat.random (Row 64) (Col 64) in
+  let res = Mat.random (Row 64) (Col 64) in
+  let r = cc_mat_mul (allocate float m1)
 
   Ok ()
  

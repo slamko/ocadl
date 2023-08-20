@@ -9,7 +9,8 @@
  (libraries yojson
             domainslib
             ppx_deriving
-            ppxlib
+            ctypes
+            ctypes-foreign
             ppx_catch
             csv)
  (inline_tests)
