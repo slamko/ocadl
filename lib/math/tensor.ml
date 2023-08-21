@@ -92,10 +92,11 @@ module Mat = struct
 
     let rec rec_of_list lst i cur_acc acc =
       match lst with
-      | [] -> acc
+      | [] -> cur_acc::acc
       | h::t ->
-         if i = cols
-         then rec_of_list t 1 [h] (cur_acc::acc)
+         if i > cols
+         then
+           rec_of_list t 2 [h] (cur_acc::acc)
          else rec_of_list t (i + 1) (h::cur_acc) acc
     in
 
@@ -105,7 +106,10 @@ module Mat = struct
       else rec_of_list lst 1 [] []
     in
 
-    let mat_arr = List.map Array.of_list mat_lst |> Array.of_list in
+    let mat_arr = List.map (fun l -> List.rev l |> Array.of_list)
+                    mat_lst |> List.rev |> Array.of_list in
+
+    (* Printf.printf "Size %d\n" @@ Array.length mat_arr.(27) ; *)
     { matrix = Array2.of_array Float32 C_layout mat_arr ;
       shape = {dim1 = Row rows; dim2 = Col cols; }
     }

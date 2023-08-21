@@ -6,27 +6,6 @@ open Domainslib
 open Deepmath
 open Common
 open Tensor
-open Ctypes
-open Foreign
-open PosixTypes
-
-type cc_mat
-let cc_mat : cc_mat structure typ = structure "cc_mat"
-let matrix = field cc_mat "matrix" (ptr float)
-
-let rows  = field cc_mat "rows" size_t
-let cols  = field cc_mat "cols" size_t
-
-let start_row = field cc_mat "start_row" size_t
-let start_col = field cc_mat "start_col" size_t
-let stride = field cc_mat "stride" size_t
-
-let make_cc_mat () =
-  seal cc_mat
-
-let cc_mat_mul = foreign "mat_mul"
-                   (ptr float @-> ptr float @-> ptr float
-                    @-> returning int)
 
 type backprop_neuron = {
     wmat_arr : float array array;

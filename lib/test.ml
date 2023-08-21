@@ -5,9 +5,6 @@ open Nn
 open Alias
 open Types
 open Tensor
-open Ctypes
-open Foreign
-open PosixTypes
 
 (*
 let xor_in =
@@ -48,15 +45,14 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   in
 
   let base_nn =
-    make_input3d @@ Shape.make_shape_mat_vec
-                      (Mat.make_shape (Row 28) (Col 28))
-                      (Vec.make_shape (Col 1))
-    |> make_flatten
+    make_input2d (Mat.make_shape (Row 28) (Col 28)) 
+    |> make_flatten2d
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn in
 
+(*
   let conv_nn =
     make_input3d @@ Shape.make_shape_mat_vec
                       (Mat.make_shape (Row 28) (Col 28))
@@ -69,26 +65,25 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     |> make_pooling ~stride:2 ~f:pooling_max ~fbp:pooling_max_deriv
          ~filter_shape:(Mat.make_shape (Row 4) (Col 4))
 
-(*
     |> make_conv2d ~padding:1 ~stride:1 ~act:relu ~deriv:relu'
          ~kernel_shape:(make_shape (Row 4) (Col 4))
          ~kernel_num:1
 
     |> make_pooling ~stride:2 ~f:pooling_max ~fbp:pooling_max_deriv
          ~filter_shape:(make_shape (Row 4) (Col 4))
- *)
 
     |> make_flatten
     |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn
   in
+ *)
   
   let nn =
     (* if Sys.file_exists !save_file *)
     (* then restore_nn_from_json !save_file base_nn *)
     (* else *)
-      conv_nn
+      base_nn
   in
 (*  
   let trained_nn =
@@ -104,18 +99,18 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   let* res = loss train_data nn in
   (* Printf.printf "Cost: %f\n" res; *)
 
-  let* trained_nn = learn train_data
-                      ~epoch_num:epochs ~learning_rate
-                      ~batch_size nn in
-  let* new_res = loss train_data trained_nn in
+  (* let* trained_nn = learn train_data *)
+                      (* ~epoch_num:epochs ~learning_rate *)
+                      (* ~batch_size nn in *)
+  (* let* new_res = loss train_data trained_nn in *)
 
   Printf.printf "initial loss: %f\n" res ;
-  Printf.printf "trained loss: %f\n" new_res ;
+  (* Printf.printf "trained loss: %f\n" new_res ; *)
 
-  let m1 = Mat.random (Row 64) (Col 64) in
-  let m2 = Mat.random (Row 64) (Col 64) in
-  let res = Mat.random (Row 64) (Col 64) in
-  let r = cc_mat_mul (allocate float m1)
+  (* let m1 = Mat.random (Row 64) (Col 64) in *)
+  (* let m2 = Mat.random (Row 64) (Col 64) in *)
+  (* let res = Mat.random (Row 64) (Col 64) in *)
+  (* let r = cc_mat_mul (allocate float m1) *)
 
   Ok ()
  

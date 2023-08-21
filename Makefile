@@ -10,8 +10,15 @@ SRC += lib/types.ml
 SRC += lib/math/deepmath.ml
 SRC += lib/nn.ml
 SRC += lib/deep.ml
+SRC += lib/test.ml
+SRC += lib/ocadl.ml
 
 all: $(SRC)
 	gcc	-c vector/blac.c
 	gcc	-c -I/home/slamko/.opam/default/lib/ocaml vector/gemm.c
-	ocamlopt -I lib -I lib/layers -I lib/math blac.o gemm.o $(SRC) -cclib -lOpenCL
+
+	ocamlfind ocamlopt -o ocadl \
+		-I lib -I lib/layers -I lib/math -I test \
+		blac.o gemm.o \
+		-linkpkg -package csv,domainslib,unix \
+		$(SRC) -cclib -lOpenCL

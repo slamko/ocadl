@@ -132,6 +132,12 @@ let restore_nn_from_json fname nn =
 (* let x = *)
   (* (Build_Cons (FullyConnected {FullyConnected}, (Build_Cons (Input3, Build_Nil)))) *)
 
+let make_input2d shape = 
+  let in_layer = Input2 { shape = Shape.make_shape_mat shape; } in
+  { build_input = in_layer;
+    build_list = Build_Cons (in_layer, Build_Nil);
+  }
+
 let make_input3d shape = 
   let in_layer = Input3 { shape; } in
   { build_input = in_layer;
@@ -292,6 +298,29 @@ let make_flatten layers =
   { layers with build_list = Build_Cons (layer, layers.build_list) }
  *)
 
+let make_flatten2d layers =
+  let Shape.ShapeMat (prev_image_shape) =
+    match layers.build_list with
+    | Build_Cons (lay, _) ->
+       (match lay with
+        | Conv2D (meta, _) -> meta.out_shape
+        | Input2 meta -> meta.shape
+       )
+  in
+
+  let meta =
+    { Flatten2D.
+      out_shape =
+        Shape.make_shape_vec
+        @@ Vec.make_shape
+             (Col
+                (Mat.shape_size prev_image_shape))
+
+    } in
+
+  let layer = Flatten2D meta in
+  { layers with build_list = Build_Cons (layer, layers.build_list) }
+ 
 let rev_build_list blist =
 
   let rec rev_rec : type a b c n. (n, a, b) build_list ->

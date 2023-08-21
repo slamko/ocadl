@@ -67,9 +67,9 @@ external cc_vec_nil : int -> Vec.tensor = "cc_vec_nil"
 external cc_fully_connected_ff : Vec.tensor -> Mat.tensor -> Vec.tensor ->
   Vec.tensor = "cc_fully_connected_ff"
 
-external cc_mat_sub : Mat.tensor -> Mat.tensor -> Mat.tensor = "cc_mat_sub"
+(* external cc_mat_sub : Mat.tensor -> Mat.tensor -> Mat.tensor = "cc_mat_sub" *)
 
-external cc_mat_sum : Mat.tensor -> float = "cc_mat_sum"
+(* external cc_mat_sum : Mat.tensor -> float = "cc_mat_sum" *)
 
 external cc_vec_sub : Vec.tensor -> Vec.tensor -> Vec.tensor = "cc_vec_sub"
 
