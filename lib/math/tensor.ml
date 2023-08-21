@@ -2,25 +2,34 @@ open Common
 open Bigarray
 
 module Vec = struct
-  type t =
-    { matrix : (float, float32_elt, c_layout) Array1.t;
-      dim : int;
-    }
-
   type shape = {
       dim1 : col;
+    }
+
+  type tensor = (float, float32_elt, c_layout) Array1.t
+  
+  type t =
+    { matrix : tensor;
+      shape : shape;
     }
 
   let shape_size v = col v.dim1
 
   let get_shape vec =
-    { dim1 = Col ( Array1.dim vec ) }
+    { dim1 = Col ( Array1.dim vec.matrix ) }
 
   let make_shape cols =
     { dim1 = cols }
 
+  let create big_arr =
+    { matrix = big_arr;
+      shape = { dim1 = Col (Array1.dim big_arr) }
+    }
+
   let init (Col cols) f =
-    Array1.init Float32 C_layout cols f
+    { matrix = Array1.init Float32 C_layout cols f;
+      shape = {dim1 = Col cols};
+    }
 
   let make cols init_val =
     init cols (fun _ -> init_val)
@@ -33,34 +42,49 @@ module Vec = struct
     |> Array1.of_array Float32 C_layout 
 
   let of_array arr =
-    Array1.of_array Float32 C_layout arr
+    let matrix = Array1.of_array Float32 C_layout arr in
+    { matrix ;
+      shape = { dim1 = Col (Array1.dim matrix) }
+    }
 
   let set (Col col) vec value =
-    Array1.unsafe_set vec col value
+    Array1.unsafe_set vec.matrix col value
 
 end
 
 module Mat = struct
-  type t =
-    { matrix : (float, float32_elt, c_layout) Array2.t;
-      dim : int -> int;
-    }
 
   type shape = {
       dim1 : row;
       dim2 : col;
     }
 
+  type tensor = (float, float32_elt, c_layout) Array2.t
+
+  type t =
+    { matrix : tensor;
+      shape: shape;
+    }
+
   let shape_size m = row m.dim1 * col m.dim2
 
   let get_shape mat =
-    { dim1 = Row (Array2.dim1 mat); dim2 = Col (Array2.dim2 mat) }
+    { dim1 = Row (Array2.dim1 mat.matrix);
+      dim2 = Col (Array2.dim2 mat.matrix) }
 
   let make_shape dim1 dim2 =
     { dim1; dim2 }
 
+  let create big_arr =
+    { matrix = big_arr;
+      shape = { dim1 = Row (Array2.dim1 big_arr);
+                dim2 = Col (Array2.dim2 big_arr); }
+    }
+
   let init (Row rows) (Col cols) f =
-    Array2.init Float32 C_layout rows cols f
+    { matrix = Array2.init Float32 C_layout rows cols f;
+      shape = { dim1 = Row rows; dim2 = Col cols }
+    }
 
   let make rows cols init_val =
     init rows cols (fun  _ _ -> init_val)
@@ -70,27 +94,41 @@ module Mat = struct
 end
 
 module Mat3 = struct
-  type t =
-    { matrix : (float, float32_elt, c_layout) Array3.t;
-      dim : int -> int -> int;
-    }
-
   type shape = {
       dim1 : row;
       dim2 : col;
       dim3 : col;
     }
 
+  type tensor = (float, float32_elt, c_layout) Array3.t
+
+  type t =
+    { matrix : tensor;
+      shape: shape
+    }
+
   let shape_size m = row m.dim1 * col m.dim2 * col m.dim3
 
+  let make_shape dim1 dim2 dim3 =
+    { dim1; dim2 ; dim3 }
+
   let get_shape mat =
-    { dim1 = Row (Array3.dim1 mat);
-      dim2 = Col (Array3.dim2 mat);
-      dim3 = Col (Array3.dim3 mat)
+    { dim1 = Row (Array3.dim1 mat.matrix);
+      dim2 = Col (Array3.dim2 mat.matrix);
+      dim3 = Col (Array3.dim3 mat.matrix)
+    }
+
+  let create matrix =
+    { matrix;
+      shape = { dim1 = Row (Array3.dim1 matrix);
+                dim2 = Col (Array3.dim2 matrix);
+                dim3 = Col (Array3.dim3 matrix) }
     }
 
   let init (Row rows) (Col cols) (Col dim3) f =
-    Array3.init Float32 C_layout rows cols dim3 f
+    { matrix = Array3.init Float32 C_layout rows cols dim3 f;
+      shape = { dim1 = Row rows; dim2 = Col cols; dim3 = Col dim3 }
+    }
 
   let make rows cols dim3 init_val =
     init rows cols dim3 (fun  _ _ _ -> init_val)

@@ -3,6 +3,7 @@
     (flags (:standard -warn-error -A))))
 
 (include_subdirs unqualified)
+; (include_subdirs ../vector)
 
 (library
  (public_name ocadl)
@@ -15,4 +16,7 @@
             csv)
  (inline_tests)
  (preprocess (pps ppx_catch ppx_deriving.show ppx_inline_test))
+ (foreign_stubs
+  (include_dirs (lib cc_mat))
+  (language c) (names hello) (flags -lOpenCL))
  (name ocadl))

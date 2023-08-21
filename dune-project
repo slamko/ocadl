@@ -19,7 +19,7 @@
  (name ocadl)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml mpp dune)
+ (depends ocaml mpp dune cc_mat)
  (tags
   (topics "to describe" your project)))
 

@@ -1,6 +1,8 @@
 open Common
 open Types
 open Alias
+open Bigarray
+open Tensor
 
 let sigmoid (x : float) : float =
   1. /. (1. +. exp(-. x))
@@ -50,3 +52,8 @@ let res_to_bool = function
      Printf.eprintf "error: %s\n" err ;
      false
 
+external cc_mat3_random : int -> int -> int -> Mat3.tensor = "cc_mat3_random"
+
+external cc_mat_random : int -> int -> Mat.tensor = "cc_mat_random"
+
+external cc_vec_random : int -> Vec.tensor = "cc_vec_random"

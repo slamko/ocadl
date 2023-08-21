@@ -160,8 +160,8 @@ let make_fully_connected ~ncount ~act ~deriv layers =
 
   let params =
     { Fully_connected.
-      weight_mat = Mat.random (Row prev_ncount) (Col ncount);
-      bias_mat = Vec.random (Col ncount);
+      weight_mat = cc_mat_random prev_ncount ncount |> Mat.create;
+      bias_mat = cc_vec_random ncount |> Vec.create ;
     } 
   in
 
@@ -185,19 +185,18 @@ let make_conv3d ~kernel_shape ~kernel_num
   let new_dim in_dim kern_dim =
     ((in_dim + (2 * padding) - kern_dim) / stride) + 1 in
 
-  let Shape.ShapeMatVec(prev_image_shape, _) = prev_shape in
+  let Shape.ShapeMatVec(prev_image_shape) = prev_shape in
   
   let out_shape =
     Shape.make_shape_mat_vec
-      (Mat.make_shape
+      (Mat3.make_shape
          (Row (new_dim
                  (get_row prev_image_shape.dim1)
                  (get_row kernel_shape.dim1)))
          (Col (new_dim
                  (get_col prev_image_shape.dim2)
-                 (get_col kernel_shape.dim2))))
-
-      (Vec.make_shape (Col kernel_num))
+                 (get_col kernel_shape.dim2)))
+         (Col kernel_num)) 
   in
   
   let meta = {
@@ -210,17 +209,23 @@ let make_conv3d ~kernel_shape ~kernel_num
       out_shape;
    } in
 
-  let kernels = Vec.create (Col kernel_num)
-                     (fun _ _ -> random_of_shape kernel_shape) in
+  let (Row dim1) = kernel_shape.dim1 in
+  let (Col dim2) = kernel_shape.dim2 in
+
+  let kernels =
+    cc_mat3_random dim1 dim2 kernel_num
+    |> Mat3.create in
 
   let params = {
       Conv3D.
       kernels;
-      bias_mat = Vec.random kernels.cols
+      bias_mat = col kernels.shape.dim3 |> cc_vec_random |> Vec.create
     } in
 
   let layer = Conv3D (meta, params) in
   { layers with build_list = Build_Cons(layer, layers.build_list) }
+
+(*
 
 let make_pooling ~filter_shape ~stride ~f ~fbp layers =
   let open Mat in
@@ -286,6 +291,7 @@ let make_flatten layers =
 
   let layer = Flatten meta in
   { layers with build_list = Build_Cons (layer, layers.build_list) }
+ *)
 
 let rev_build_list blist =
 
@@ -325,7 +331,8 @@ let conv2d_map proc layer =
 let fully_connected_zero layer =
   let open Fully_connected in
   FullyConnectedParams
-    { weight_mat = Mat.zero layer.weight_mat;
+    { weight_mat = (row layer.weight_mat.shape.dim1)
+                     (col layer.weight_mat.shape.dim2);
        bias_mat  = Vec.zero layer.bias_mat;
     }
 
