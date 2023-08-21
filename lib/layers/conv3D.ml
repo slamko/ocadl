@@ -2,7 +2,7 @@ open Alias
 open Shape
 
 type params = {
-    kernels : mat vector;
+    kernels : mat3;
     bias_mat : vec;
   }
 
@@ -12,10 +12,10 @@ type meta = {
     act : activation;
     deriv : deriv;
     kernel_num : int;
-    out_shape : mat vector tensor shape;
+    out_shape : mat3 tensor shape;
   }
 
-type input = mat vector tensor
-type out = mat vector tensor
+type input = mat3 tensor
+type out = mat3 tensor
 
 type t = meta * params

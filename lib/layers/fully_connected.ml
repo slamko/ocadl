@@ -5,7 +5,6 @@ type params = {
     weight_mat : mat;
     bias_mat : vec;
   }
-[@@deriving show]
 
 type meta = {
     activation : activation;

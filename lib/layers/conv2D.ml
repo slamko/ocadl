@@ -2,7 +2,7 @@ open Alias
 open Shape
 
 type params = {
-    kernels : mat vector;
+    kernels : mat3;
     bias_mat : vec;
   }
 

@@ -5,7 +5,7 @@ type meta = {
     out_shape : vec tensor shape;
   }
 
-type input = mat vector tensor
-type out = float vector tensor
+type input = mat3 tensor
+type out = vec tensor
 
 type t = meta

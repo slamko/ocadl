@@ -2,12 +2,7 @@ open Types
 open Alias
 open Common
 open Deepmath
-
-let data arr =
-  arr |> Mat.of_array (Row 1) @@ Col (Array.length arr)
-
-let one_data a =
-  data [| a |]
+open Tensor
 
 let nn_print nn =
   print_string "\nNN print: \n" ;
