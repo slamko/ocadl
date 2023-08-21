@@ -38,67 +38,6 @@ type ('inp, 'out) backprop_layer = {
     grad : ('inp, 'out) layer_params;
   }
 
-let fully_connected_forward meta params tens =
-  let open Fully_connected in
-  Mat.mult (Vec.to_mat tens) params.weight_mat
-  |> Mat.add (Vec.to_mat params.bias_mat)
-  |> Mat.map meta.activation
-  |> Mat.to_vec
-  |> make_tens1
-
-let pooling_forward meta tens =
-  let open Pooling in
-
-  let rec pool_rec meta mat (Row cur_row) (Col cur_col) acc =
-    let open Mat in
-    if cur_row >= (dim1 acc |> get_row)
-    then acc
-    else if cur_col >= (dim2 acc |> get_col)
-    then pool_rec meta mat (Row (cur_row + 1)) (Col 0) acc
-    else
-      let Shape.ShapeMat ({dim1; dim2}) = meta.filter_shape in
-      mat
-         |> shadow_submatrix
-              (Row (cur_row * meta.stride))
-              (Col (cur_col * meta.stride)) dim1 dim2
-         |> (fun subm -> fold_left meta.fselect (get_first subm) subm)
-         |> set_bind (Row cur_row) (Col cur_col) acc
-         |> pool_rec meta mat (Row cur_row) (Col (cur_col + 1))  
-  in
-
-  let Shape.ShapeMatVec (single_out_shape, _) = meta.out_shape in
-
-  Vec.map
-    (fun mat ->
-      Mat.zero_of_shape single_out_shape
-      |> pool_rec meta mat (Row 0) (Col 0)) tens
-  |> make_tens3
-
-let conv3d_forward meta params tens =
-  let open Conv3D in
-
-  let Shape.ShapeMatVec (single_out_shape, _) = meta.out_shape in
-
-  Vec.mapi
-    (fun _ (Col c) kernel ->
-      let open Mat in
-      let res_mat = zero_of_shape single_out_shape in
-
-      Vec.fold_left (fun acc in_ch ->
-          convolve in_ch
-            ~stride:meta.stride
-            ~padding:meta.padding
-            single_out_shape kernel
-          |> add acc) res_mat tens
-      |> add_const (params.bias_mat |> Vec.get (Col c))
-      |> map meta.act 
-    ) params.kernels
-  |> make_tens3
-
-let conv2d_forward meta params tens =
-  Vec.make (Col 1) tens
-  |> conv3d_forward meta params
-
 let forward_layer : type a b. a -> (a, b) layer -> b
   = fun input layer_type ->
   match layer_type with

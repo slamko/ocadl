@@ -1,16 +1,12 @@
-module Mat = Matrix.Mat
-module Vec = Matrix.Vector
+open Bigarray
 
 type activation = float -> float [@@deriving show]
 
 type deriv = float -> float [@@deriving show]
 
-type mat = float Mat.t [@@deriving show]
-
-type vec = float Vec.t [@@deriving show]
-
-type 'a matrix = 'a Mat.t [@@deriving show]
-type 'a vector = 'a Vec.t [@@deriving show]
+type mat3 = (float, float32_elt, c_layout) Array3.t 
+type mat  = (float, float32_elt, c_layout) Array2.t 
+type vec  = (float, float32_elt, c_layout) Array1.t 
 
 module New = struct
   type t = {b : float}
@@ -31,8 +27,7 @@ open Some
 type _ tensor =
   | Tensor1 : vec -> vec tensor
   | Tensor2 : mat -> mat tensor
-  | Tensor3 : mat vector -> mat vector tensor
-  | Tensor4 : mat matrix -> mat matrix tensor
+  | Tensor3 : mat3 -> mat3 tensor
 
 (* let matr : type a. a tensor -> a tensor -> unit = *)
   (* fun a b -> *)
@@ -42,4 +37,3 @@ type _ tensor =
 let make_tens1 v = Tensor1 v
 let make_tens2 v = Tensor2 v
 let make_tens3 v = Tensor3 v
-let make_tens4 v = Tensor4 v
