@@ -46,11 +46,10 @@ let read_mnist_train_data fname shape =
            (data_list
             |> Mat.of_list
                  shape.Mat.dim1
-                 shape.Mat.dim2)
-           |> Vec.make (Col 1) in
+                 shape.Mat.dim2) in
 
          (Tensor1 res_vec,
-          Tensor3 inp))
+          Tensor2 inp))
 
 let to_json_list proc l =
   `List (l |> proc)
@@ -314,6 +313,7 @@ let make_nn : type a b n. (n succ, a, b) build_nn -> (n succ, a, b) nnet =
     build_layers = arch.build_list;
   }
 
+(*
 let fully_connected_map proc layer =
     let open Fully_connected in
     FullyConnectedParams {
@@ -533,3 +533,5 @@ let nn_zero_params nn =
   in                            
 
   { param_list = params_zero nn.layers }
+
+ *)

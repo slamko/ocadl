@@ -86,6 +86,30 @@ module Mat = struct
       shape = { dim1 = Row rows; dim2 = Col cols }
     }
 
+  let of_list (Row rows) (Col cols) lst =
+    if List.length lst < rows * cols || rows = 0 || cols = 0
+    then failwith "Invalid list for matrix creation";
+
+    let rec rec_of_list lst i cur_acc acc =
+      match lst with
+      | [] -> acc
+      | h::t ->
+         if i = cols
+         then rec_of_list t 1 [h] (cur_acc::acc)
+         else rec_of_list t (i + 1) (h::cur_acc) acc
+    in
+
+    let mat_lst =
+      if rows = 1
+      then [lst]
+      else rec_of_list lst 1 [] []
+    in
+
+    let mat_arr = List.map Array.of_list mat_lst |> Array.of_list in
+    { matrix = Array2.of_array Float32 C_layout mat_arr ;
+      shape = {dim1 = Row rows; dim2 = Col cols; }
+    }
+
   let make rows cols init_val =
     init rows cols (fun  _ _ -> init_val)
 

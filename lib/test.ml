@@ -4,10 +4,12 @@ open Deep
 open Nn
 open Alias
 open Types
+open Tensor
 open Ctypes
 open Foreign
 open PosixTypes
 
+(*
 let xor_in =
   [
     data [|0.; 0.|] ;
@@ -15,7 +17,6 @@ let xor_in =
     data [|1.; 0.|] ;
     data [|1.; 1.|] ;
   ]
-(*
 let xor_data =
   [
     (Tensor1 (one_data 0.), Tensor1 (data [|0.; 0.|])) ;

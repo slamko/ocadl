@@ -92,10 +92,10 @@ let forward input nn =
     bp_data = forward_rec nn.layers input BP_Nil
   }
 
-let tens1_error res exp =
-  Mat.sub (Vec.to_mat res) (Vec.to_mat exp)
-  |> Mat.sum
-
+let tens1_error (res : Vec.t) (exp : Vec.t) =
+  cc_vec_sub res.matrix exp.matrix
+  |> cc_vec_sum
+(*
 let tens3_error res exp =
    let open Mat in
    let zero_mat =
@@ -128,6 +128,7 @@ let tens1_diff res exp =
 let tens3_diff res exp =
   Vec.map2 Mat.sub res exp
   |> make_tens3
+ *)
 
 let loss data nn =
 
@@ -150,6 +151,7 @@ let loss data nn =
                     | Tensor1 res, Tensor1 exp -> 
                        tens1_error res exp
                    )
+                (*
                 | Conv3D (_, _) ->
                    (match res, expected with
                     | Tensor3 res, Tensor3 exp -> 
@@ -165,6 +167,7 @@ let loss data nn =
                     | Tensor3 res, Tensor3 exp -> 
                        tens3_error res exp
                    )
+                 *)
                )
             | BP_Cons((lay, _, res), _) ->
                (match lay with
@@ -173,6 +176,7 @@ let loss data nn =
                     | Tensor1 res, Tensor1 exp -> 
                        tens1_error res exp
                    )
+                (*
                 | Conv3D (_, _) ->
                    (match res, expected with
                     | Tensor3 res, Tensor3 exp -> 
@@ -193,6 +197,7 @@ let loss data nn =
                     | Tensor3 res, Tensor3 exp -> 
                        tens3_error res exp
                    )
+                 *)
                )
            )
          in
@@ -206,6 +211,7 @@ let loss data nn =
   let avg_loss = List.length data |> float_of_int |> (/.) @@ loss in
   Ok avg_loss
 
+(*
 let bp_fully_connected meta params prev
       (Tensor1 act) (Tensor1 act_prev) (Tensor1 diff_mat) =
   let open Fully_connected in
@@ -623,3 +629,4 @@ let learn data ?(epoch_num = 11) ?(learning_rate = 1.0) ?(batch_size = 1)
        Task.teardown_pool pool ;
        Ok res
     | Error err -> Error err
+ *)
