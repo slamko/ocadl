@@ -57,3 +57,12 @@ external cc_mat3_random : int -> int -> int -> Mat3.tensor = "cc_mat3_random"
 external cc_mat_random : int -> int -> Mat.tensor = "cc_mat_random"
 
 external cc_vec_random : int -> Vec.tensor = "cc_vec_random"
+
+external cc_mat3_nil : int -> int -> int -> Mat3.tensor = "cc_mat3_nil"
+
+external cc_mat_nil : int -> int -> Mat.tensor = "cc_mat_nil"
+
+external cc_vec_nil : int -> Vec.tensor = "cc_vec_nil"
+
+external cc_fully_connected_ff : Vec.tensor -> Mat.tensor -> Vec.tensor ->
+  Vec.tensor = "cc_fully_connected_ff"

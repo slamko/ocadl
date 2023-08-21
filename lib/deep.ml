@@ -4,8 +4,8 @@ open Alias
 open Nn
 open Domainslib
 open Deepmath
-open Matrix
 open Common
+open Tensor
 open Ctypes
 open Foreign
 open PosixTypes
@@ -45,9 +45,11 @@ let forward_layer : type a b. a -> (a, b) layer -> b
   | FullyConnected (fc, fcp) ->
      (match input with
      | Tensor1 tens -> 
-        tens
-        |> fully_connected_forward fc fcp
+        cc_fully_connected_ff tens.matrix
+          fcp.weight_mat.matrix fcp.bias_mat.matrix
+        |> Vec.create |> make_tens1
      )
+(*
   | Conv3D (cn, cnp) -> 
      (match input with
      | Tensor3 tens -> 
@@ -69,6 +71,7 @@ let forward_layer : type a b. a -> (a, b) layer -> b
          tens
          |> pooling_forward pl
      )
+ *)
 
 let forward input nn =
 
@@ -89,17 +92,6 @@ let forward input nn =
     bp_data = forward_rec nn.layers input BP_Nil
   }
 
-let get_err : type t. t tensor -> float =
-  fun tens ->
-  match tens with
-  | Tensor1 vec -> Vec.sum vec
-  | Tensor2 mat -> Mat.sum mat
-  | Tensor3 mat_vec ->
-     Vec.fold_left (fun acc m -> Mat.sum m +. acc) 0. mat_vec
-  | Tensor4 mat_mat ->
-     Mat.fold_left (fun acc m -> Mat.sum m +. acc) 0. mat_mat
-
-
 let tens1_error res exp =
   Mat.sub (Vec.to_mat res) (Vec.to_mat exp)
   |> Mat.sum
@@ -116,6 +108,17 @@ let tens3_error res exp =
      (fun acc res exp ->
        sub res exp |> add acc) zero_mat res exp
    |> sum
+
+
+let get_err : type t. t tensor -> float =
+  fun tens ->
+  match tens with
+  | Tensor1 vec -> Vec.sum vec
+  | Tensor2 mat -> Mat.sum mat
+  | Tensor3 mat_vec ->
+     Vec.fold_left (fun acc m -> Mat.sum m +. acc) 0. mat_vec
+  | Tensor4 mat_mat ->
+     Mat.fold_left (fun acc m -> Mat.sum m +. acc) 0. mat_mat
 
 let tens1_diff res exp =
   Mat.sub (Vec.to_mat res) (Vec.to_mat exp)

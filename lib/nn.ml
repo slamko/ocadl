@@ -331,16 +331,25 @@ let conv2d_map proc layer =
 let fully_connected_zero layer =
   let open Fully_connected in
   FullyConnectedParams
-    { weight_mat = (row layer.weight_mat.shape.dim1)
-                     (col layer.weight_mat.shape.dim2);
-       bias_mat  = Vec.zero layer.bias_mat;
+    { weight_mat = cc_mat_nil
+                     (row layer.weight_mat.shape.dim1)
+                     (col layer.weight_mat.shape.dim2)
+                   |> Mat.create ;
+
+      bias_mat  = cc_vec_nil (col layer.bias_mat.shape.dim1) |> Vec.create;
     }
 
 let conv2d_zero layer =
   let open Conv3D in
   Conv3DParams
-    { kernels  = layer.kernels  |> Vec.map Mat.zero ;
-      bias_mat = layer.bias_mat |> Vec.zero ;
+    { kernels  =
+        cc_mat3_nil
+          (row layer.kernels.shape.dim1)
+          (col layer.kernels.shape.dim2)
+          (col layer.kernels.shape.dim3)
+        |> Mat3.create;
+
+      bias_mat  = cc_vec_nil (col layer.bias_mat.shape.dim1) |> Vec.create
     }
 
 
