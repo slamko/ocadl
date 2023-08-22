@@ -74,3 +74,7 @@ external cc_fully_connected_ff : Vec.tensor -> Mat.tensor -> Vec.tensor ->
 external cc_vec_sub : Vec.tensor -> Vec.tensor -> Vec.tensor = "cc_vec_sub"
 
 external cc_vec_sum : Vec.tensor -> float = "cc_vec_sum"
+
+external cc_mat_flatten : Mat.tensor -> Vec.tensor = "cc_mat_flatten"
+
+external gpu_init : unit -> int = "cc_gpu_init"

@@ -23,6 +23,8 @@ let speclist =
 let () =
   Unix.time () |> int_of_float |> Random.init ;
   Arg.parse speclist anon_fun usage_msg ;
+  let st = Deepmath.gpu_init () in
+  Printf.printf "Gpu init: %d\n" st ;
 
     begin match
       Test.test 

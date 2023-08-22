@@ -21,6 +21,7 @@ let forward_layer : type a b. a -> (a, b) layer -> b
   = fun input layer_type ->
   match layer_type with
   | Input3 _ -> input
+  | Input2 _ -> input
   | FullyConnected (fc, fcp) ->
      (match input with
      | Tensor1 tens -> 
@@ -28,6 +29,11 @@ let forward_layer : type a b. a -> (a, b) layer -> b
           fcp.weight_mat.matrix fcp.bias_mat.matrix
         |> Vec.create |> make_tens1
      )
+  | Flatten2D meta ->
+     let (Tensor2 tens) = input in
+     cc_mat_flatten tens.matrix
+     |> Vec.create |> make_tens1
+
 (*
   | Conv3D (cn, cnp) -> 
      (match input with
