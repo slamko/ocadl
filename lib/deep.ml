@@ -196,141 +196,20 @@ let loss data nn =
   let avg_loss = List.length data |> float_of_int |> (/.) @@ loss in
   Ok avg_loss
 
-(*
-let bp_fully_connected meta params prev
-      (Tensor1 act) (Tensor1 act_prev) (Tensor1 diff_mat) =
+let fully_connected_bp prev_layer meta params (Tensor1 act_prev)
+      (Tensor1 act) (Tensor1 diff_mat) =
   let open Fully_connected in
-  let open Mat in
-  
-  let wmat = params.weight_mat in
-  let prev_diff_mat = make (dim1 wmat) (Col 1) 0. in
-  
-  let grad_wmat =
-    mapi
-      (fun r c weight ->
-        let ai = Vec.get c act in
-        let ai_prev = Vec.get (Col (get_row r)) act_prev in
-        let diff  = Vec.get c diff_mat in
-        let ai_deriv = meta.activation ai in
-        
-        let dw = 2. *. diff *. ai_deriv *. ai_prev in
-        let dprev = 2. *. diff *. ai_deriv *. weight in
-        
-        (match prev with
-         | true -> 
-            get r (Col 0) prev_diff_mat
-            |> (+.) dprev
-            |> set r (Col 0) prev_diff_mat;
-         | false -> ()
-        );
-        
-        dw
-      ) wmat in
-  
-  let grad_bmat =
-    Vec.mapi
-      (fun _ c _ ->
-        let ai = Vec.get c act in
-        let diff = Vec.get c diff_mat in
-        let db = 2. *. diff *. ai *. (1. -. ai) in
-        db
-      ) params.bias_mat in
-  
-  let prev_diff = prev_diff_mat
-                  |> reshape (Row 1) (Col (wmat |> dim1 |> get_row))
-                  |> Mat.to_vec
-                  |> make_tens1
+  let (prev_diff, wgrad, bgrad) =
+    cc_fully_connected_bp params.weight_mat.matrix act_prev.matrix
+      act.matrix diff_mat.matrix
   in
-
-  { prev_diff ;
-    grad =
-      FullyConnectedParams {
-          weight_mat = grad_wmat;
-          bias_mat = grad_bmat;
-        };
+  
+  { prev_diff = prev_diff |> Vec.create |> make_tens1;
+    grad = FullyConnectedParams { weight_mat = wgrad |> Mat.create;
+                                  bias_mat = bgrad |> Vec.create;
+             }
   }
 
-let flatten_bp (Tensor3 act_prev) (Tensor1 diff) =
-  { prev_diff =
-      diff
-      |> Vec.to_mat
-      |> Mat.reshape3d (Vec.to_mat act_prev)
-      |> Mat.to_vec
-      |> make_tens3;
-    grad = FlattenParams;
-  }
-
-let pooling_bp meta (Tensor3 act_prev) (Tensor3 diff_mat) =
-  let open Mat in
-  let open Pooling in
-
-  let rec pool_rec meta mat diff_mat (Row cur_row) (Col cur_col) acc =
-    if cur_row >= (dim1 diff_mat |> get_row)
-    then acc
-    else if cur_col >= (dim2 diff_mat |> get_col)
-    then pool_rec meta mat diff_mat (Row (cur_row + 1)) (Col 0) acc
-    else
-      let cur_diff = get (Row cur_row) (Col cur_col) diff_mat in
-
-      let Shape.ShapeMat ({dim1; dim2}) = meta.filter_shape in
-      let res_submat = acc 
-                       |> shadow_submatrix
-                            (Row (cur_row * meta.stride))
-                            (Col (cur_col * meta.stride)) dim1 dim2
-      in
-
-      mat
-      |> shadow_submatrix
-           (Row (cur_row * meta.stride))
-           (Col (cur_col * meta.stride)) dim1 dim2
-      |> meta.fderiv meta.filter_shape cur_diff res_submat ;
-
-      pool_rec meta mat diff_mat (Row cur_row) (Col (cur_col + 1)) acc
-  in
-
-  let prev_diff =
-    Vec.map2 (fun input diff ->
-        (* print diff ; *)
-        pool_rec meta input diff (Row 0) (Col 0)
-             (zero_of_shape (get_shape input)))
-      act_prev diff_mat 
-      (* |> make_tens3 *)
-  in
-  { prev_diff = prev_diff |> make_tens3; grad = PoolingParams}
-
-let conv3d_bp meta params prev_layer
-      (Tensor3 act) (Tensor3 act_prev) (Tensor3 diff_mat) =
-
-  let open Mat in
-  let open Conv3D in
-  let dact_f = Vec.map (map meta.deriv) act in  
-  let dz = Vec.map2 hadamard dact_f diff_mat in
-  let bias_mat = Vec.map sum dz in
-  let kernels = Vec.map3 (fun inp out kern ->
-                    convolve inp ~padding:meta.padding
-                      ~stride:meta.stride (get_shape kern) out)
-                  act_prev dz params.kernels
-  in
-  
-  let prev_diff =
-    match prev_layer with
-    | true  ->
-       Vec.map3 (fun inp dout kern ->
-           let kern_rot = rotate180 kern in
-           convolve dout ~padding:meta.padding
-             ~stride:meta.stride (get_shape inp) kern_rot)
-         act_prev dz params.kernels
-       |> make_tens3
-    | false -> diff_mat |> make_tens3  
-  in
-  
-  { prev_diff;
-    grad =
-      Conv3DParams
-        { kernels;
-          bias_mat
-        }
-  }
 
 let backprop_layer : type a b. (a, b) layer -> bool -> a -> b -> b ->
                           (a, b) backprop_layer
@@ -340,14 +219,21 @@ let backprop_layer : type a b. (a, b) layer -> bool -> a -> b -> b ->
      { prev_diff = diff_mat;
        grad = Input3Params;
      }
+  | Input2 _ ->
+     { prev_diff = diff_mat;
+       grad = Input2Params;
+     }
+  (* | Flatten2D  *)
   | FullyConnected (meta, params) ->
-     bp_fully_connected meta params prev_layer act act_prev diff_mat
+     fully_connected_bp prev_layer meta params act_prev act diff_mat
+(*
   | Conv3D (meta, params) ->
      conv3d_bp meta params prev_layer act act_prev diff_mat 
   | Pooling meta ->
      pooling_bp meta act_prev diff_mat
   | Flatten _ -> 
      flatten_bp act_prev diff_mat
+ *)
  
 let rec backprop_nn :
           type a b c x. ((b, a) layer * b * a, c) bp_list -> a ->
@@ -462,6 +348,7 @@ let nn_gradient nn data =
   (* print_endline "Full nn"; *)
   let param_nn = nn_params_map (( *. ) scale_fact) newn in
   Ok param_nn
+
 
 let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
                              (inp, out) train_data ->
@@ -614,4 +501,3 @@ let learn data ?(epoch_num = 11) ?(learning_rate = 1.0) ?(batch_size = 1)
        Task.teardown_pool pool ;
        Ok res
     | Error err -> Error err
- *)
