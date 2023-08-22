@@ -77,6 +77,9 @@ external cc_vec_sum : Vec.tensor -> float = "cc_vec_sum"
 
 external cc_mat_flatten : Mat.tensor -> Vec.tensor = "cc_mat_flatten"
 
+external cc_mat_flatten_bp : int -> int -> Vec.tensor ->
+                             Mat.tensor = "cc_mat_flatten_bp"
+
 external gpu_init : unit -> int = "cc_gpu_init"
 
 external cc_fully_connected_bp : Mat.tensor -> Vec.tensor -> Vec.tensor ->

@@ -238,6 +238,15 @@ CAMLprim value cc_mat_flatten(value mat) {
                              mat_data->data, new_dim));
 }
 
+CAMLprim value cc_mat_flatten_bp(value rows, value cols, value mat) {
+    CAMLparam1(mat);
+    struct caml_ba_array *mat_data = Caml_ba_array_val(mat);
+
+    intnat new_dim[2] = { Long_val(rows), Long_val(cols) };
+    CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
+                             mat_data->data, new_dim));
+}
+
 CAMLprim value cc_gpu_init() {
     CAMLparam0();
     int ret = 0;

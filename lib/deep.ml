@@ -210,6 +210,13 @@ let fully_connected_bp prev_layer meta params (Tensor1 act_prev)
              }
   }
 
+let flatten_bp prev_layer meta (Tensor2 act_prev) (Tensor1 diff) =
+  { prev_diff = cc_mat_flatten_bp
+                  (row act_prev.shape.dim1) 
+                  (col act_prev.shape.dim2) diff.matrix
+                |> Mat.create |> make_tens2;
+    grad = Flatten2DParams;
+  }
 
 let backprop_layer : type a b. (a, b) layer -> bool -> a -> b -> b ->
                           (a, b) backprop_layer
@@ -223,7 +230,8 @@ let backprop_layer : type a b. (a, b) layer -> bool -> a -> b -> b ->
      { prev_diff = diff_mat;
        grad = Input2Params;
      }
-  (* | Flatten2D  *)
+  | Flatten2D meta ->
+     flatten_bp prev_layer meta act_prev diff_mat
   | FullyConnected (meta, params) ->
      fully_connected_bp prev_layer meta params act_prev act diff_mat
 (*
