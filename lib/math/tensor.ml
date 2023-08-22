@@ -36,6 +36,8 @@ module Vec = struct
 
   let zero cols = make cols 0.0
 
+  let random cols = init cols (fun _ -> (Random.float 1.0 *. 2.0) -. 1.0)
+
   let of_list lst =
     lst
     |> Array.of_list

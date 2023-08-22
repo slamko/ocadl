@@ -5,8 +5,7 @@
 #include <caml/bigarray.h>
 
 #include "blac.h"
-
-void hello_mat(void);
+#include "deep.h"
 
 cl_int ret;
 cl_command_queue command_queue;
