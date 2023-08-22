@@ -29,6 +29,9 @@ struct mat mat_make(size_t rows, size_t cols);
 
 struct mat mat_of_array(float *arr, size_t rows, size_t cols);
 
+int mat_scale(cl_context context, cl_command_queue queue, cl_program program,
+              const struct mat *mat, float scale);
+
 int mat_add(cl_context context, cl_command_queue queue, cl_program program,
              const struct mat *a, const struct mat *b,
             struct mat *c);

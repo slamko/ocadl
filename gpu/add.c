@@ -21,6 +21,29 @@ __kernel void vector_sum(__global const int *vec,
     atomic_add(c, vec[i]);
 }
 
+__kernel void matrix_scale(__global const float *mat,
+                           float scale) {
+    size_t x = get_global_id(0);
+
+    size_t x_size = get_global_size(0);
+    size_t glob_size = get_global_size(0);
+
+    size_t y_size = 0;
+
+    size_t y = 0;
+    size_t z = 0;
+
+    if (get_work_dim() == 2) {
+        y = get_global_id(1);
+    } else if (get_work_dim() == 3) {
+        y_size = get_global_size(1);
+        z = get_global_id(2);
+    }
+
+    mat[x + x_size * y + y_size * z] =
+        mat[x + x_size * y + y_size * z] * scale;
+}
+
 __kernel void matrix_sub(__global const float *a,
                          __global const float *b,
                          __global float *c) {

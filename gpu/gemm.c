@@ -170,6 +170,43 @@ CAMLprim value cc_fully_connected_bp(value weight_mat, value prev_act_mat,
     CAMLreturn(res_tuple);
 }
 
+CAMLprim value cc_vec_scale(value scale, value mat) {
+    CAMLparam2(scale, mat);
+
+    struct caml_ba_array *mat_arr = Caml_ba_array_val(mat);
+
+    struct mat mat_mat = mat_of_array(mat_arr->data, 1, mat_arr->dim[0]);
+
+    long dims[1] = { mat_arr->dim[0] };
+
+    int ret = 0;
+    if ((ret = mat_scale(context, command_queue, program, &mat_mat, scale))) {
+        printf ("Add error %d\n", ret);
+    }
+    
+    CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
+                             mat_mat.matrix, dims));
+}
+
+CAMLprim value cc_mat_scale(value scale, value mat) {
+    CAMLparam2(scale, mat);
+
+    struct caml_ba_array *mat_arr = Caml_ba_array_val(mat);
+
+    struct mat mat_mat =
+        mat_of_array(mat_arr->data, mat_arr->dim[0], mat_arr->dim[1]);
+
+    long dims[2] = { mat_arr->dim[0], mat_arr->dim[1] };
+
+    int ret = 0;
+    if ((ret = mat_scale(context, command_queue, program, &mat_mat, scale))) {
+        printf ("Add error %d\n", ret);
+    }
+    
+    CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
+                             mat_mat.matrix, dims));
+}
+
 CAMLprim value cc_mat_add(value a, value b) {
     CAMLparam2(a, b);
 
@@ -232,6 +269,7 @@ CAMLprim value cc_vec_sub(value a, value b) {
 CAMLprim value cc_mat_flatten(value mat) {
     CAMLparam1(mat);
     struct caml_ba_array *mat_data = Caml_ba_array_val(mat);
+    /* mat_data->num_dims = 1; */
 
     intnat new_dim[1] = { mat_data->dim[0] * mat_data->dim[1] };
     CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,

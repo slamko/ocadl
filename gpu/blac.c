@@ -415,6 +415,53 @@ int mat_sum(cl_context context, cl_command_queue queue, cl_program program,
     return ret;
 }
 
+int mat_scale(cl_context context, cl_command_queue queue, cl_program program,
+             const struct mat *mat, float scale) {
+
+    cl_int ret = {0};
+
+    if (mat->cols == 0 || mat->rows == 0 || mat->dim3 == 0) {
+        return 1;
+    }
+    
+    size_t mat_size = mat_mem_size(mat);
+
+    cl_mem mat_mem = clCreateBuffer(context,
+                                  CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
+                                  mat_size, mat->matrix, &ret);
+    if (ret) {
+        return ret;
+    }
+
+    cl_kernel kernel = clCreateKernel(program, "matrix_scale", &ret);
+    if (ret) {
+        goto cleanup;
+    }
+
+    ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), &mat_mem);
+    ret = clSetKernelArg(kernel, 1, sizeof(scale), &scale);
+
+    if (ret) goto cleanup;
+
+    size_t global_work_size [3] = {  mat->rows, mat->cols, mat->dim3 };
+    size_t dim1 = (mat->rows < 32) ? mat->rows : 32;
+    size_t dim2 = (mat->cols < 32) ? mat->cols : 32;
+    size_t dim3 = (mat->dim3 < 32) ? mat->cols : 32;
+    
+    size_t local_work_size [3] = { dim1, dim2, dim3};
+
+    ret = clEnqueueNDRangeKernel(queue, kernel, 3, NULL, global_work_size,
+                                 local_work_size, 0, NULL, NULL);
+    if (ret) goto cleanup;
+
+    clFlush(queue);
+
+    ret = clReleaseKernel(kernel);
+  cleanup:
+    clReleaseMemObject(mat_mem);
+    return ret;
+}
+
 int mat_add(cl_context context, cl_command_queue queue, cl_program program,
              const struct mat *a, const struct mat *b,
              struct mat *c) {

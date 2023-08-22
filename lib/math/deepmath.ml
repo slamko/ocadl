@@ -86,3 +86,8 @@ external cc_fully_connected_bp : Mat.tensor -> Vec.tensor -> Vec.tensor ->
                                  Vec.tensor ->
                                 (Vec.tensor * Mat.tensor * Vec.tensor) =
   "cc_fully_connected_bp"
+
+
+external cc_mat_scale : float -> Mat.tensor -> Mat.tensor = "cc_mat_scale"
+
+external cc_vec_scale : float -> Vec.tensor -> Vec.tensor = "cc_vec_scale"

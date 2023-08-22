@@ -105,15 +105,15 @@ let get_err : type t. t tensor -> float =
   | Tensor4 mat_mat ->
      Mat.fold_left (fun acc m -> Mat.sum m +. acc) 0. mat_mat
 
-let tens1_diff res exp =
-  Mat.sub (Vec.to_mat res) (Vec.to_mat exp)
-  |> Mat.to_vec
+ *)
+let tens1_diff (res : vec) (exp : vec) =
+  cc_vec_sub res.matrix exp.matrix
+  |> Vec.create
   |> make_tens1
 
-let tens3_diff res exp =
-  Vec.map2 Mat.sub res exp
-  |> make_tens3
- *)
+(* let tens3_diff res exp = *)
+  (* Vec.map2 Mat.sub res exp *)
+  (* |> make_tens3 *)
 
 let loss data nn =
 
@@ -293,6 +293,7 @@ let nn_gradient nn data =
                     | Tensor1 res, Tensor1 exp -> 
                        tens1_diff res exp
                    )
+                (*
                 | Conv3D (_, _) ->
                    (match res, expected with
                     | Tensor3 res, Tensor3 exp -> 
@@ -308,6 +309,7 @@ let nn_gradient nn data =
                     | Tensor3 res, Tensor3 exp -> 
                        tens3_diff res exp
                    )
+                 *)
                )
             | BP_Cons((lay, _, res), _) ->
                (match lay with
@@ -316,6 +318,7 @@ let nn_gradient nn data =
                     | Tensor1 res, Tensor1 exp -> 
                        tens1_diff res exp
                    )
+                (*
                 | Conv3D (_, _) ->
                    (match res, expected with
                     | Tensor3 res, Tensor3 exp -> 
@@ -336,6 +339,7 @@ let nn_gradient nn data =
                     | Tensor3 res, Tensor3 exp -> 
                        tens3_diff res exp
                    )
+                 *)
                )
            )
          in

@@ -343,19 +343,6 @@ let make_nn : type a b n. (n succ, a, b) build_nn -> (n succ, a, b) nnet =
   }
 
 (*
-let fully_connected_map proc layer =
-    let open Fully_connected in
-    FullyConnectedParams {
-      weight_mat = Mat.map proc layer.Fully_connected.weight_mat;
-      bias_mat = Vec.map proc layer.Fully_connected.bias_mat;
-    }
-
-let conv2d_map proc layer =
-  let open Conv3D in
-  Conv3DParams {
-    kernels = layer.kernels |> Vec.map @@ Mat.map proc;
-    bias_mat = Vec.map proc layer.bias_mat
-  }
 
 let fully_connected_zero layer =
   let open Fully_connected in
@@ -382,16 +369,6 @@ let conv2d_zero layer =
     }
 
 
-let param_map : type a b. (float -> float) ->
-             (a, b) layer_params ->
-             (a, b) layer_params =
-  fun proc lay ->
-  (match lay with
-   | FullyConnectedParams fc -> fully_connected_map proc fc
-   | Conv3DParams cn -> conv2d_map proc cn
-   | empty -> empty
-  )
-
 let param_zero : type a b. 
              (a, b) layer_params ->
              (a, b) layer_params =
@@ -413,21 +390,54 @@ let layer_zero : type a b.
    | Pooling _ -> PoolingParams
    | Input3 _ -> Input3Params
   )
+ *)
 
-let nn_params_map proc nn =
-  let rec nn_params_map : type a b. (float -> float) ->
+let fully_connected_scale value layer =
+    let open Fully_connected in
+    FullyConnectedParams {
+        weight_mat =
+          cc_mat_scale value layer.weight_mat.matrix
+          |> Mat.create ;
+        bias_mat =
+          cc_vec_scale value layer.bias_mat.matrix
+          |> Vec.create;
+    }
+
+(*
+let conv2d_scale value layer =
+  let open Conv3D in
+  Conv3DParams {
+      kernels =
+        layer.kernels |> Vec.map @@ Mat.map proc;
+    bias_mat = Vec.map proc layer.bias_mat
+  }
+ *)
+
+let param_scale : type a b. float ->
+             (a, b) layer_params ->
+             (a, b) layer_params =
+  fun value lay ->
+  (match lay with
+   | FullyConnectedParams fc -> fully_connected_scale value fc
+   (* | Conv3DParams cn -> conv2d_scale value cn *)
+   | empty -> empty
+  )
+
+let nn_params_scale value nn =
+
+  let rec nn_params_scale : type a b. float ->
                              (a, b) param_list -> 
                              (a, b) param_list =
-  fun proc nn_params ->
-  match nn_params with
-  | PL_Nil as nil -> nil
-  | PL_Cons (lay, tail) ->
-     let tail_map = nn_params_map proc tail in
-     let new_lay = param_map proc lay in
-     PL_Cons (new_lay, tail_map)
+    fun value nn_params ->
+    match nn_params with
+    | PL_Nil as nil -> nil
+    | PL_Cons (lay, tail) ->
+       let tail_map = nn_params_scale value tail in
+       let new_lay = param_scale value lay in
+       PL_Cons (new_lay, tail_map)
   in
 
-  { param_list = nn_params_map proc nn.param_list } 
+  { param_list = nn_params_scale value nn.param_list } 
                    
 let nn_params_apply proc nn1 nn2 =
 
@@ -440,29 +450,51 @@ let nn_params_apply proc nn1 nn2 =
     | PL_Cons (l1, t1), PL_Cons (l2, t2) -> 
        (match l1, l2 with
         | FullyConnectedParams fc1, FullyConnectedParams fc2 ->
+           let bias1_as_mat =
+             (cc_mat_flatten_bp 1 (col fc1.bias_mat.shape.dim1)
+                fc1.bias_mat.matrix) in
+
+           let bias2_as_mat =
+             (cc_mat_flatten_bp 1 (col fc2.bias_mat.shape.dim1)
+                fc2.bias_mat.matrix) in
+
            let new_lay =
              FullyConnectedParams {
-                 weight_mat = proc fc1.weight_mat fc2.weight_mat;
-                 bias_mat = proc
-                              (Vec.to_mat fc1.bias_mat)
-                              (Vec.to_mat fc2.bias_mat)
-                            |> Mat.to_vec ;
+                 weight_mat = proc
+                                fc1.weight_mat.matrix
+                                fc2.weight_mat.matrix
+                              |> Mat.create ;
+
+                 bias_mat = proc bias1_as_mat bias2_as_mat
+                            |> cc_mat_flatten
+                            |> Vec.create
+                 ;
                } in
            let tail = apply_rec t1 t2 in
            PL_Cons(new_lay, tail)
+
+        (*
         | Conv3DParams cv1, Conv3DParams cv2 ->
+           let bias1_as_mat =
+             (cc_mat_flatten_bp 1 (col cv1.bias_mat.shape.dim1)
+                cv1.bias_mat.matrix) in
+
+           let bias2_as_mat =
+             (cc_mat_flatten_bp 1 (col cv2.bias_mat.shape.dim1)
+                cv2.bias_mat.matrix) in
+
            let new_lay =
              Conv3DParams {
                kernels = Vec.map2
                            (fun v1 v2 -> proc v1 v2)
                            cv1.kernels cv2.kernels;
-               bias_mat = proc
-                            (Vec.to_mat cv1.bias_mat)
-                            (Vec.to_mat cv2.bias_mat)
-                          |> Mat.to_vec ;
+               bias_mat = proc bias1_as_mat bias2_as_mat
+                          |> cc_mat_flatten
+                          |> Vec.create ;
                } in
            let tail = apply_rec t1 t2 in
            PL_Cons (new_lay, tail)
+         *)
         | Input3Params, Input3Params   ->
            PL_Cons (Input3Params,  apply_rec t1 t2)
         | PoolingParams, PoolingParams ->
@@ -537,6 +569,7 @@ let nn_apply_params proc nn params =
   let layers = apply_rec nn.layers params.param_list in
   { nn with layers = layers }
 
+(*
 let nn_params_zero nn_params =
   let rec params_zero : type a b. (a, b) param_list ->
                              (a, b) param_list
