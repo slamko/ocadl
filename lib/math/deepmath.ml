@@ -67,11 +67,15 @@ external cc_vec_nil : int -> Vec.tensor = "cc_vec_nil"
 external cc_fully_connected_ff : Vec.tensor -> Mat.tensor -> Vec.tensor ->
   Vec.tensor = "cc_fully_connected_ff"
 
-(* external cc_mat_sub : Mat.tensor -> Mat.tensor -> Mat.tensor = "cc_mat_sub" *)
+external cc_mat_add : Mat.tensor -> Mat.tensor -> Mat.tensor = "cc_mat_add"
+
+external cc_mat_sub : Mat.tensor -> Mat.tensor -> Mat.tensor = "cc_mat_sub"
 
 (* external cc_mat_sum : Mat.tensor -> float = "cc_mat_sum" *)
 
 external cc_vec_sub : Vec.tensor -> Vec.tensor -> Vec.tensor = "cc_vec_sub"
+
+external cc_vec_add : Vec.tensor -> Vec.tensor -> Vec.tensor = "cc_vec_add"
 
 external cc_vec_sum : Vec.tensor -> float = "cc_vec_sum"
 
@@ -80,7 +84,7 @@ external cc_mat_flatten : Mat.tensor -> Vec.tensor = "cc_mat_flatten"
 external cc_mat_flatten_bp : int -> int -> Vec.tensor ->
                              Mat.tensor = "cc_mat_flatten_bp"
 
-external gpu_init : unit -> int = "cc_gpu_init"
+external gpu_init : unit -> unit = "cc_gpu_init"
 
 external cc_fully_connected_bp : Mat.tensor -> Vec.tensor -> Vec.tensor ->
                                  Vec.tensor ->

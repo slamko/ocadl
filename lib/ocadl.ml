@@ -23,16 +23,15 @@ let speclist =
 let () =
   Unix.time () |> int_of_float |> Random.init ;
   Arg.parse speclist anon_fun usage_msg ;
-  let st = Deepmath.gpu_init () in
-  Printf.printf "Gpu init: %d\n" st ;
+  Deepmath.gpu_init () ;
 
-    begin match
-      Test.test 
-         !train_data_file
-         !save_file
-         !epoch_num
-         !learning_rate
-         !batch_size
-    with
+  match
+    Test.test 
+      !train_data_file
+      !save_file
+      !epoch_num
+      !learning_rate
+      !batch_size
+  with
     | Ok ok -> ok
-    | Error err -> Printf.eprintf "error: %s\n" err end
+    | Error err -> Printf.eprintf "error: %s\n" err

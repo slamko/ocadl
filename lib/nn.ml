@@ -342,8 +342,6 @@ let make_nn : type a b n. (n succ, a, b) build_nn -> (n succ, a, b) nnet =
     build_layers = arch.build_list;
   }
 
-(*
-
 let fully_connected_zero layer =
   let open Fully_connected in
   FullyConnectedParams
@@ -352,7 +350,7 @@ let fully_connected_zero layer =
                      (col layer.weight_mat.shape.dim2)
                    |> Mat.create ;
 
-      bias_mat  = cc_vec_nil (col layer.bias_mat.shape.dim1) |> Vec.create;
+      bias_mat = cc_vec_nil (col layer.bias_mat.shape.dim1) |> Vec.create;
     }
 
 let conv2d_zero layer =
@@ -365,7 +363,7 @@ let conv2d_zero layer =
           (col layer.kernels.shape.dim3)
         |> Mat3.create;
 
-      bias_mat  = cc_vec_nil (col layer.bias_mat.shape.dim1) |> Vec.create
+      bias_mat = cc_vec_nil (col layer.bias_mat.shape.dim1) |> Vec.create
     }
 
 
@@ -387,10 +385,11 @@ let layer_zero : type a b.
    | FullyConnected (_, fc) -> fully_connected_zero fc
    | Conv3D (_, cn) -> conv2d_zero cn
    | Flatten _ -> FlattenParams
+   | Flatten2D _ -> Flatten2DParams
    | Pooling _ -> PoolingParams
    | Input3 _ -> Input3Params
+   | Input2 _ -> Input2Params
   )
- *)
 
 let fully_connected_scale value layer =
     let open Fully_connected in
@@ -497,6 +496,10 @@ let nn_params_apply proc nn1 nn2 =
          *)
         | Input3Params, Input3Params   ->
            PL_Cons (Input3Params,  apply_rec t1 t2)
+        | Input2Params, Input2Params   ->
+           PL_Cons (Input2Params,  apply_rec t1 t2)
+        | Flatten2DParams, Flatten2DParams   ->
+           PL_Cons (Flatten2DParams,  apply_rec t1 t2)
         | PoolingParams, PoolingParams ->
            PL_Cons (PoolingParams, apply_rec t1 t2)
         | FlattenParams, FlattenParams ->
@@ -522,22 +525,30 @@ let nn_apply_params proc nn params =
        | FullyConnected (meta, nn_param),
          FullyConnectedParams apply_param ->
           let open Mat in
-          (* Printf.eprintf "pr %d pc %d\n" *)
-          (* (get_row (dim1 nn_param.weight_mat)) *)
-          (* (get_col (dim2 nn_param.weight_mat)) ; *)
-          let wmat = proc nn_param.weight_mat apply_param.weight_mat in
-          let bmat = proc
-                       (Vec.to_mat nn_param.bias_mat)
-                       (Vec.to_mat apply_param.bias_mat)
-                     |> Mat.to_vec in
-                     
-          let new_lay =
-            FullyConnected (meta, {
-                  weight_mat = wmat;
-                  bias_mat = bmat;
-              }) in
+          let bias1_as_mat =
+             (cc_mat_flatten_bp 1 (col nn_param.bias_mat.shape.dim1)
+                nn_param.bias_mat.matrix) in
+
+           let bias2_as_mat =
+             (cc_mat_flatten_bp 1 (col apply_param.bias_mat.shape.dim1)
+                apply_param.bias_mat.matrix) in
+
+           let new_lay =
+             FullyConnected (meta, {
+                 weight_mat = proc
+                                nn_param.weight_mat.matrix
+                                apply_param.weight_mat.matrix
+                              |> Mat.create ;
+
+                 bias_mat = proc bias1_as_mat bias2_as_mat
+                            |> cc_mat_flatten
+                            |> Vec.create
+                 ;
+               }) in
+           
 
           FF_Cons(new_lay, apply_rec t1 t2)
+        (*
        | Conv3D (meta, nn_param), Conv3DParams apply_param ->
           let kernels = Vec.map2
                               (fun v1 v2 -> proc v1 v2)
@@ -553,13 +564,19 @@ let nn_apply_params proc nn params =
                   bias_mat;
               }) in
           FF_Cons(new_lay, apply_rec t1 t2)
+         *)
+
        | Conv3D (_, _), _ -> 
           failwith "nn apply params: Incompatible param list."
        | Input3 _, Input3Params ->
            FF_Cons (lay, apply_rec t1 t2)
+       | Input2 _, Input2Params ->
+           FF_Cons (lay, apply_rec t1 t2)
        | Pooling _, PoolingParams ->
           FF_Cons (lay, apply_rec t1 t2)
        | Flatten _, FlattenParams ->
+          FF_Cons (lay, apply_rec t1 t2)
+       | Flatten2D _, Flatten2DParams ->
           FF_Cons (lay, apply_rec t1 t2)
        | _ -> failwith "Incompatible list types"
        )
@@ -569,7 +586,6 @@ let nn_apply_params proc nn params =
   let layers = apply_rec nn.layers params.param_list in
   { nn with layers = layers }
 
-(*
 let nn_params_zero nn_params =
   let rec params_zero : type a b. (a, b) param_list ->
                              (a, b) param_list
@@ -595,5 +611,3 @@ let nn_zero_params nn =
   in                            
 
   { param_list = params_zero nn.layers }
-
- *)

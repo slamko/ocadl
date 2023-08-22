@@ -15,10 +15,11 @@ SRC += lib/ocadl.ml
 
 all: $(SRC)
 	gcc	-c gpu/blac.c
+	gcc	-c gpu/deep.c
 	gcc	-c -I/home/slamko/.opam/default/lib/ocaml gpu/gemm.c
 
 	ocamlfind ocamlopt -o ocadl \
 		-I lib -I lib/layers -I lib/math -I test \
-		blac.o gemm.o \
+		blac.o deep.o gemm.o \
 		-linkpkg -package csv,domainslib,unix \
 		$(SRC) -cclib -lOpenCL

@@ -1,3 +1,7 @@
+
+#ifndef DEEP_H
+#define DEEP_H
+
 #include <CL/cl.h>
 #include "blac.h"
 
@@ -17,3 +21,4 @@ int fully_connected_ff(cl_context context, cl_command_queue queue,
                        struct mat *weight_mat, struct mat *bias_vec,
                        struct mat *res);
 
+#endif

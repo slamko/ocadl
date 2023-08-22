@@ -2,6 +2,7 @@
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
 #include <caml/memory.h>
+#include <caml/fail.h>
 #include <caml/bigarray.h>
 
 #include "blac.h"
@@ -11,7 +12,11 @@ cl_int ret;
 cl_command_queue command_queue;
 cl_context context;
 cl_device_id device_id;
-cl_program program;
+
+cl_program math_prog;
+cl_program nn_prog;
+
+#define error(msg, ...) fprintf(stderr, msg, __VA_ARGS__)
 
 CAMLprim value gemm(value a, value b) {
     CAMLparam2(a, b);
@@ -25,7 +30,7 @@ CAMLprim value gemm(value a, value b) {
     long dims[2] = { amat->dim[0], bmat->dim[1] };
 
     int ret = 0;
-    if ((ret = mat_gemm(context, command_queue, program, &adata, &bdata, &res_mat))) {
+    if ((ret = mat_gemm(context, command_queue, math_prog, &adata, &bdata, &res_mat))) {
         printf ("Mul error %d\n", ret);
     }
     
@@ -106,7 +111,7 @@ CAMLprim value cc_fully_connected_ff(value input, value weight_mat,
     struct mat bdata = mat_of_array(bmat->data, 1, bmat->dim[0]);
 
     struct mat res_mat = {0};
-    int ret = fully_connected_ff(context, command_queue, program,
+    int ret = fully_connected_ff(context, command_queue, nn_prog,
                                  &indata, &wdata, &bdata, &res_mat);
 
     if (ret) {
@@ -114,7 +119,7 @@ CAMLprim value cc_fully_connected_ff(value input, value weight_mat,
     }
                                             
     long dims[1] = { wmat->dim[1] };
-    
+
     CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
                              res_mat.matrix, dims));
 }
@@ -129,7 +134,7 @@ CAMLprim value cc_fully_connected_bp(value weight_mat, value prev_act_mat,
     struct caml_ba_array *dmat = Caml_ba_array_val(diff_mat);
     struct caml_ba_array *wmat = Caml_ba_array_val(weight_mat);
     struct caml_ba_array *actmat = Caml_ba_array_val(act_mat);
-    struct caml_ba_array *prev_actmat = Caml_ba_array_val(act_mat);
+    struct caml_ba_array *prev_actmat = Caml_ba_array_val(prev_act_mat);
 
     struct mat diff_data = mat_of_array(dmat->data, 1, dmat->dim[0]);
     struct mat wdata = mat_of_array(wmat->data, wmat->dim[0], wmat->dim[1]);
@@ -140,7 +145,7 @@ CAMLprim value cc_fully_connected_bp(value weight_mat, value prev_act_mat,
     struct mat prev_diff, wgrad, bgrad;
 
     struct mat res_mat = {0};
-    int ret = fully_connected_bp(context, command_queue, program,
+    int ret = fully_connected_bp(context, command_queue, nn_prog,
                                  &wdata, &prev_act_data, &act_data,
                                  &diff_data, &prev_diff, &wgrad, &bgrad);
 
@@ -180,8 +185,9 @@ CAMLprim value cc_vec_scale(value scale, value mat) {
     long dims[1] = { mat_arr->dim[0] };
 
     int ret = 0;
-    if ((ret = mat_scale(context, command_queue, program, &mat_mat, scale))) {
-        printf ("Add error %d\n", ret);
+    if ((ret = mat_scale(context, command_queue, math_prog, &mat_mat, scale))) {
+        error ("Error code: %d\n", ret);
+        caml_failwith("Vec scale error\n");
     }
     
     CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
@@ -199,8 +205,9 @@ CAMLprim value cc_mat_scale(value scale, value mat) {
     long dims[2] = { mat_arr->dim[0], mat_arr->dim[1] };
 
     int ret = 0;
-    if ((ret = mat_scale(context, command_queue, program, &mat_mat, scale))) {
-        printf ("Add error %d\n", ret);
+    if ((ret = mat_scale(context, command_queue, math_prog, &mat_mat, scale))) {
+        error ("Error code: %d\n", ret);
+        caml_failwith("Mat scale error\n");
     }
     
     CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
@@ -220,8 +227,9 @@ CAMLprim value cc_mat_add(value a, value b) {
     long dims[2] = { amat->dim[0], bmat->dim[1] };
 
     int ret = 0;
-    if ((ret = mat_add(context, command_queue, program, &adata, &bdata, &res_mat))) {
-        printf ("Add error %d\n", ret);
+    if ((ret = mat_add(context, command_queue, math_prog, &adata, &bdata, &res_mat))) {
+        error ("Error code: %d\n", ret);
+        caml_failwith("Mat add error\n");
     }
     
     CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
@@ -237,11 +245,58 @@ CAMLprim value cc_vec_sum(value vec) {
 
     float sum = 0.0;
 
-    if ((ret = vec_sum(context, command_queue, program, &vmat, &sum))) {
+    if ((ret = vec_sum(context, command_queue, math_prog, &vmat, &sum))) {
         printf ("Vec sum error %d\n", ret);
     }
     
     CAMLreturn(caml_copy_double(sum));
+}
+
+CAMLprim value cc_vec_add(value a, value b) {
+    CAMLparam2(a, b);
+
+    struct caml_ba_array *amat = Caml_ba_array_val(a);
+    struct caml_ba_array *bmat = Caml_ba_array_val(b);
+
+    struct mat adata = mat_of_array(amat->data, 1, amat->dim[0]);
+    struct mat bdata = mat_of_array(bmat->data, 1, bmat->dim[0]);
+    struct mat res_mat = mat_nil(1, amat->dim[0]);
+
+    long dims[1] = { amat->dim[0] };
+
+    int ret = 0;
+    if ((ret =
+         mat_add(context, command_queue, math_prog, &adata, &bdata, &res_mat))) {
+        printf ("Vec sub error %d\n", ret);
+    }
+    
+    CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
+                             res_mat.matrix, dims));
+}
+
+CAMLprim value cc_mat_sub(value a, value b) {
+    CAMLparam2(a, b);
+
+    struct caml_ba_array *amat = Caml_ba_array_val(a);
+    struct caml_ba_array *bmat = Caml_ba_array_val(b);
+
+    struct mat adata = mat_of_array(amat->data, amat->dim[0], amat->dim[1]);
+    struct mat bdata = mat_of_array(bmat->data, bmat->dim[0], bmat->dim[1]);
+    struct mat res_mat = mat_nil(amat->dim[0], amat->dim[1]);
+
+    long dims[2] = { amat->dim[0], amat->dim[1] };
+
+    int ret = 0;
+    if ((ret =
+         mat_sub(context, command_queue, math_prog,
+                 &adata, &bdata, &res_mat))) {
+
+        error("Error code: %d\n", ret);
+        caml_failwith ("Mat sub error\n");
+    }
+    
+    CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
+                             res_mat.matrix, dims));
 }
 
 CAMLprim value cc_vec_sub(value a, value b) {
@@ -252,16 +307,19 @@ CAMLprim value cc_vec_sub(value a, value b) {
 
     struct mat adata = mat_of_array(amat->data, 1, amat->dim[0]);
     struct mat bdata = mat_of_array(bmat->data, 1, bmat->dim[0]);
-    struct mat res_mat = mat_nil(amat->dim[0], amat->dim[0]);
+    struct mat res_mat = mat_make(1, amat->dim[0]);
 
     long dims[1] = { amat->dim[0] };
 
     int ret = 0;
     if ((ret =
-         vec_sub(context, command_queue, program, &adata, &bdata, &res_mat))) {
-        printf ("Vec sub error %d\n", ret);
+         mat_sub (context, command_queue, math_prog,
+                  &adata, &bdata, &res_mat))) {
+
+        error("Error code: %d\n", ret);
+        caml_failwith("Vec sub error\n");
     }
-    
+
     CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
                              res_mat.matrix, dims));
 }
@@ -290,8 +348,19 @@ CAMLprim value cc_gpu_init() {
     int ret = 0;
 
     ret = ocl_init(&command_queue, &context, &device_id);
-    if (ret) return Val_int(ret);
-    ret = load_program("add.c", &program, context, &device_id);
+    if (ret) {
+        caml_fatal_error("OpenCL initialization failed: %d\n", ret);
+    }
 
-    return Val_int(ret);
+    ret = load_program("gpu/add.cl", &math_prog, context, &device_id);
+    if (ret) {
+        caml_fatal_error("Kernel math lib build failed: %d\n", ret);
+    }
+
+    ret = load_program("gpu/nn.cl", &nn_prog, context, &device_id);
+    if (ret) {
+        caml_fatal_error("Kernel nn lib build failed: %d\n", ret);
+    }
+
+    CAMLreturn(Val_unit);
 }

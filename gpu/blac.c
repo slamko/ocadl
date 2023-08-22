@@ -291,9 +291,8 @@ int vec_sum(cl_context context, cl_command_queue queue, cl_program program,
     return ret;
 }
 
-int vec_sub(cl_context context, cl_command_queue queue, cl_program program,
-             const struct mat *a, const struct mat *b,
-             struct mat *c) {
+int mat_sub(cl_context context, cl_command_queue queue, cl_program program,
+             const struct mat *a, const struct mat *b, struct mat *c) {
 
     cl_int ret = {0};
 
@@ -325,7 +324,7 @@ int vec_sub(cl_context context, cl_command_queue queue, cl_program program,
         goto clean_b_mem;
     }
 
-    cl_kernel kernel = clCreateKernel(program, "vector_sub", &ret);
+    cl_kernel kernel = clCreateKernel(program, "matrix_sub", &ret);
     if (ret) {
         goto cleanup;
     }
@@ -335,12 +334,13 @@ int vec_sub(cl_context context, cl_command_queue queue, cl_program program,
     ret = clSetKernelArg(kernel, 2, sizeof c_mem, &c_mem);
     if (ret) goto cleanup;
 
-    size_t global_work_size [1] = { a->cols };
-    size_t dim1 = (a->cols < 32) ? a->cols : 32;
-    
-    size_t local_work_size [1] = { dim1 };
+    size_t global_work_size [2] = { a->rows, a->cols };
+    size_t dim1 = (a->rows < 16) ? a->rows : 16;
+    size_t dim2 = (a->cols < 16) ? a->cols : 16;
 
-    ret = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global_work_size,
+    size_t local_work_size [2] = { dim1, dim2 };
+
+    ret = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_work_size,
                                  local_work_size, 0, NULL, NULL);
     if (ret) goto cleanup;
 
@@ -349,6 +349,7 @@ int vec_sub(cl_context context, cl_command_queue queue, cl_program program,
     if (ret) goto cleanup;
     
     clFlush(queue);
+    ret = clReleaseKernel(kernel);
 
   cleanup:
     clReleaseMemObject(c_mem);
@@ -444,9 +445,9 @@ int mat_scale(cl_context context, cl_command_queue queue, cl_program program,
     if (ret) goto cleanup;
 
     size_t global_work_size [3] = {  mat->rows, mat->cols, mat->dim3 };
-    size_t dim1 = (mat->rows < 32) ? mat->rows : 32;
-    size_t dim2 = (mat->cols < 32) ? mat->cols : 32;
-    size_t dim3 = (mat->dim3 < 32) ? mat->cols : 32;
+    size_t dim1 = (mat->rows < 16) ? mat->rows : 16;
+    size_t dim2 = (mat->cols < 16) ? mat->cols : 16;
+    size_t dim3 = (mat->dim3 < 16) ? mat->dim3 : 16;
     
     size_t local_work_size [3] = { dim1, dim2, dim3};
 
@@ -501,18 +502,18 @@ int mat_add(cl_context context, cl_command_queue queue, cl_program program,
         goto cleanup;
     }
 
-    ret = clSetKernelArg(kernel, 0, sizeof a_mem, &a_mem);
-    ret = clSetKernelArg(kernel, 1, sizeof b_mem, &b_mem);
-    ret = clSetKernelArg(kernel, 2, sizeof c_mem, &c_mem);
+    ret = clSetKernelArg(kernel, 0, sizeof (cl_mem), &a_mem);
+    ret = clSetKernelArg(kernel, 1, sizeof (cl_mem), &b_mem);
+    ret = clSetKernelArg(kernel, 2, sizeof (cl_mem), &c_mem);
     if (ret) goto cleanup;
 
     size_t global_work_size [2] = { a->rows, a->cols };
-    size_t dim1 = (a->rows < 32) ? a->rows : 32;
-    size_t dim2 = (b->cols < 32) ? b->cols : 32;
+    size_t dim1 = (a->rows < 16) ? a->rows : 16;
+    size_t dim2 = (b->cols < 16) ? b->cols : 16;
     
     size_t local_work_size [2] = { dim1, dim2};
 
-    ret = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_work_size, /*  */
+    ret = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_work_size,
                                  local_work_size, 0, NULL, NULL);
     if (ret) goto cleanup;
 

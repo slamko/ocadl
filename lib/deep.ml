@@ -80,6 +80,7 @@ let forward input nn =
 let tens1_error (res : Vec.t) (exp : Vec.t) =
   cc_vec_sub res.matrix exp.matrix
   |> cc_vec_sum
+
 (*
 let tens3_error res exp =
    let open Mat in
@@ -347,7 +348,7 @@ let nn_gradient nn data =
        let bp_grad =
          { param_list = backprop_nn ff_net.bp_data res_diff PL_Nil } in
        
-       nn_params_apply Mat.add bp_grad bp_grad_acc
+       nn_params_apply cc_mat_add bp_grad bp_grad_acc
        |> bp_rec nn data_tail
    
   in
@@ -358,7 +359,7 @@ let nn_gradient nn data =
     |> float_of_int
     |> (fun x -> 1. /. x) in
   (* print_endline "Full nn"; *)
-  let param_nn = nn_params_map (( *. ) scale_fact) newn in
+  let param_nn = nn_params_scale scale_fact newn in
   Ok param_nn
 
 
@@ -375,6 +376,8 @@ let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
       : (inp Shape.shape * inp Shape.shape) =
     match nn.input, data_in with
     | Input3 meta, Tensor3 _ ->
+       (meta.shape, Shape.get_shape data_in)
+    | Input2 meta, Tensor2 _ ->
        (meta.shape, Shape.get_shape data_in)
     | FullyConnected (meta, _), Tensor1 _ ->
        (meta.out_shape, Shape.get_shape data_in)
@@ -393,9 +396,11 @@ let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
            m.out_shape, Shape.get_shape data_out
         | Flatten m, Tensor1 _ ->
            m.out_shape, Shape.get_shape data_out
+        | Flatten2D m, Tensor1 _ ->
+           m.out_shape, Shape.get_shape data_out
         | Input3 m, Tensor3 _ ->
            m.shape, Shape.get_shape data_out
-       | Conv3D (m, _), Tensor3 _ ->
+        | Conv3D (m, _), Tensor3 _ ->
            m.out_shape, Shape.get_shape data_out
         | Pooling m, Tensor3 _ ->
            m.out_shape, Shape.get_shape data_out
@@ -452,7 +457,7 @@ let rec learn_rec pool pool_size data epoch_num
      (* print_string "hello\n"; *)
      let full_grad =
        grad_list
-       |> List.fold_left (nn_params_apply Mat.add) grad_acc
+       |> List.fold_left (nn_params_apply cc_mat_add) grad_acc
      in
      
      let batch_grad =
@@ -465,8 +470,8 @@ let rec learn_rec pool pool_size data epoch_num
        if cycles_to_batch = cur_domain_num
        then
          full_grad
-         |> nn_params_map @@ ( *. ) learning_rate
-         |> nn_apply_params Mat.sub nn 
+         |> nn_params_scale learning_rate
+         |> nn_apply_params cc_mat_sub nn 
        else nn
      in
      (* nn_print new_nn ; *)

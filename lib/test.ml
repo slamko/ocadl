@@ -99,13 +99,13 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   let* res = loss train_data nn in
   (* Printf.printf "Cost: %f\n" res; *)
 
-  (* let* trained_nn = learn train_data *)
-                      (* ~epoch_num:epochs ~learning_rate *)
-                      (* ~batch_size nn in *)
-  (* let* new_res = loss train_data trained_nn in *)
+  let* trained_nn = learn train_data
+                      ~epoch_num:epochs ~learning_rate
+                      ~batch_size nn in
+  let* new_res = loss train_data trained_nn in
 
   Printf.printf "initial loss: %f\n" res ;
-  (* Printf.printf "trained loss: %f\n" new_res ; *)
+  Printf.printf "trained loss: %f\n" new_res ;
 
   (* let m1 = Mat.random (Row 64) (Col 64) in *)
   (* let m2 = Mat.random (Row 64) (Col 64) in *)

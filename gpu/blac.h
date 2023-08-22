@@ -1,3 +1,6 @@
+#ifndef BLAC_H
+#define BLAC_H
+
 #include <CL/cl.h>
 #include <stddef.h>
 
@@ -36,15 +39,14 @@ int mat_add(cl_context context, cl_command_queue queue, cl_program program,
              const struct mat *a, const struct mat *b,
             struct mat *c);
 
-int vec_sub(cl_context context, cl_command_queue queue, cl_program program,
-             const struct mat *a, const struct mat *b,
-            struct mat *c);
-
-int vec_sum(cl_context context, cl_command_queue queue, cl_program program,
-            const struct mat *vec, float *res);
+int mat_sub(cl_context context, cl_command_queue queue, cl_program program,
+            const struct mat *a, const struct mat *b, struct mat *c);
 
 int mat_sum(cl_context context, cl_command_queue queue, cl_program program,
              const struct mat *mat, float *res);
+
+int vec_sum(cl_context context, cl_command_queue queue, cl_program program,
+            const struct mat *vec, float *res);
 
 int ocl_init(cl_command_queue *command_queue, cl_context *context,
              cl_device_id *device_id);
@@ -54,3 +56,5 @@ int load_program(const char *prog_name, cl_program *program,
 
 int mat_gemm(cl_context context, cl_command_queue queue, cl_program program,
              const struct mat *a, const struct mat *b, struct mat *c);
+
+#endif
