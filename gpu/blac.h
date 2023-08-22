@@ -29,11 +29,6 @@ struct mat mat_make(size_t rows, size_t cols);
 
 struct mat mat_of_array(float *arr, size_t rows, size_t cols);
 
-int fully_connected_ff(cl_context context, cl_command_queue queue,
-                       cl_program program, struct mat *input,
-                       struct mat *weight_mat, struct mat *bias_vec,
-                       struct mat *res);
-
 int mat_add(cl_context context, cl_command_queue queue, cl_program program,
              const struct mat *a, const struct mat *b,
             struct mat *c);

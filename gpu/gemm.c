@@ -119,6 +119,57 @@ CAMLprim value cc_fully_connected_ff(value input, value weight_mat,
                              res_mat.matrix, dims));
 }
 
+CAMLprim value cc_fully_connected_bp(value weight_mat, value prev_act_mat,
+                                     value act_mat, value diff_mat) {
+    CAMLparam4(weight_mat, prev_act_mat, act_mat, diff_mat);
+    CAMLlocal1(res_tuple);
+
+    /* Store_field(res_tuple, 0); */
+
+    struct caml_ba_array *dmat = Caml_ba_array_val(diff_mat);
+    struct caml_ba_array *wmat = Caml_ba_array_val(weight_mat);
+    struct caml_ba_array *actmat = Caml_ba_array_val(act_mat);
+    struct caml_ba_array *prev_actmat = Caml_ba_array_val(act_mat);
+
+    struct mat diff_data = mat_of_array(dmat->data, 1, dmat->dim[0]);
+    struct mat wdata = mat_of_array(wmat->data, wmat->dim[0], wmat->dim[1]);
+    struct mat act_data = mat_of_array(actmat->data, 1, actmat->dim[0]);
+    struct mat prev_act_data = mat_of_array(prev_actmat->data, 1,
+                                            prev_actmat->dim[0]);
+
+    struct mat prev_diff, wgrad, bgrad;
+
+    struct mat res_mat = {0};
+    int ret = fully_connected_bp(context, command_queue, program,
+                                 &wdata, &prev_act_data, &act_data,
+                                 &diff_data, &prev_diff, &wgrad, &bgrad);
+
+    if (ret) {
+        caml_fatal_error("Fully connected backpropagation failed %d\n", ret);
+    }
+                                            
+    res_tuple = caml_alloc_tuple(3);
+
+    long pd_dims[1] = { prev_diff.cols };
+    
+    Store_field(res_tuple, 0,
+                caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
+                              res_mat.matrix, pd_dims));
+
+    long wg_dims[2] = { wgrad.rows, wgrad.cols };
+
+    Store_field(res_tuple, 1,
+                caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
+                              wgrad.matrix, wg_dims));
+ 
+    long bg_dims[1] = { bgrad.cols };
+
+    Store_field(res_tuple, 2,
+                caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
+                              bgrad.matrix, bg_dims));
+    CAMLreturn(res_tuple);
+}
+
 CAMLprim value cc_mat_add(value a, value b) {
     CAMLparam2(a, b);
 
