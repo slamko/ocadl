@@ -14,8 +14,8 @@ SRC += lib/test.ml
 SRC += lib/ocadl.ml
 
 all: $(SRC)
-	gcc	-c vector/blac.c
-	gcc	-c -I/home/slamko/.opam/default/lib/ocaml vector/gemm.c
+	gcc	-c gpu/blac.c
+	gcc	-c -I/home/slamko/.opam/default/lib/ocaml gpu/gemm.c
 
 	ocamlfind ocamlopt -o ocadl \
 		-I lib -I lib/layers -I lib/math -I test \

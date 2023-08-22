@@ -1,7 +1,13 @@
 **.cmxa
 **.cmx
+**.cmt
+**.cmti
+**.txt
 **.cmi
 **.o
+**.out
+**.so
+**.a
 **.deep
 **.exe
 **.zip
