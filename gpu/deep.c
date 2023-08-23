@@ -29,9 +29,9 @@ int fully_connected_bp(cl_context context, cl_command_queue queue,
         return 1;
     }
     
-    *prev_diff_vec = mat_make(1, weight_mat->rows);
-    *wgrad_mat = mat_make(weight_mat->rows, weight_mat->cols);
-    *bgrad_vec = mat_make(1, act_vec->cols);
+    *prev_diff_vec = mat_nil(1, weight_mat->rows);
+    *wgrad_mat = mat_nil(weight_mat->rows, weight_mat->cols);
+    *bgrad_vec = mat_nil(1, act_vec->cols);
 
     size_t prev_act_size = mat_mem_size(prev_act_vec);
     size_t act_size = mat_mem_size(act_vec);
@@ -96,14 +96,24 @@ int fully_connected_bp(cl_context context, cl_command_queue queue,
     }
 
     cl_ulong dim = weight_mat->rows;
+
+    struct mat cache_vec = mat_nil(1, act_vec->cols);
+    cl_mem cache_mem = clCreateBuffer(context,
+                                  CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
+                                  act_size, cache_vec.matrix, &ret);
+    if (ret) {
+        goto clean_bgrad_mem;
+    }
+
     ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), &wmat_mem);
     ret = clSetKernelArg(kernel, 1, sizeof(cl_mem), &prev_act_mem);
     ret = clSetKernelArg(kernel, 2, sizeof(cl_mem), &act_mem);
     ret = clSetKernelArg(kernel, 3, sizeof(cl_mem), &diff_mem);
     ret = clSetKernelArg(kernel, 4, sizeof(dim), &dim);
-    ret = clSetKernelArg(kernel, 5, sizeof(cl_mem), &prev_diff_mem);
-    ret = clSetKernelArg(kernel, 6, sizeof(cl_mem), &wgrad_mem);
-    ret = clSetKernelArg(kernel, 7, sizeof(cl_mem), &bgrad_mem);
+    ret = clSetKernelArg(kernel, 5, sizeof(cl_mem), &cache_mem);
+    ret = clSetKernelArg(kernel, 6, sizeof(cl_mem), &prev_diff_mem);
+    ret = clSetKernelArg(kernel, 7, sizeof(cl_mem), &wgrad_mem);
+    ret = clSetKernelArg(kernel, 8, sizeof(cl_mem), &bgrad_mem);
     if (ret) goto cleanup;
 
     size_t width = weight_mat->cols;
@@ -133,6 +143,8 @@ int fully_connected_bp(cl_context context, cl_command_queue queue,
 
   cleanup:
     ret = clReleaseKernel(kernel);
+    clReleaseMemObject(cache_mem);
+    free(cache_vec.matrix);
   clean_bgrad_mem:
     clReleaseMemObject(bgrad_mem);
   clean_wgrad_mem:
@@ -162,7 +174,7 @@ int fully_connected_ff(cl_context context, cl_command_queue queue,
         return 1;
     }
     
-    *res = mat_make(1, weight_mat->cols);
+    *res = mat_nil(1, weight_mat->cols);
     size_t inp_mat_size = mat_mem_size(input);
     size_t wmat_size = mat_mem_size(weight_mat);
     size_t bmat_size = mat_mem_size(bias_vec);
@@ -219,6 +231,10 @@ int fully_connected_ff(cl_context context, cl_command_queue queue,
 
     ret = clEnqueueReadBuffer(queue, res_mem, CL_TRUE, 0u, res_mat_size,
                               res->matrix, 0, NULL, NULL);
+
+    printf("Inp \n");
+    mat_print(stdout, input);
+    
     if (ret) goto cleanup;
     
     clFlush(queue);

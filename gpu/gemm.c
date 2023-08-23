@@ -18,13 +18,27 @@ cl_program nn_prog;
 
 #define error(msg, ...) fprintf(stderr, msg, __VA_ARGS__)
 
+struct mat mat_of_ba(struct caml_ba_array *ba) {
+    struct mat mat = {0};
+
+    if (ba->num_dims == 1) {
+        mat = mat_of_array(ba->data, 1, ba->dim[0]);
+    } else if (ba->num_dims == 2) {
+        mat = mat_of_array(ba->data, ba->dim[0], ba->dim[1]);
+    } else if (ba->num_dims == 3) {
+        mat = mat3_of_array(ba->data, ba->dim[0], ba->dim[1], ba->dim[2]);
+    }
+
+    return mat;
+}
+
 CAMLprim value gemm(value a, value b) {
     CAMLparam2(a, b);
 
     struct caml_ba_array *amat = Caml_ba_array_val(a);
     struct caml_ba_array *bmat = Caml_ba_array_val(b);
-    struct mat adata = mat_of_array(amat->data, amat->dim[0], amat->dim[1]);
-    struct mat bdata = mat_of_array(bmat->data, bmat->dim[0], bmat->dim[1]);
+    struct mat adata = mat_of_ba(amat);
+    struct mat bdata = mat_of_ba(bmat);
     struct mat res_mat = mat_nil(amat->dim[0], bmat->dim[1]);
 
     long dims[2] = { amat->dim[0], bmat->dim[1] };
@@ -106,9 +120,9 @@ CAMLprim value cc_fully_connected_ff(value input, value weight_mat,
     struct caml_ba_array *wmat = Caml_ba_array_val(weight_mat);
     struct caml_ba_array *bmat = Caml_ba_array_val(bias_mat);
 
-    struct mat indata = mat_of_array(inmat->data, 1, inmat->dim[0]);
-    struct mat wdata = mat_of_array(wmat->data, wmat->dim[0], wmat->dim[1]);
-    struct mat bdata = mat_of_array(bmat->data, 1, bmat->dim[0]);
+    struct mat indata = mat_of_ba(inmat);
+    struct mat wdata = mat_of_ba(wmat);
+    struct mat bdata = mat_of_ba(bmat);
 
     struct mat res_mat = {0};
     int ret = fully_connected_ff(context, command_queue, nn_prog,
@@ -136,11 +150,10 @@ CAMLprim value cc_fully_connected_bp(value weight_mat, value prev_act_mat,
     struct caml_ba_array *actmat = Caml_ba_array_val(act_mat);
     struct caml_ba_array *prev_actmat = Caml_ba_array_val(prev_act_mat);
 
-    struct mat diff_data = mat_of_array(dmat->data, 1, dmat->dim[0]);
-    struct mat wdata = mat_of_array(wmat->data, wmat->dim[0], wmat->dim[1]);
-    struct mat act_data = mat_of_array(actmat->data, 1, actmat->dim[0]);
-    struct mat prev_act_data = mat_of_array(prev_actmat->data, 1,
-                                            prev_actmat->dim[0]);
+    struct mat diff_data = mat_of_ba(dmat);
+    struct mat wdata = mat_of_ba(wmat);
+    struct mat act_data = mat_of_ba(actmat);
+    struct mat prev_act_data = mat_of_ba(prev_actmat);
 
     struct mat prev_diff, wgrad, bgrad;
 
@@ -220,8 +233,8 @@ CAMLprim value cc_mat_add(value a, value b) {
     struct caml_ba_array *amat = Caml_ba_array_val(a);
     struct caml_ba_array *bmat = Caml_ba_array_val(b);
 
-    struct mat adata = mat_of_array(amat->data, amat->dim[0], amat->dim[1]);
-    struct mat bdata = mat_of_array(bmat->data, bmat->dim[0], bmat->dim[1]);
+    struct mat adata = mat_of_ba(amat);
+    struct mat bdata = mat_of_ba(bmat);
     struct mat res_mat = mat_nil(amat->dim[0], bmat->dim[1]);
 
     long dims[2] = { amat->dim[0], bmat->dim[1] };
@@ -241,7 +254,7 @@ CAMLprim value cc_vec_sum(value vec) {
     int ret = 0;
 
     struct caml_ba_array *vec_data = Caml_ba_array_val(vec);
-    struct mat vmat = mat_of_array(vec_data->data, 1, vec_data->dim[0]);
+    struct mat vmat = mat_of_ba(vec_data);
 
     float sum = 0.0;
 
@@ -258,8 +271,8 @@ CAMLprim value cc_vec_add(value a, value b) {
     struct caml_ba_array *amat = Caml_ba_array_val(a);
     struct caml_ba_array *bmat = Caml_ba_array_val(b);
 
-    struct mat adata = mat_of_array(amat->data, 1, amat->dim[0]);
-    struct mat bdata = mat_of_array(bmat->data, 1, bmat->dim[0]);
+    struct mat adata = mat_of_ba(amat);
+    struct mat bdata = mat_of_ba(bmat);
     struct mat res_mat = mat_nil(1, amat->dim[0]);
 
     long dims[1] = { amat->dim[0] };
@@ -280,8 +293,8 @@ CAMLprim value cc_mat_sub(value a, value b) {
     struct caml_ba_array *amat = Caml_ba_array_val(a);
     struct caml_ba_array *bmat = Caml_ba_array_val(b);
 
-    struct mat adata = mat_of_array(amat->data, amat->dim[0], amat->dim[1]);
-    struct mat bdata = mat_of_array(bmat->data, bmat->dim[0], bmat->dim[1]);
+    struct mat adata = mat_of_ba(amat);
+    struct mat bdata = mat_of_ba(bmat);
     struct mat res_mat = mat_nil(amat->dim[0], amat->dim[1]);
 
     long dims[2] = { amat->dim[0], amat->dim[1] };
@@ -305,8 +318,8 @@ CAMLprim value cc_vec_sub(value a, value b) {
     struct caml_ba_array *amat = Caml_ba_array_val(a);
     struct caml_ba_array *bmat = Caml_ba_array_val(b);
 
-    struct mat adata = mat_of_array(amat->data, 1, amat->dim[0]);
-    struct mat bdata = mat_of_array(bmat->data, 1, bmat->dim[0]);
+    struct mat adata = mat_of_ba(amat);
+    struct mat bdata = mat_of_ba(bmat);
     struct mat res_mat = mat_make(1, amat->dim[0]);
 
     long dims[1] = { amat->dim[0] };
@@ -327,7 +340,6 @@ CAMLprim value cc_vec_sub(value a, value b) {
 CAMLprim value cc_mat_flatten(value mat) {
     CAMLparam1(mat);
     struct caml_ba_array *mat_data = Caml_ba_array_val(mat);
-    /* mat_data->num_dims = 1; */
 
     intnat new_dim[1] = { mat_data->dim[0] * mat_data->dim[1] };
     CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
@@ -335,13 +347,24 @@ CAMLprim value cc_mat_flatten(value mat) {
 }
 
 CAMLprim value cc_mat_flatten_bp(value rows, value cols, value mat) {
-    CAMLparam1(mat);
+    CAMLparam3(rows, cols, mat);
     struct caml_ba_array *mat_data = Caml_ba_array_val(mat);
 
     intnat new_dim[2] = { Long_val(rows), Long_val(cols) };
     CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
                              mat_data->data, new_dim));
 }
+
+CAMLprim value cc_mat_print(value mat_arr) {
+    CAMLparam1(mat_arr);
+    struct caml_ba_array *mat_data = Caml_ba_array_val(mat_arr);
+    struct mat mat = mat_of_ba(mat_data);
+
+    mat_print(stdout, &mat);
+
+    CAMLreturn(Val_unit);
+}
+
 
 CAMLprim value cc_gpu_init() {
     CAMLparam0();

@@ -1,6 +1,12 @@
 open Common
 open Bigarray
 
+external cc_mat_print : (float, float32_elt, c_layout) Array2.t ->
+                        unit = "cc_mat_print"
+
+external cc_vec_print : (float, float32_elt, c_layout) Array1.t ->
+                        unit = "cc_mat_print"
+
 module Vec = struct
   type shape = {
       dim1 : col;
@@ -36,7 +42,10 @@ module Vec = struct
 
   let zero cols = make cols 0.0
 
-  let random cols = init cols (fun _ -> (Random.float 1.0 *. 2.0) -. 1.0)
+  let random cols = init cols (fun _ -> Random.float 2.0 -. 1.0)
+
+  let print vec =
+    cc_vec_print vec.matrix
 
   let of_list lst =
     lst
@@ -87,6 +96,11 @@ module Mat = struct
     { matrix = Array2.init Float32 C_layout rows cols f;
       shape = { dim1 = Row rows; dim2 = Col cols }
     }
+
+  let random rows cols = init rows cols (fun _ _ -> Random.float 2.0 -. 1.0)
+
+  let print mat =
+    cc_mat_print mat.matrix
 
   let of_list (Row rows) (Col cols) lst =
     if List.length lst < rows * cols || rows = 0 || cols = 0
@@ -159,6 +173,9 @@ module Mat3 = struct
     { matrix = Array3.init Float32 C_layout rows cols dim3 f;
       shape = { dim1 = Row rows; dim2 = Col cols; dim3 = Col dim3 }
     }
+
+  let random rows cols dim3 =
+    init rows cols dim3 (fun _ _ _ -> Random.float 2.0 -. 1.0)
 
   let make rows cols dim3 init_val =
     init rows cols dim3 (fun  _ _ _ -> init_val)

@@ -3,6 +3,7 @@
 
 #include <CL/cl.h>
 #include <stddef.h>
+#include <stdio.h>
 
 struct mat {
     float *matrix;
@@ -18,6 +19,8 @@ struct mat {
 };
 
 size_t mat_mem_size(const struct mat *mat);
+
+void mat_print(FILE *out, struct mat *mat);
 
 struct mat mat3_of_array(float *matrix,
                          size_t rows, size_t cols, size_t dim3);
@@ -41,9 +44,6 @@ int mat_add(cl_context context, cl_command_queue queue, cl_program program,
 
 int mat_sub(cl_context context, cl_command_queue queue, cl_program program,
             const struct mat *a, const struct mat *b, struct mat *c);
-
-int mat_sum(cl_context context, cl_command_queue queue, cl_program program,
-             const struct mat *mat, float *res);
 
 int vec_sum(cl_context context, cl_command_queue queue, cl_program program,
             const struct mat *vec, float *res);

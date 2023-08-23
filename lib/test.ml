@@ -23,17 +23,78 @@ let xor_data =
   ]
  *)
 
-let rec perform nn data =
+let rec perform : type inp out n. (n, inp, out) nnet ->
+                       (inp, out) train_data -> unit =
+  fun nn data ->
   match data with
   | [] -> ()
   | sample::t ->
-     (* let ff = forward (get_data_input sample) nn in *)
+     let ff = forward (get_data_input sample) nn in
      (* let res = ff.res |> List.hd in *)
-     (* let expected = get_data_out sample in *)
-     Printf.printf "NN result: \n" ;
+     let expected = get_data_out sample in
+     let print () =
+       (match ff.bp_data with
+        | BP_Nil ->
+           let (lay, _, res) = ff.bp_input in
+           (match lay with
+            | FullyConnected (_, _) ->
+               (match res, expected with
+                | Tensor1 res, Tensor1 exp -> 
+                   Vec.print res ;
+                   Vec.print exp ;
+               )
+           (*
+             | Conv3D (_, _) ->
+             (match res, expected with
+             | Tensor3 res, Tensor3 exp -> 
+             tens3_diff res exp
+             )
+             | Pooling _ ->
+             (match res, expected with
+             | Tensor3 res, Tensor3 exp -> 
+             tens3_diff res exp
+             )
+             | Input3 _ ->
+             (match res, expected with
+             | Tensor3 res, Tensor3 exp -> 
+             tens3_diff res exp
+             )
+            *)
+           )
+        | BP_Cons((lay, _, res), _) ->
+           (match lay with
+            | FullyConnected (_, _) ->
+               (match res, expected with
+                | Tensor1 res, Tensor1 exp -> 
+                   Vec.print res ;
+                   Vec.print exp
+               )
+           (*
+             | Conv3D (_, _) ->
+             (match res, expected with
+             | Tensor3 res, Tensor3 exp -> 
+             tens3_diff res exp
+             )
+             | Flatten _ -> 
+             (match res, expected with
+             | Tensor1 res, Tensor1 exp -> 
+             tens1_diff res exp
+             )
+             | Pooling _ ->
+             (match res, expected with
+             | Tensor3 res, Tensor3 exp -> 
+             tens3_diff res exp
+             )
+             | Input3 _ ->
+             (match res, expected with
+             | Tensor3 res, Tensor3 exp -> 
+             tens3_diff res exp
+             )
+            *)
+           )
+       ) in
+     print ();
 
-     Printf.printf "Expected result: \n" ;
-     
      perform nn t
 
 let test train_data_fname save_file epochs learning_rate batch_size =
@@ -99,14 +160,18 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   let* res = loss train_data nn in
   (* Printf.printf "Cost: %f\n" res; *)
 
-  let* trained_nn = learn train_data
-                      ~epoch_num:epochs ~learning_rate
-                      ~batch_size nn in
-  let* new_res = loss train_data trained_nn in
+  (* let* trained_nn = learn train_data *)
+                      (* ~epoch_num:epochs ~learning_rate *)
+                      (* ~batch_size nn in *)
+  (* let* new_res = loss train_data trained_nn in *)
+
+  (* nn_print trained_nn.layers ; *)
 
   Printf.printf "initial loss: %f\n" res ;
-  Printf.printf "trained loss: %f\n" new_res ;
+  (* Printf.printf "trained loss: %f\n" new_res ; *)
 
+  (* perform trained_nn train_data ; *)
+  (* perform nn train_data ; *)
   (* let m1 = Mat.random (Row 64) (Col 64) in *)
   (* let m2 = Mat.random (Row 64) (Col 64) in *)
   (* let res = Mat.random (Row 64) (Col 64) in *)

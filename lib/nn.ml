@@ -165,8 +165,8 @@ let make_fully_connected ~ncount ~act ~deriv layers =
 
   let params =
     { Fully_connected.
-      weight_mat = cc_mat_random prev_ncount ncount |> Mat.create;
-      bias_mat = cc_vec_random ncount |> Vec.create ;
+      weight_mat = Mat.random (Row prev_ncount) (Col ncount);
+      bias_mat = Vec.random (Col ncount) ;
     } 
   in
 
@@ -214,17 +214,15 @@ let make_conv3d ~kernel_shape ~kernel_num
       out_shape;
    } in
 
-  let (Row dim1) = kernel_shape.dim1 in
-  let (Col dim2) = kernel_shape.dim2 in
 
   let kernels =
-    cc_mat3_random dim1 dim2 kernel_num
-    |> Mat3.create in
+    Mat3.random kernel_shape.dim1 kernel_shape.dim2 (Col kernel_num)
+  in
 
   let params = {
       Conv3D.
       kernels;
-      bias_mat = col kernels.shape.dim3 |> cc_vec_random |> Vec.create
+      bias_mat = kernels.shape.dim3 |> Vec.random 
     } in
 
   let layer = Conv3D (meta, params) in
@@ -345,25 +343,23 @@ let make_nn : type a b n. (n succ, a, b) build_nn -> (n succ, a, b) nnet =
 let fully_connected_zero layer =
   let open Fully_connected in
   FullyConnectedParams
-    { weight_mat = cc_mat_nil
-                     (row layer.weight_mat.shape.dim1)
-                     (col layer.weight_mat.shape.dim2)
-                   |> Mat.create ;
+    { weight_mat = Mat.zero
+                     layer.weight_mat.shape.dim1
+                     layer.weight_mat.shape.dim2;
 
-      bias_mat = cc_vec_nil (col layer.bias_mat.shape.dim1) |> Vec.create;
+      bias_mat = Vec.zero layer.bias_mat.shape.dim1;
     }
 
 let conv2d_zero layer =
   let open Conv3D in
   Conv3DParams
     { kernels  =
-        cc_mat3_nil
-          (row layer.kernels.shape.dim1)
-          (col layer.kernels.shape.dim2)
-          (col layer.kernels.shape.dim3)
-        |> Mat3.create;
+        Mat3.zero
+          layer.kernels.shape.dim1
+          layer.kernels.shape.dim2
+          layer.kernels.shape.dim3;
 
-      bias_mat = cc_vec_nil (col layer.bias_mat.shape.dim1) |> Vec.create
+      bias_mat = Vec.zero layer.bias_mat.shape.dim1;
     }
 
 
@@ -421,6 +417,35 @@ let param_scale : type a b. float ->
    (* | Conv3DParams cn -> conv2d_scale value cn *)
    | empty -> empty
   )
+
+let fully_connected_print params =
+  let open Fully_connected in
+  Printf.printf "\nFully connected\n Weight mat: \n" ;
+  Mat.print params.weight_mat ;
+  Printf.printf "Bias mat: \n" ;
+  Vec.print params.bias_mat ;
+  ()
+
+let layer_print : type a b. 
+             (a, b) layer ->
+             unit =
+  function
+   | FullyConnected (_, fc) ->
+      fully_connected_print fc
+   (* | Conv3D (_, cn) -> conv2d_zero cn *)
+   | _ -> ()
+
+let nn_print nn =
+  let rec rec_print : type a b. (a, b) ff_list -> unit
+    = fun nn ->
+    match nn with
+    | FF_Nil -> ()
+    | FF_Cons (lay, tail) ->
+       layer_print lay ;
+       rec_print tail
+  in                            
+
+  rec_print nn
 
 let nn_params_scale value nn =
 

@@ -25,6 +25,7 @@ let forward_layer : type a b. a -> (a, b) layer -> b
   | FullyConnected (fc, fcp) ->
      (match input with
      | Tensor1 tens -> 
+        (* Vec.print tens; *)
         cc_fully_connected_ff tens.matrix
           fcp.weight_mat.matrix fcp.bias_mat.matrix
         |> Vec.create |> make_tens1
@@ -109,6 +110,7 @@ let get_err : type t. t tensor -> float =
  *)
 let tens1_diff (res : vec) (exp : vec) =
   cc_vec_sub res.matrix exp.matrix
+  |> cc_vec_scale 2.0
   |> Vec.create
   |> make_tens1
 
@@ -135,6 +137,7 @@ let loss data nn =
                 | FullyConnected (_, _) ->
                    (match res, expected with
                     | Tensor1 res, Tensor1 exp -> 
+                       Vec.print res ;
                        tens1_error res exp
                    )
                 (*
@@ -160,6 +163,7 @@ let loss data nn =
                 | FullyConnected (_, _) ->
                    (match res, expected with
                     | Tensor1 res, Tensor1 exp -> 
+                       Vec.print res ;
                        tens1_error res exp
                    )
                 (*
@@ -194,8 +198,8 @@ let loss data nn =
   in
 
   let* loss = loss_rec nn data 0. in
-  let avg_loss = List.length data |> float_of_int |> (/.) @@ loss in
-  Ok avg_loss
+  (* let avg_loss = List.length data |> float_of_int |> (/.) @@ loss in *)
+  Ok loss
 
 let fully_connected_bp prev_layer meta params (Tensor1 act_prev)
       (Tensor1 act) (Tensor1 diff_mat) =
@@ -284,6 +288,7 @@ let nn_gradient nn data =
 
        (* show_nnet ff_net.backprop_nn |> print_string; *)
        let expected = get_data_out cur_sample in
+
        let res_diff : out =
            (match ff_net.bp_data with
             | BP_Nil ->

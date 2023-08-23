@@ -81,6 +81,20 @@ struct mat mat_random(size_t rows, size_t cols) {
     return mat3_random(rows, cols, 1);
 }
 
+void mat_print(FILE *out, struct mat *mat) {
+    for (size_t d3 = 0; d3 < mat->dim3; d3++) {
+        for (size_t r = 0; r < mat->rows; r++) {
+            for (size_t c = 0; c < mat->cols; c++) {
+                fprintf(out, "%f   ",
+                       mat->matrix[c + r * mat->cols + d3 * mat->rows]);
+            }
+            fputc('\n', out);
+        }
+
+        fputs("\n\n", out);
+    }
+}
+
 int mat_convolve(cl_context context, cl_command_queue queue,
                  cl_program program, const struct mat *restrict mat,
                  const struct mat *restrict conv_kern, struct mat *res) {

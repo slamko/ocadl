@@ -44,6 +44,7 @@ __kernel void dense_bp(__global const float *weight_mat,
                        __global const float *act_mat,
                        __global const float *diff_mat,
                        unsigned long dim,
+                       __global float *cache,
                        __global float *prev_diff,
                        __global float *wmat_grad,
                        __global float *bmat_grad) {
@@ -58,13 +59,21 @@ __kernel void dense_bp(__global const float *weight_mat,
          float weight = weight_mat[x + i * width];
          float prev_act = prev_act_mat[i];
 
-         float dprev = 2.0 * diff * cur_act_deriv * weight;
-         float dw = 2.0 * diff * cur_act_deriv * prev_act;
+         float dprev = diff * cur_act_deriv * weight;
+         float dw = diff * cur_act_deriv * prev_act;
 
          wmat_grad[width * i + x] = dw;
-         atomic_add_f(&prev_diff[i], dprev);
+         cache[x] = dprev;
+         barrier(CLK_GLOBAL_MEM_FENCE);
+    
+         if (x == 0) {
+            prev_diff[i] = 0.0;
+            for (size_t w = 0; w < width; w++) {
+                prev_diff[i] += cache[w];
+            }
+         }   
     }
 
-   bmat_grad[x] = 2.0 * diff * cur_act_deriv;
+   bmat_grad[x] = diff * cur_act_deriv;
 }
 
