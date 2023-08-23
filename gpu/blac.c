@@ -12,16 +12,12 @@
 
 #include "blac.h"
 
-#ifdef DEBUG 
-#define VEC_DIM1 0x4
-#else
-#define VEC_DIM1 0x401
-#endif
-#define VEC_LEN (VEC_DIM1 * VEC_DIM1)
-#define VEC_SIZE (VEC_LEN * sizeof(float))
-
 size_t mat_mem_size(const struct mat *mat) {
     return (mat->rows * mat->cols * mat->dim3 * sizeof(*mat->matrix));
+}
+
+void mat_free(struct mat *mat) {
+    free(mat->matrix);
 }
 
 struct mat mat3_of_array(float *matrix, size_t rows, size_t cols, size_t dim3) {
@@ -48,6 +44,10 @@ struct mat mat3_make(size_t rows, size_t cols, size_t dim3) {
     
     float *matrix = malloc(mat_dims * sizeof(*matrix));
 
+    if (!matrix) {
+        fatal_error("Matrix allocation failed\n");
+    }
+
     return mat3_of_array(matrix, rows, cols, dim3);
 }
 
@@ -59,6 +59,9 @@ struct mat mat3_nil(size_t rows, size_t cols, size_t dim3) {
     size_t mat_dims = rows * cols;
     
     float *matrix = calloc(mat_dims, sizeof *matrix);
+    if (!matrix) {
+        fatal_error("Matrix allocation failed\n");
+    }
 
     return mat3_of_array(matrix, rows, cols, dim3);
 }
@@ -70,7 +73,7 @@ struct mat mat_nil(size_t rows, size_t cols) {
 struct mat mat3_random(size_t rows, size_t cols, size_t dim3) {
     struct mat mat = mat3_make(rows, cols, dim3);
 
-    for (size_t i = 0; i < rows * cols; i++) {
+    for (size_t i = 0; i < rows * cols * dim3; i++) {
         mat.matrix[i] = ((float)(rand() % 1000) / 500.) - 1.0f;
     }
     
@@ -547,8 +550,8 @@ int mat_add(cl_context context, cl_command_queue queue, cl_program program,
 }
 
 struct mat mat_mult(cl_context context, cl_command_queue queue,
-                    cl_program program, struct mat *restrict a,
-                    struct mat *restrict b) {
+                    cl_program program, struct mat *a,
+                    struct mat *b) {
 
     struct mat res_mul = mat_make(a->rows, b->cols);
     int res = mat_gemm(context, queue, program, a, b, &res_mul);
@@ -636,218 +639,14 @@ int ocl_init(cl_command_queue *command_queue, cl_context *context,
     return ret;
 }
 
-int prog () {
-    cl_int ret = {0};
-    cl_command_queue command_queue;
-    cl_context context;
-    cl_device_id device_id;
-    cl_program program;
+void ocl_finish(cl_context context, cl_command_queue queue,
+                cl_program *progs, size_t prog_num) {
+    clFinish(queue);
 
-    ret = ocl_init(&command_queue, &context, &device_id);
-    if (ret) return ret;
-    ret = load_program("add.c", &program, context, &device_id);
-    if (ret) return ret;
-
-    /* size_t max = 0; */
-    /* clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof (size_t), */
-                    /* &max, NULL);  */
-    /* printf("max %zu\n", max); */
-
-    /* struct mat a = mat_random(VEC_DIM1, VEC_DIM1); */
-    /* struct mat b = mat_random(VEC_DIM1, VEC_DIM1); */
-    /* struct mat c = mat_nil(VEC_DIM1, VEC_DIM1); */
-
-    struct mat mat = mat_random(VEC_DIM1, VEC_DIM1);
-    struct mat kernel = mat_random(2, 2);
-    struct mat res = mat_nil(VEC_DIM1 - 1, VEC_DIM1 - 1);
-
-    clock_t start = clock();
-
-    /* ret = mat_gemm(context, command_queue, program, &a, &b, &c); */
-    /* ret = cpu_gemm(&a, &b, &c); */
-    /* ret = simd_gemm(&a, &b, &c); */
-
-    ret = mat_convolve(context, command_queue, program, &mat, &kernel, &res);
-    clock_t end = clock();
-
-    float time_el = (float)((end - start) * 1000 * 1000) / CLOCKS_PER_SEC;
-
-    printf ("Convolution time: %f us. Status: %d\n", time_el, ret);
-
-#ifdef DEBUG
-    for(int i = 0; i < VEC_LEN; i++) {
-        if (i % mat.rows == 0) {
-            putc('\n', stdout);
-        }
-
-        printf("%f  ", mat.matrix[i]);
-
+    for (size_t i = 0; i < prog_num; i++) {
+        clReleaseProgram(progs[i]);
     }
 
-    putc('\n', stdout);
-
-    for(int i = 0; i < kernel.rows * kernel.cols; i++) {
-        if (i % kernel.rows == 0) {
-            putc('\n', stdout);
-        }
-
-        printf("%f  ", kernel.matrix[i]);
-
-    }
-
-    putc('\n', stdout);
-
-    for(int i = 0; i < res.rows * res.cols; i++) {
-        if (i % res.rows == 0) {
-            putc('\n', stdout);
-        }
-
-        printf("%f  ", res.matrix[i]);
-
-    }
-
-    putc('\n', stdout);
-
-
-
-    /* ret = mat_gemm(context, command_queue, program, &a, &b, &c); */
-
-    /* for(int i = 0; i < VEC_LEN; i++) */
-        /* printf("%f * %f = %f\n", a.matrix[i], b.matrix[i], c.matrix[i]); */
-#endif
-
-    return 0;
-}
-
-int example() {
-    float *a = malloc(VEC_SIZE);
-    float *b = malloc(VEC_SIZE);
-
-    for (int i = 0; i < VEC_LEN; i++) {
-        a[i] = (float)i;
-        b[i] = (float)i;
-    }
-
-    FILE *fp = fopen ("add.c", "r");
-
-    if (!fp) {
-        fprintf(stderr, "No source file found");
-        exit(1);
-    }
-
-    fseek(fp, 0, SEEK_END);
-    size_t src_len = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-
-    char *src = malloc(src_len + 1);
-    if (fread(src, sizeof *src, src_len, fp) != src_len) {
-        fprintf(stderr, "Read failed");
-        exit(1);
-    }
-    fclose(fp);
-
-    cl_platform_id platform_id = {0};
-    cl_device_id device_id = {0};   
-    cl_uint ret_num_devices = {0};
-    cl_uint ret_num_platforms = {0};
-    cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-
-    if (ret) {
-        fprintf(stderr, "No CL platforms found\n");
-        exit(1);
-    }
-
-    printf("CL platforms number: %d\n", ret_num_platforms);
-
-    ret = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_ALL, 1, 
-            &device_id, &ret_num_devices);
-
-    if (ret) {
-        fprintf(stderr, "No CL devices found %d\n", ret);
-        exit(1);
-    }
- 
-    // Create an OpenCL context
-    cl_context context =
-        clCreateContext(NULL, 1, &device_id, NULL, NULL, &ret);
-
-    if (ret) {
-        fprintf(stderr, "Failed to instantiate the context, error = %d\n",
-                ret);
-        exit(1);
-    }
- 
-    // Create a command queue
-    cl_command_queue command_queue =
-        clCreateCommandQueueWithProperties(context, device_id, NULL, &ret);
-
-    if (ret) {
-        fprintf(stderr, "Failed to instantiate the command queue\n");
-        exit(1);
-    }
-
-    cl_mem a_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY, 
-            VEC_SIZE, NULL, &ret);
-    cl_mem b_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY,
-            VEC_SIZE, NULL, &ret);
-    cl_mem c_mem_obj = clCreateBuffer(context, CL_MEM_WRITE_ONLY, 
-            VEC_SIZE, NULL, &ret);
- // Copy the lists A and B to their respective memory buffers
-    ret = clEnqueueWriteBuffer(command_queue, a_mem_obj, CL_TRUE, 0,
-            VEC_LEN * sizeof(int), a, 0, NULL, NULL);
-    ret = clEnqueueWriteBuffer(command_queue, b_mem_obj, CL_TRUE, 0, 
-            VEC_LEN * sizeof(int), b, 0, NULL, NULL);
- 
-    // Create a program from the kernel source
-    cl_program program = clCreateProgramWithSource(context, 1, 
-            (const char **)&src, (const size_t *)&src_len, &ret);
- 
-    // Build the program
-    ret = clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
- 
-    // Create the OpenCL kernel
-    cl_kernel kernel = clCreateKernel(program, "matrix_mul", &ret);
-    cl_ulong mat_dim = VEC_DIM1;
- 
-    // Set the arguments of the kernel
-    ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), &a_mem_obj);
-    ret = clSetKernelArg(kernel, 1, sizeof(cl_mem), &b_mem_obj);
-    ret = clSetKernelArg(kernel, 2, sizeof(cl_mem), &c_mem_obj);
-    ret = clSetKernelArg(kernel, 3, sizeof(mat_dim), &mat_dim);
- 
-    // Execute the OpenCL kernel on the list
-    size_t global_item_size[2] = {VEC_DIM1, VEC_DIM1};
-    size_t local_item_size[2]  = {VEC_DIM1, VEC_DIM1} ; 
-
-    ret = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, 
-            global_item_size, local_item_size, 0, NULL, NULL);
-
-    if (ret) {
-        printf("Kernel execution failed %d\n", ret);
-        exit(1);
-    }
- 
-    // Read the memory buffer C on the device to the local variable C
-    float *c = malloc(VEC_SIZE);
-    ret = clEnqueueReadBuffer(command_queue, c_mem_obj, CL_TRUE, 0, 
-            VEC_SIZE, c, 0, NULL, NULL);
- 
-    for(int i = 0; i < VEC_LEN; i++)
-        printf("%f * %f = %f\n", a[i], b[i], c[i]);
- 
-    ret = clFlush(command_queue);
-    ret = clFinish(command_queue);
-    ret = clReleaseKernel(kernel);
-    ret = clReleaseProgram(program);
-    ret = clReleaseMemObject(a_mem_obj);
-    ret = clReleaseMemObject(b_mem_obj);
-    ret = clReleaseMemObject(c_mem_obj);
-    ret = clReleaseCommandQueue(command_queue);
-    ret = clReleaseContext(context);
-
-    free(a);
-    free(b);
-    free(c);
-    
-    return 0;
+    clReleaseCommandQueue(queue);
+    clReleaseContext(context);
 }

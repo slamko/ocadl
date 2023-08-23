@@ -13,12 +13,21 @@ SRC += lib/deep.ml
 SRC += lib/test.ml
 SRC += lib/ocadl.ml
 
-all: $(SRC)
-	gcc	-c -g gpu/blac.c
-	gcc	-c -g gpu/deep.c
-	gcc	-c -g -I/home/slamko/.opam/default/lib/ocaml gpu/gemm.c
+C_SRC =
+C_SRC += gpu/blac.c
+C_SRC += gpu/deep.c
+C_SRC += gpu/gemm.c
 
-	ocamlfind ocamlopt -g -o ocadl \
+C_INCL = /home/slamko/.opam/default/lib/ocaml
+
+FLAGS = -O2
+
+debug: FLAGS += -g
+
+all: $(SRC)
+	gcc	-c $(FLAGS) -I$(C_INCL) $(C_SRC)
+
+	ocamlfind ocamlopt $(FLAGS) -o ocadl \
 		-I lib -I lib/layers -I lib/math -I test \
 		blac.o deep.o gemm.o \
 		-linkpkg -package csv,domainslib,unix \

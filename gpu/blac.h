@@ -18,7 +18,16 @@ struct mat {
     size_t start_dim3;
 };
 
+#define err(msg) fprintf(stderr, msg)
+#define error(msg, ...) fprintf(stderr, msg, __VA_ARGS__)
+
+#define fatal_error(msg)                \
+    fprintf(stderr, msg); \
+    exit(1);
+
 size_t mat_mem_size(const struct mat *mat);
+
+void mat_free(struct mat *mat);
 
 void mat_print(FILE *out, struct mat *mat);
 
@@ -50,6 +59,9 @@ int vec_sum(cl_context context, cl_command_queue queue, cl_program program,
 
 int ocl_init(cl_command_queue *command_queue, cl_context *context,
              cl_device_id *device_id);
+
+void ocl_finish(cl_context context, cl_command_queue queue,
+                cl_program *progs, size_t prog_num);
 
 int load_program(const char *prog_name, cl_program *program,
                  cl_context context, cl_device_id *dev_ids);

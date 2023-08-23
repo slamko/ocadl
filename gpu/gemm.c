@@ -16,8 +16,6 @@ cl_device_id device_id;
 cl_program math_prog;
 cl_program nn_prog;
 
-#define error(msg, ...) fprintf(stderr, msg, __VA_ARGS__)
-
 struct mat mat_of_ba(struct caml_ba_array *ba) {
     struct mat mat = {0};
 
@@ -44,7 +42,9 @@ CAMLprim value gemm(value a, value b) {
     long dims[2] = { amat->dim[0], bmat->dim[1] };
 
     int ret = 0;
-    if ((ret = mat_gemm(context, command_queue, math_prog, &adata, &bdata, &res_mat))) {
+    if ((ret =
+         mat_gemm(context, command_queue, math_prog,
+                  &adata, &bdata, &res_mat))) {
         printf ("Mul error %d\n", ret);
     }
     
@@ -365,6 +365,15 @@ CAMLprim value cc_mat_print(value mat_arr) {
     CAMLreturn(Val_unit);
 }
 
+CAMLprim value cc_gpu_finish() {
+    CAMLparam0();
+    int ret = 0;
+    
+    cl_program cl_progs[] = { math_prog, nn_prog };
+    ocl_finish(context, command_queue, cl_progs, 2);
+
+    CAMLreturn(Val_unit);
+}
 
 CAMLprim value cc_gpu_init() {
     CAMLparam0();

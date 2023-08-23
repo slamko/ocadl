@@ -25,7 +25,7 @@ let () =
   Arg.parse speclist anon_fun usage_msg ;
   Deepmath.gpu_init () ;
 
-  match
+  let exec () = match
     Test.test 
       !train_data_file
       !save_file
@@ -35,3 +35,9 @@ let () =
   with
     | Ok ok -> ok
     | Error err -> Printf.eprintf "error: %s\n" err
+  in
+
+  exec () ;
+  Deepmath.gpu_finish () ;
+
+

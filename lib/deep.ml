@@ -137,7 +137,7 @@ let loss data nn =
                 | FullyConnected (_, _) ->
                    (match res, expected with
                     | Tensor1 res, Tensor1 exp -> 
-                       Vec.print res ;
+                       (* Vec.print res ; *)
                        tens1_error res exp
                    )
                 (*
@@ -163,7 +163,7 @@ let loss data nn =
                 | FullyConnected (_, _) ->
                    (match res, expected with
                     | Tensor1 res, Tensor1 exp -> 
-                       Vec.print res ;
+                       (* Vec.print res ; *)
                        tens1_error res exp
                    )
                 (*
