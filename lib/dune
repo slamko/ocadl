@@ -15,7 +15,11 @@
             ppx_catch
             csv)
  (inline_tests)
- (preprocess (pps ppx_catch ppx_deriving.show ppx_inline_test))
+ (preprocess
+  (pps ppx_catch
+       ppx_deriving.show
+       ppx_deriving.enum
+       ppx_inline_test))
  (foreign_stubs
   (include_dirs (lib cc_mat))
   (language c) (names hello) (flags -lOpenCL))

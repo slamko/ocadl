@@ -1,25 +1,19 @@
 float sigmoid(float x) {
-    return (1.0 / (1.0 + exp(-x))); 
+    float val = (1.0 / (1.0 + exp(-x)));
+
+    if (isnan(val)) {
+        if (!isnan(x)) {
+            printf("Sigmoid nan: %f\n", x);
+        }
+    }
+    
+    return val; 
 }
 
 float sigmoid_deriv(float act) {
     return (act * (1.0 - act));
 }
 
-void atomic_add_f(volatile __global float *addr, float val) {
-    union {
-        unsigned int u32;
-        float f32;
-    } next, expected, current;
-    current.f32 = *addr;
-    do {
-        expected.f32 = current.f32;
-        next.f32 = expected.f32 + val;
-        current.u32 = atomic_cmpxchg( (volatile __global unsigned int *)addr,
-        expected.u32, next.u32);
-    } while( current.u32 != expected.u32 );
-}
-    
 __kernel void dense_ff(__global const float *input,
                        __global const float *weight_mat,
                        __global const float *bias_mat,
@@ -55,23 +49,25 @@ __kernel void dense_bp(__global const float *weight_mat,
     float cur_act = act_mat[x];
     float cur_act_deriv = sigmoid_deriv(cur_act);
      
+    if (isnan(diff)) {
+        printf("Nan diff: %f\n", diff);
+    } if (isnan(cur_act)) {
+        printf("Nan act: %f\n", diff);
+    } if (isnan(cur_act_deriv) && !isnan(cur_act)) {
+        printf("Fuck : %f\n", 4.0);
+    }
+
     for (unsigned long i = 0; i < dim; i++) {
-         float weight = weight_mat[x + i * width];
+         size_t wmati = i * width + x;
+
+         float weight = weight_mat[wmati];
          float prev_act = prev_act_mat[i];
 
          float dprev = diff * cur_act_deriv * weight;
          float dw = diff * cur_act_deriv * prev_act;
 
-         wmat_grad[width * i + x] = dw;
-         cache[x] = dprev;
-         barrier(CLK_GLOBAL_MEM_FENCE);
-    
-         if (x == 0) {
-            prev_diff[i] = 0.0;
-            for (size_t w = 0; w < width; w++) {
-                prev_diff[i] += cache[w];
-            }
-         }   
+         wmat_grad[wmati] = dw;
+         cache[wmati] = dprev;
     }
 
    bmat_grad[x] = diff * cur_act_deriv;

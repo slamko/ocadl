@@ -439,6 +439,9 @@ let rec learn_rec pool pool_size data epoch_num
           |> spawn_bp_pool (i - 1)
      in
 
+     Printf.printf "Epoch: %d\n%!" epoch_num ;
+     flush stdout ;
+
      let cycles_to_batch = batch_size - (pools_per_batch * pool_size) in
      let thread_num =
        if cycles_to_batch > pool_size
@@ -460,9 +463,9 @@ let rec learn_rec pool pool_size data epoch_num
        |> List.map @@ Task.await pool in
 
      (* print_string "hello\n"; *)
-     let full_grad =
-       grad_list
-       |> List.fold_left (nn_params_apply cc_mat_add) grad_acc
+     let full_grad = List.hd grad_list
+       (* grad_list *)
+       (* |> List.fold_left (nn_params_apply cc_mat_add) grad_acc *)
      in
      
      let batch_grad =
@@ -475,7 +478,7 @@ let rec learn_rec pool pool_size data epoch_num
        if cycles_to_batch = cur_domain_num
        then
          full_grad
-         |> nn_params_scale learning_rate
+         (* |> nn_params_scale learning_rate *)
          |> nn_apply_params cc_mat_sub nn 
        else nn
      in

@@ -7,6 +7,9 @@ external cc_mat_print : (float, float32_elt, c_layout) Array2.t ->
 external cc_vec_print : (float, float32_elt, c_layout) Array1.t ->
                         unit = "cc_mat_print"
 
+let randf () =
+  Random.float 2.0 -. 1.0
+
 module Vec = struct
   type shape = {
       dim1 : col;
@@ -42,7 +45,7 @@ module Vec = struct
 
   let zero cols = make cols 0.0
 
-  let random cols = init cols (fun _ -> Random.float 2.0 -. 1.0)
+  let random cols = init cols (fun _ -> randf ())
 
   let print vec =
     cc_vec_print vec.matrix
@@ -97,7 +100,7 @@ module Mat = struct
       shape = { dim1 = Row rows; dim2 = Col cols }
     }
 
-  let random rows cols = init rows cols (fun _ _ -> Random.float 2.0 -. 1.0)
+  let random rows cols = init rows cols (fun _ _ -> randf ())
 
   let print mat =
     cc_mat_print mat.matrix
@@ -175,7 +178,7 @@ module Mat3 = struct
     }
 
   let random rows cols dim3 =
-    init rows cols dim3 (fun _ _ _ -> Random.float 2.0 -. 1.0)
+    init rows cols dim3 (fun _ _ _ -> randf ())
 
   let make rows cols dim3 init_val =
     init rows cols dim3 (fun  _ _ _ -> init_val)

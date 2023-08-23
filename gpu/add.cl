@@ -49,6 +49,10 @@ __kernel void matrix_sub(__global const float *a,
     }
 
     size_t coor = x + x_size * y + y_size * z;
+    if (isnan(a[coor]) || isnan(b[coor])) {
+        printf("Nan!!!");
+    }
+
     c[coor] = a[coor] - b[coor];
 }
 
@@ -71,8 +75,8 @@ __kernel void matrix_add(__global const float *a,
         z = get_global_id(2);
     }
 
-    c[x + x_size * y + y_size * z] =
-        a[x + x_size * y + y_size * z] + b[x + x_size * y + y_size * z];
+    size_t coord = x + x_size * y + y_size * z;
+    c[coord] = a[coord] + b[coord];
 }
 
 __kernel void matrix_sum(__global const float *mat,

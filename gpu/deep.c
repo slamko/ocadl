@@ -98,10 +98,11 @@ int fully_connected_bp(cl_context context, cl_command_queue queue,
 
     cl_ulong dim = weight_mat->rows;
 
-    struct mat cache_vec = mat_nil(1, act_vec->cols);
+    struct mat cache_vec = mat_nil(dim, act_vec->cols);
     cl_mem cache_mem = clCreateBuffer(context,
-                                  CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-                                  act_size, cache_vec.matrix, &ret);
+                                  CL_MEM_WRITE_ONLY,
+                                      mat_mem_size(&cache_vec),
+                                      NULL, &ret);
     if (ret) {
         goto clean_cache;
     }
@@ -127,10 +128,18 @@ int fully_connected_bp(cl_context context, cl_command_queue queue,
                                  local_work_size, 0, NULL, NULL);
     if (ret) goto clean_cache_mem;
 
-    ret = clEnqueueReadBuffer(queue, prev_diff_mem, CL_TRUE, 0u,
-                              prev_diff_size, prev_diff_vec->matrix,
-                              0, NULL, NULL);
-    if (ret) goto cleanup;
+    /* ret = clEnqueueReadBuffer(queue, prev_diff_mem, CL_TRUE, 0u, */
+                              /* prev_diff_size, prev_diff_vec->matrix, */
+                              /* 0, NULL, NULL); */
+    /* if (ret) goto cleanup; */
+
+    for (size_t i = 0; i < dim; i++) {
+        prev_diff_vec->matrix[i] = 0.0;
+        for (size_t j = 0; j < cache_vec.cols; j++) {
+            prev_diff_vec->matrix[i] +=
+                cache_vec.matrix[i * cache_vec.cols + j];
+        }
+    }
  
     ret = clEnqueueReadBuffer(queue, wgrad_mem, CL_TRUE, 0u, wgrad_size,
                               wgrad_mat->matrix, 0, NULL, NULL);
