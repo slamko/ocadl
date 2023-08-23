@@ -25,8 +25,8 @@ __kernel void matrix_scale(__global float *mat,
         z = get_global_id(2);
     }
 
-    mat[x + x_size * y + y_size * z] =
-        mat[x + x_size * y + y_size * z] * scale;
+    size_t coord = x + x_size * y + y_size * z;
+    mat[coord] = mat[coord] * scale;
 }
 
 __kernel void matrix_sub(__global const float *a,

@@ -56,6 +56,7 @@ int fully_connected_bp(cl_context context, cl_command_queue queue,
     if (ret) {
         goto clean_wmat_mem;
     }
+
     cl_mem act_mem = clCreateBuffer(context,
                                   CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
                                   act_size, act_vec->matrix, &ret);
@@ -175,6 +176,7 @@ int fully_connected_ff(cl_context context, cl_command_queue queue,
     }
     
     *res = mat_nil(1, weight_mat->cols);
+
     size_t inp_mat_size = mat_mem_size(input);
     size_t wmat_size = mat_mem_size(weight_mat);
     size_t bmat_size = mat_mem_size(bias_vec);
@@ -212,14 +214,15 @@ int fully_connected_ff(cl_context context, cl_command_queue queue,
         goto clean_res_mem;
     }
 
-    cl_ulong dim = weight_mat->cols;
+    cl_ulong mat_dim = weight_mat->rows;
     ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), &inp_mem);
     ret = clSetKernelArg(kernel, 1, sizeof(cl_mem), &wmat_mem);
     ret = clSetKernelArg(kernel, 2, sizeof(cl_mem), &bmat_mem);
     ret = clSetKernelArg(kernel, 3, sizeof(cl_mem), &res_mem);
-    ret = clSetKernelArg(kernel, 4, sizeof(dim), &dim);
+    ret = clSetKernelArg(kernel, 4, sizeof(mat_dim), &mat_dim);
     if (ret) goto cleanup;
 
+    cl_ulong dim = weight_mat->cols;
     size_t global_work_size [1] = { dim };
     size_t dim1 = (dim < 32) ? dim : 32;
     
@@ -232,9 +235,6 @@ int fully_connected_ff(cl_context context, cl_command_queue queue,
     ret = clEnqueueReadBuffer(queue, res_mem, CL_TRUE, 0u, res_mat_size,
                               res->matrix, 0, NULL, NULL);
 
-    printf("Inp \n");
-    mat_print(stdout, input);
-    
     if (ret) goto cleanup;
     
     clFlush(queue);

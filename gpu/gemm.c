@@ -203,7 +203,7 @@ CAMLprim value cc_vec_scale(value scale, value mat) {
         caml_failwith("Vec scale error\n");
     }
     
-    CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
+    CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
                              mat_mat.matrix, dims));
 }
 

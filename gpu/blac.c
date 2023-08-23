@@ -21,7 +21,7 @@
 #define VEC_SIZE (VEC_LEN * sizeof(float))
 
 size_t mat_mem_size(const struct mat *mat) {
-    return mat->rows * mat->cols * sizeof(*mat->matrix);
+    return (mat->rows * mat->cols * mat->dim3 * sizeof(*mat->matrix));
 }
 
 struct mat mat3_of_array(float *matrix, size_t rows, size_t cols, size_t dim3) {
