@@ -98,21 +98,22 @@ let rec perform : type inp out n. (n, inp, out) nnet ->
      perform nn t
 
 let test train_data_fname save_file epochs learning_rate batch_size =
-  let train_ata =
+  let train_data =
     if Sys.file_exists train_data_fname
     then read_mnist_train_data train_data_fname
            @@ Mat.make_shape (Row 28) (Col 28)
     else failwith "No train file"
   in
 
-  let train_data = xor_data in
+  let train_ata = xor_data in
 
   let base_nn =
-    make_input1d (Vec.make_shape (Col 2))
-    (* |> make_flatten2d *)
-    |> make_fully_connected ~ncount:3 ~act:sigmoid ~deriv:sigmoid'
+    make_input2d (Mat.make_shape (Row 28) (Col 28))
+    |> make_flatten2d
+    |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
     (* |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid' *)
-    |> make_fully_connected ~ncount:1 ~act:sigmoid ~deriv:sigmoid'
+    |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
+    |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn in
 
 (*

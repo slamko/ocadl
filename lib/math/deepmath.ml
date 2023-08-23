@@ -4,6 +4,11 @@ open Alias
 open Bigarray
 open Tensor
 
+type actf =
+  | Sigmoid
+  | Relu
+[@@deriving enum]
+
 let sigmoid (x : float) : float =
   1. /. (1. +. exp(-. x))
 
