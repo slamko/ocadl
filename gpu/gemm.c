@@ -157,7 +157,6 @@ CAMLprim value cc_fully_connected_bp(value weight_mat, value prev_act_mat,
 
     struct mat prev_diff, wgrad, bgrad;
 
-    struct mat res_mat = {0};
     int ret = fully_connected_bp(context, command_queue, nn_prog,
                                  &wdata, &prev_act_data, &act_data,
                                  &diff_data, &prev_diff, &wgrad, &bgrad);
@@ -172,7 +171,7 @@ CAMLprim value cc_fully_connected_bp(value weight_mat, value prev_act_mat,
     
     Store_field(res_tuple, 0,
                 caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
-                              res_mat.matrix, pd_dims));
+                              prev_diff.matrix, pd_dims));
 
     long wg_dims[2] = { wgrad.rows, wgrad.cols };
 

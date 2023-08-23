@@ -128,10 +128,10 @@ int fully_connected_bp(cl_context context, cl_command_queue queue,
                                  local_work_size, 0, NULL, NULL);
     if (ret) goto clean_cache_mem;
 
-    /* ret = clEnqueueReadBuffer(queue, prev_diff_mem, CL_TRUE, 0u, */
-                              /* prev_diff_size, prev_diff_vec->matrix, */
-                              /* 0, NULL, NULL); */
-    /* if (ret) goto cleanup; */
+    ret = clEnqueueReadBuffer(queue, cache_mem, CL_TRUE, 0u,
+                              mat_mem_size(&cache_vec), cache_vec.matrix,
+                              0, NULL, NULL);
+    if (ret) goto cleanup;
 
     for (size_t i = 0; i < dim; i++) {
         prev_diff_vec->matrix[i] = 0.0;
@@ -148,6 +148,13 @@ int fully_connected_bp(cl_context context, cl_command_queue queue,
     ret = clEnqueueReadBuffer(queue, bgrad_mem, CL_TRUE, 0u, bgrad_size,
                               bgrad_vec->matrix, 0, NULL, NULL);
     if (ret) goto cleanup;
+
+    printf("\nw diff\n");
+    mat_print(stdout, diff_vec);
+    printf("\nw grad\n");
+    mat_print(stdout, wgrad_mat);
+    printf("\nB grad\n");
+    mat_print(stdout, bgrad_vec);
     
     clFlush(queue);
 

@@ -110,7 +110,7 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   let base_nn =
     make_input1d (Vec.make_shape (Col 2))
     (* |> make_flatten2d *)
-    |> make_fully_connected ~ncount:2 ~act:sigmoid ~deriv:sigmoid'
+    |> make_fully_connected ~ncount:3 ~act:sigmoid ~deriv:sigmoid'
     (* |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid' *)
     |> make_fully_connected ~ncount:1 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn in
