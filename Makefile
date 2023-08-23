@@ -20,6 +20,9 @@ C_SRC += gpu/gemm.c
 
 C_INCL = /home/slamko/.opam/default/lib/ocaml
 
+CAML_PKGS = 
+CAML_PKGS =csv,domainslib,unix,ppx_deriving.show,ppx_deriving.enum
+
 FLAGS = -O2
 
 debug: FLAGS += -g
@@ -30,5 +33,5 @@ all: $(SRC)
 	ocamlfind ocamlopt $(FLAGS) -o ocadl \
 		-I lib -I lib/layers -I lib/math -I test \
 		blac.o deep.o gemm.o \
-		-linkpkg -package csv,domainslib,unix \
+		-linkpkg -package $(CAML_PKGS) \
 		$(SRC) -cclib -lOpenCL

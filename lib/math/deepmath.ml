@@ -9,6 +9,11 @@ type actf =
   | Relu
 [@@deriving enum]
 
+type pooling =
+  | Max
+  | Avarage
+[@@deriving enum]
+
 let sigmoid (x : float) : float =
   1. /. (1. +. exp(-. x))
 
