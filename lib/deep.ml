@@ -22,6 +22,7 @@ let forward_layer : type a b. a -> (a, b) layer -> b
   match layer_type with
   | Input3 _ -> input
   | Input2 _ -> input
+  | Input1 _ -> input
   | FullyConnected (fc, fcp) ->
      (match input with
      | Tensor1 tens -> 
@@ -235,6 +236,10 @@ let backprop_layer : type a b. (a, b) layer -> bool -> a -> b -> b ->
      { prev_diff = diff_mat;
        grad = Input2Params;
      }
+  | Input1 _ ->
+     { prev_diff = diff_mat;
+       grad = Input1Params;
+     }
   | Flatten2D meta ->
      flatten_bp prev_layer meta act_prev diff_mat
   | FullyConnected (meta, params) ->
@@ -384,6 +389,8 @@ let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
        (meta.shape, Shape.get_shape data_in)
     | Input2 meta, Tensor2 _ ->
        (meta.shape, Shape.get_shape data_in)
+    | Input1 meta, Tensor1 _ ->
+       (meta.shape, Shape.get_shape data_in)
     | FullyConnected (meta, _), Tensor1 _ ->
        (meta.out_shape, Shape.get_shape data_in)
     | Conv3D (meta, _), Tensor3 _ ->
@@ -405,6 +412,10 @@ let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
            m.out_shape, Shape.get_shape data_out
         | Input3 m, Tensor3 _ ->
            m.shape, Shape.get_shape data_out
+        | Input2 meta, Tensor2 _ ->
+           (meta.shape, Shape.get_shape data_out)
+        | Input1 meta, Tensor1 _ ->
+           (meta.shape, Shape.get_shape data_out)
         | Conv3D (m, _), Tensor3 _ ->
            m.out_shape, Shape.get_shape data_out
         | Pooling m, Tensor3 _ ->
@@ -478,7 +489,7 @@ let rec learn_rec pool pool_size data epoch_num
        if cycles_to_batch = cur_domain_num
        then
          full_grad
-         (* |> nn_params_scale learning_rate *)
+         |> nn_params_scale learning_rate
          |> nn_apply_params cc_mat_sub nn 
        else nn
      in

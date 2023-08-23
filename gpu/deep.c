@@ -39,8 +39,8 @@ int fully_connected_bp(cl_context context, cl_command_queue queue,
     size_t wmat_size = mat_mem_size(weight_mat);
 
     size_t prev_diff_size = mat_mem_size(prev_diff_vec);
-    size_t bgrad_size = mat_mem_size(bgrad_vec);
     size_t wgrad_size = mat_mem_size(wgrad_mat);
+    size_t bgrad_size = mat_mem_size(bgrad_vec);
 
 
     cl_mem wmat_mem = clCreateBuffer(context,
@@ -113,9 +113,9 @@ int fully_connected_bp(cl_context context, cl_command_queue queue,
     ret = clSetKernelArg(kernel, 3, sizeof(cl_mem), &diff_mem);
     ret = clSetKernelArg(kernel, 4, sizeof(dim), &dim);
     ret = clSetKernelArg(kernel, 5, sizeof(cl_mem), &cache_mem);
-    ret = clSetKernelArg(kernel, 6, sizeof(cl_mem), &prev_diff_mem);
-    ret = clSetKernelArg(kernel, 7, sizeof(cl_mem), &wgrad_mem);
-    ret = clSetKernelArg(kernel, 8, sizeof(cl_mem), &bgrad_mem);
+    /* ret = clSetKernelArg(kernel, 6, sizeof(cl_mem), &prev_diff_mem); */
+    ret = clSetKernelArg(kernel, 6, sizeof(cl_mem), &wgrad_mem);
+    ret = clSetKernelArg(kernel, 7, sizeof(cl_mem), &bgrad_mem);
     if (ret) goto clean_cache_mem;
 
     size_t width = weight_mat->cols;

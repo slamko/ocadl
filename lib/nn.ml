@@ -4,6 +4,12 @@ open Common
 open Deepmath
 open Tensor
 
+let one_data value =
+  Vec.of_array [|value|]
+
+let data arr =
+  Vec.of_array arr
+
 let nn_print nn =
   print_string "\nNN print: \n" ;
   Printf.printf "Weights:\n" ;
@@ -132,6 +138,12 @@ let restore_nn_from_json fname nn =
 (* let x = *)
   (* (Build_Cons (FullyConnected {FullyConnected}, (Build_Cons (Input3, Build_Nil)))) *)
 
+let make_input1d shape = 
+  let in_layer = Input1 { shape = Shape.make_shape_vec shape; } in
+  { build_input = in_layer;
+    build_list = Build_Cons (in_layer, Build_Nil);
+  }
+
 let make_input2d shape = 
   let in_layer = Input2 { shape = Shape.make_shape_mat shape; } in
   { build_input = in_layer;
@@ -152,6 +164,7 @@ let make_fully_connected ~ncount ~act ~deriv layers =
         | FullyConnected (meta, _) -> meta.out_shape
         | Flatten meta -> meta.out_shape
         | Flatten2D meta -> meta.out_shape
+        | Input1 meta -> meta.shape
        ) |> Shape.shape_size
   in
 
@@ -303,6 +316,7 @@ let make_flatten2d layers =
        (match lay with
         | Conv2D (meta, _) -> meta.out_shape
         | Input2 meta -> meta.shape
+        | Pooling2D meta -> meta.out_shape
        )
   in
 
@@ -385,6 +399,7 @@ let layer_zero : type a b.
    | Pooling _ -> PoolingParams
    | Input3 _ -> Input3Params
    | Input2 _ -> Input2Params
+   | Input1 _ -> Input1Params
   )
 
 let fully_connected_scale value layer =
@@ -523,6 +538,8 @@ let nn_params_apply proc nn1 nn2 =
            PL_Cons (Input3Params,  apply_rec t1 t2)
         | Input2Params, Input2Params   ->
            PL_Cons (Input2Params,  apply_rec t1 t2)
+        | Input1Params, Input1Params   ->
+           PL_Cons (Input1Params,  apply_rec t1 t2)
         | Flatten2DParams, Flatten2DParams   ->
            PL_Cons (Flatten2DParams,  apply_rec t1 t2)
         | PoolingParams, PoolingParams ->
@@ -596,6 +613,8 @@ let nn_apply_params proc nn params =
        | Input3 _, Input3Params ->
            FF_Cons (lay, apply_rec t1 t2)
        | Input2 _, Input2Params ->
+           FF_Cons (lay, apply_rec t1 t2)
+       | Input1 _, Input1Params ->
            FF_Cons (lay, apply_rec t1 t2)
        | Pooling _, PoolingParams ->
           FF_Cons (lay, apply_rec t1 t2)

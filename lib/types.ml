@@ -10,6 +10,7 @@ type (_, _) layer_params =
   | Pooling2DParams : (Pooling2D.input, Pooling2D.out) layer_params
   | Flatten2DParams : (Flatten2D.input, Flatten2D.out) layer_params
   | Input2Params : (Input2D.input, Input2D.out) layer_params
+  | Input1Params : (Input1D.input, Input1D.out) layer_params
 
 type (_, _) layer =
   | FullyConnected  : FC.t -> (FC.input, FC.out) layer
@@ -21,6 +22,7 @@ type (_, _) layer =
   | Pooling2D       : Pooling2D.t -> (Pooling2D.input, Pooling2D.out) layer
   | Flatten2D       : Flatten2D.t -> (Flatten2D.input, Flatten2D.out) layer
   | Input2          : Input2D.t -> (Input2D.input, Input2D.out) layer
+  | Input1          : Input1D.t -> (Input1D.input, Input1D.out) layer
 
 type zero = unit
 

@@ -39,9 +39,9 @@ __kernel void dense_bp(__global const float *weight_mat,
                        __global const float *diff_mat,
                        unsigned long dim,
                        __global float *cache,
-                       __global float *prev_diff,
                        __global float *wmat_grad,
                        __global float *bmat_grad) {
+
     size_t x = get_global_id(0);
     size_t width = get_global_size(0);
 
