@@ -49,27 +49,19 @@ __kernel void dense_bp(__global const float *weight_mat,
     float cur_act = act_mat[x];
     float cur_act_deriv = sigmoid_deriv(cur_act);
      
-    if (isnan(diff)) {
-        printf("Nan diff: %f\n", diff);
-    } if (isnan(cur_act)) {
-        printf("Nan act: %f\n", diff);
-    } if (isnan(cur_act_deriv) && !isnan(cur_act)) {
-        printf("Fuck : %f\n", 4.0);
-    }
-
     for (unsigned long i = 0; i < dim; i++) {
          size_t wmati = i * width + x;
 
          float weight = weight_mat[wmati];
          float prev_act = prev_act_mat[i];
 
-         float dprev = 2.0 * diff * cur_act_deriv * weight;
-         float dw = 2.0 *diff * cur_act_deriv * prev_act;
+         float dprev = diff * cur_act_deriv * weight;
+         float dw = diff * cur_act_deriv * prev_act;
 
          wmat_grad[wmati] = dw;
          cache[wmati] = dprev;
     }
 
-   bmat_grad[x] = 2.0 * diff * cur_act_deriv;
+   bmat_grad[x] = diff * cur_act_deriv;
 }
 
