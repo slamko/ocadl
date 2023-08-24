@@ -171,17 +171,19 @@ CAMLprim value cc_vec_scale(value scale, value mat) {
     struct caml_ba_array *mat_arr = Caml_ba_array_val(mat);
 
     struct mat mat_mat = mat_of_array(mat_arr->data, 1, mat_arr->dim[0]);
+    struct mat res_mat = mat_nil(1, mat_arr->dim[0]);
 
     long dims[1] = { mat_arr->dim[0] };
 
     int ret = 0;
-    if ((ret = mat_scale(context, command_queue, math_prog, &mat_mat, scale))) {
+    if ((ret = mat_scale(context, command_queue, math_prog,
+                         &mat_mat, &res_mat, Double_val(scale)))) {
         error ("Error code: %d\n", ret);
         caml_failwith("Vec scale error\n");
     }
     
     CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
-                             mat_mat.matrix, dims));
+                             res_mat.matrix, dims));
 }
 
 CAMLprim value cc_mat_scale(value scale, value mat) {
@@ -189,19 +191,20 @@ CAMLprim value cc_mat_scale(value scale, value mat) {
 
     struct caml_ba_array *mat_arr = Caml_ba_array_val(mat);
 
-    struct mat mat_mat =
-        mat_of_array(mat_arr->data, mat_arr->dim[0], mat_arr->dim[1]);
+    struct mat mat_mat = mat_of_ba(mat_arr);
 
     long dims[2] = { mat_arr->dim[0], mat_arr->dim[1] };
+    struct mat res_mat = {0};
 
     int ret = 0;
-    if ((ret = mat_scale(context, command_queue, math_prog, &mat_mat, scale))) {
+    if ((ret = mat_scale(context, command_queue, math_prog, &mat_mat,
+                         &res_mat, Double_val(scale)))) {
         error ("Error code: %d\n", ret);
         caml_failwith("Mat scale error\n");
     }
     
     CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
-                             mat_mat.matrix, dims));
+                             res_mat.matrix, dims));
 }
 
 CAMLprim value cc_mat_add(value a, value b) {

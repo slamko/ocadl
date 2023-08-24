@@ -6,8 +6,9 @@ __kernel void vector_sub(__global const float *a,
     c[i] = a[i] - b[i];
 }
 
-__kernel void matrix_scale(__global float *mat,
-                           float scale) {
+__kernel void matrix_scale( __global __read_only const float *mat,
+                            __global __write_only float *res,
+                           float scalef) {
     size_t x = get_global_id(0);
 
     size_t x_size = get_global_size(0);
@@ -22,11 +23,12 @@ __kernel void matrix_scale(__global float *mat,
         y = get_global_id(1);
     } if (get_work_dim() == 3) {
         y_size = get_global_size(1);
+        y = get_global_id(1);
         z = get_global_id(2);
     }
 
     size_t coord = x + x_size * y + y_size * z;
-    mat[coord] = mat[coord] * scale;
+    res[coord] = mat[coord] * scalef;
 }
 
 __kernel void matrix_sub(__global const float *a,
