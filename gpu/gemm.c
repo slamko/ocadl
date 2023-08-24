@@ -5,8 +5,8 @@
 #include <caml/fail.h>
 #include <caml/bigarray.h>
 
-#include "blac.h"
-#include "deep.h"
+#include "ocl.h"
+#include "blasc.h"
 
 cl_int ret;
 cl_command_queue command_queue;
@@ -220,7 +220,7 @@ CAMLprim value cc_mat_add(value a, value b) {
     long dims[2] = { amat->dim[0], bmat->dim[1] };
 
     int ret = 0;
-    if ((ret = mat_add(context, command_queue, math_prog, &adata, &bdata, &res_mat))) {
+    if ((ret = mat_add(&adata, &bdata, &res_mat))) {
         error ("Error code: %d\n", ret);
         caml_failwith("Mat add error\n");
     }
@@ -357,21 +357,11 @@ CAMLprim value cc_gpu_finish() {
 
 CAMLprim value cc_gpu_init() {
     CAMLparam0();
-    int ret = 0;
 
-    ret = ocl_init(&command_queue, &context, &device_id);
+    int ret = ocl_init();
     if (ret) {
-        caml_fatal_error("OpenCL initialization failed: %d\n", ret);
-    }
-
-    ret = load_program("gpu/add.cl", &math_prog, context, &device_id);
-    if (ret) {
-        caml_fatal_error("Kernel math lib build failed: %d\n", ret);
-    }
-
-    ret = load_program("gpu/nn.cl", &nn_prog, context, &device_id);
-    if (ret) {
-        caml_fatal_error("Kernel nn lib build failed: %d\n", ret);
+        error("Error code: %d\n", ret);
+        caml_failwith("OpenCL initialization failed\n");
     }
 
     CAMLreturn(Val_unit);

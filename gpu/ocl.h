@@ -1,0 +1,2 @@
+
+int ocl_init();

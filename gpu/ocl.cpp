@@ -2,8 +2,12 @@
 #include <iostream>
 #include <fstream>
 
+extern "C" {
+#include "ocl.h"
+}
+
 cl::Context context;
-cl::CommandQueue command_queue;
+cl::CommandQueue queue;
 
 cl::Program math_prog;
 cl::Program nn_prog;
@@ -50,7 +54,7 @@ int build_prog(std::string source_name, cl::Program &prog) {
   return 0;
 }
 
-int ocl_init() {
+extern "C" int ocl_init() {
   using namespace cl;
 
   int ret = 1;
@@ -61,6 +65,7 @@ int ocl_init() {
   }
   
   context = Context(device);
+  queue = CommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE);
 
   if ((ret = build_prog("gpu/add.cl", math_prog))) {
     return ret;

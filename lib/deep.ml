@@ -111,7 +111,7 @@ let get_err : type t. t tensor -> float =
  *)
 let tens1_diff (res : vec) (exp : vec) =
   cc_vec_sub res.matrix exp.matrix
-  (* |> cc_vec_scale 2.0 *)
+  |> cc_vec_scale 2.0
   |> Vec.create
   |> make_tens1
 
