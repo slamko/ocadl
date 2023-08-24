@@ -30,28 +30,6 @@ struct mat mat_of_ba(struct caml_ba_array *ba) {
     return mat;
 }
 
-CAMLprim value gemm(value a, value b) {
-    CAMLparam2(a, b);
-
-    struct caml_ba_array *amat = Caml_ba_array_val(a);
-    struct caml_ba_array *bmat = Caml_ba_array_val(b);
-    struct mat adata = mat_of_ba(amat);
-    struct mat bdata = mat_of_ba(bmat);
-    struct mat res_mat = mat_nil(amat->dim[0], bmat->dim[1]);
-
-    long dims[2] = { amat->dim[0], bmat->dim[1] };
-
-    int ret = 0;
-    if ((ret =
-         mat_gemm(context, command_queue, math_prog,
-                  &adata, &bdata, &res_mat))) {
-        printf ("Mul error %d\n", ret);
-    }
-    
-    CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
-                             res_mat.matrix, dims));
-}
-
 CAMLprim value cc_vec_nil(value cols) {
     CAMLparam1(cols);
     long dims[1] = { Long_val(cols) };

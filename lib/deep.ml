@@ -111,7 +111,7 @@ let get_err : type t. t tensor -> float =
  *)
 let tens1_diff (res : vec) (exp : vec) =
   cc_vec_sub res.matrix exp.matrix
-  |> cc_vec_scale 2.0
+  (* |> cc_vec_scale 2.0 *)
   |> Vec.create
   |> make_tens1
 
@@ -199,8 +199,8 @@ let loss data nn =
   in
 
   let* loss = loss_rec nn data 0. in
-  (* let avg_loss = List.length data |> float_of_int |> (/.) @@ loss in *)
-  Ok loss
+  let avg_loss = List.length data |> float_of_int |> (/.) @@ loss in
+  Ok avg_loss
 
 let fully_connected_bp prev_layer meta params (Tensor1 act_prev)
       (Tensor1 act) (Tensor1 diff_mat) =

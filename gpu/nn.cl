@@ -63,13 +63,13 @@ __kernel void dense_bp(__global const float *weight_mat,
          float weight = weight_mat[wmati];
          float prev_act = prev_act_mat[i];
 
-         float dprev = diff * cur_act_deriv * weight;
-         float dw = diff * cur_act_deriv * prev_act;
+         float dprev = 2.0 * diff * cur_act_deriv * weight;
+         float dw = 2.0 *diff * cur_act_deriv * prev_act;
 
          wmat_grad[wmati] = dw;
          cache[wmati] = dprev;
     }
 
-   bmat_grad[x] = diff * cur_act_deriv;
+   bmat_grad[x] = 2.0 * diff * cur_act_deriv;
 }
 

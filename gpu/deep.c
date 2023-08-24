@@ -149,12 +149,14 @@ int fully_connected_bp(cl_context context, cl_command_queue queue,
                               bgrad_vec->matrix, 0, NULL, NULL);
     if (ret) goto cleanup;
 
+    /*
     printf("\nw diff\n");
     mat_print(stdout, diff_vec);
     printf("\nw grad\n");
     mat_print(stdout, wgrad_mat);
     printf("\nB grad\n");
     mat_print(stdout, bgrad_vec);
+    */
     
     clFlush(queue);
 

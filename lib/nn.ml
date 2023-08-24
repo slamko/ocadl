@@ -32,11 +32,6 @@ let list_split n lst =
 
   split_rec n [] lst
 
-let list_parse_train_data in_cols pair_list =
-  List.map (fun (res_list, data_list) ->
-      (res_list |> Mat.of_list (Row 1) @@ Col (List.length res_list),
-       data_list |> Mat.of_list in_cols)) pair_list
-
 let read_mnist_train_data fname shape =
   let csv = Csv.load fname in
 

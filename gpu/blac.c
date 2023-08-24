@@ -476,20 +476,6 @@ int mat_add(cl_context context, cl_command_queue queue, cl_program program,
     return ret;
 }
 
-struct mat mat_mult(cl_context context, cl_command_queue queue,
-                    cl_program program, struct mat *a,
-                    struct mat *b) {
-
-    struct mat res_mul = mat_make(a->rows, b->cols);
-    int res = mat_gemm(context, queue, program, a, b, &res_mul);
-
-    if (res) {
-        fprintf(stderr, "Multiplication failed: %d\n", res);
-        exit(1);
-    }
-
-    return res_mul;
-}
 int load_program(const char *prog_name,
                  cl_program *program, cl_context context, cl_device_id *dev_ids) {
 

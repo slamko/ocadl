@@ -125,7 +125,11 @@ module Mat = struct
       else rec_of_list lst 1 [] []
     in
 
-    let mat_arr = List.map (fun l -> List.rev l |> Array.of_list)
+    let mat_arr = List.map (fun l -> l
+                                     |> List.map (fun x -> x /. 255.0)
+                                     |> List.rev
+                                     |> Array.of_list)
+
                     mat_lst |> List.rev |> Array.of_list in
 
     (* Printf.printf "Size %d\n" @@ Array.length mat_arr.(27) ; *)
