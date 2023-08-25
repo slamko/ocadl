@@ -64,11 +64,12 @@ extern "C" int fully_connected_bp(
   ret |= kernel.setArg(1, prev_act_buf);
   ret |= kernel.setArg(2, act_buf);
   ret |= kernel.setArg(3, diff_buf);
-  ret |= kernel.setArg(4, sizeof(n), &n);
+  ret |= kernel.setArg(4, sizeof(cl_ulong), &n);
+  ret |= kernel.setArg(5, sizeof(cl_ulong), &width);
 
-  ret |= kernel.setArg(5, cache_buf);
-  ret |= kernel.setArg(6, wgrad_buf);
-  ret |= kernel.setArg(7, bgrad_buf);
+  ret |= kernel.setArg(6, cache_buf);
+  ret |= kernel.setArg(7, wgrad_buf);
+  ret |= kernel.setArg(8, bgrad_buf);
 
   if (ret) return ret;
 
@@ -78,7 +79,7 @@ extern "C" int fully_connected_bp(
   ret = queue.enqueueNDRangeKernel(kernel, NullRange, glob_range, loc_range);
   if (ret) return ret;
 
-  ret |= queue.enqueueReadBuffer(cache_buf, CL_TRUE, 0, prev_diff_size, cache_mat.matrix);
+  ret |= queue.enqueueReadBuffer(cache_buf, CL_TRUE, 0, cache_size, cache_mat.matrix);
   ret |= queue.enqueueReadBuffer(wgrad_buf, CL_TRUE, 0, wgrad_size, wgrad_mat->matrix);
   ret |= queue.enqueueReadBuffer(bgrad_buf, CL_TRUE, 0, bgrad_size, bgrad_vec->matrix);
 
@@ -121,15 +122,18 @@ extern "C" int fully_connected_ff(const struct mat *input,
   Buffer wmat_buf { context, in_flags, wmat_size, weight_mat->matrix };
   Buffer bmat_buf { context, in_flags, bmat_size, bias_vec->matrix };
   
-  Buffer res_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, res_mat_size, NULL };
+  Buffer res_buf { context, CL_MEM_WRITE_ONLY, res_mat_size, NULL };
   
   cl_ulong mat_dim = weight_mat->rows;
+  cl_ulong width = weight_mat->cols;
+
   ret |= kernel.setArg(0, inp_buf);
   ret |= kernel.setArg(1, wmat_buf);
   ret |= kernel.setArg(2, bmat_buf);
   ret |= kernel.setArg(3, res_buf);
+  ret |= kernel.setArg(4, sizeof(cl_ulong), &mat_dim);
+  ret |= kernel.setArg(5, sizeof(cl_ulong), &width);
 
-  ret |= kernel.setArg(4, sizeof(mat_dim), &mat_dim);
   if (ret) return ret;
   
   cl_ulong dim = weight_mat->cols;
@@ -143,7 +147,6 @@ extern "C" int fully_connected_ff(const struct mat *input,
   if (ret) return ret;
 
   ret = queue.enqueueReadBuffer(res_buf, CL_TRUE, 0, res_mat_size, res->matrix);
-  mat_print(weight_mat);
 
   return ret;
 }

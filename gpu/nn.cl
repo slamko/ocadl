@@ -12,10 +12,14 @@ __kernel void dense_ff(__global __read_only const float *input,
                        __global __read_only const float *weight_mat,
                        __global __read_only const float *bias_mat,
                        __global __write_only float *res,
-                       unsigned long dim) {
+                       unsigned long dim,
+                       unsigned long width) {
 
     size_t x = get_global_id(0);
-    size_t width = get_global_size(0);
+
+    if (x >= width) {
+        return;
+    }
 
     float sum = 0.0;
 
@@ -32,12 +36,16 @@ __kernel void dense_bp(__global __read_only const float *weight_mat,
                        __global __read_only const float *act_mat,
                        __global __read_only const float *diff_mat,
                        unsigned long dim,
+                       unsigned long width,
                        __global __write_only float *cache,
                        __global __write_only float *wmat_grad,
                        __global __write_only float *bmat_grad) {
 
     size_t x = get_global_id(0);
-    size_t width = get_global_size(0);
+
+    if (x >= width) {
+        return;
+    }
 
     float diff = diff_mat[x];
     float cur_act = act_mat[x];
