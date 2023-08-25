@@ -24,8 +24,8 @@ extern "C" int fully_connected_bp(
   }
 
   *prev_diff_vec = mat_make(1, weight_mat->rows);
-  *wgrad_mat     = mat_make(weight_mat->rows, weight_mat->cols);
-  *bgrad_vec     = mat_make(1, act_vec->cols);
+  // *wgrad_mat     = mat_make(weight_mat->rows, weight_mat->cols);
+  // *bgrad_vec     = mat_make(1, act_vec->cols);
   
   size_t prev_act_size = mat_mem_size(prev_act_vec);
   size_t act_size = mat_mem_size(act_vec);
@@ -44,8 +44,8 @@ extern "C" int fully_connected_bp(
   Buffer diff_buf { context, in_flags, diff_size, diff_vec->matrix };
 
   Buffer prev_diff_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, prev_diff_size, NULL };
-  Buffer wgrad_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, wgrad_size, NULL };
-  Buffer bgrad_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, bgrad_size, NULL };
+  Buffer wgrad_buf { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, wgrad_size, NULL };
+  Buffer bgrad_buf { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, bgrad_size, NULL };
 
   Kernel kernel { nn_prog, "dense_bp" };
   size_t width = weight_mat->cols;
@@ -91,7 +91,6 @@ extern "C" int fully_connected_bp(
         cache_mat.matrix[i * cache_mat.cols + j];
     }
   }
- 
 
   return ret;
 }

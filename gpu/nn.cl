@@ -52,9 +52,9 @@ __kernel void dense_bp(__global __read_only const float *weight_mat,
                        __global __read_only const float *diff_mat,
                        unsigned long dim,
                        unsigned long width,
-                       __global __write_only float *cache,
-                       __global __write_only float *wmat_grad,
-                       __global __write_only float *bmat_grad) {
+                       __global __read_write float *cache,
+                       __global __read_write float *wmat_grad,
+                       __global __read_write float *bmat_grad) {
 
     size_t x = get_global_id(0);
 
@@ -75,10 +75,10 @@ __kernel void dense_bp(__global __read_only const float *weight_mat,
          float dprev = diff * cur_act_deriv * weight;
          float dw = diff * cur_act_deriv * prev_act;
 
-         wmat_grad[wmati] = dw;
+         wmat_grad[wmati] += dw;
          cache[wmati] = dprev;
     }
 
-   bmat_grad[x] = diff * cur_act_deriv;
+   bmat_grad[x] += diff * cur_act_deriv;
 }
 

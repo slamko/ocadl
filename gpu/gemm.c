@@ -79,12 +79,18 @@ CAMLprim value cc_fully_connected_ff(value input, value weight_mat,
 }
 
 CAMLprim value cc_fully_connected_bp(value weight_mat, value prev_act_mat,
-                                     value act_mat, value diff_mat) {
+                                     value act_mat, value diff_mat,
+                                     value grad_mat, value bgrad_mat) {
+
     CAMLparam4(weight_mat, prev_act_mat, act_mat, diff_mat);
     CAMLlocal1(res_tuple);
 
     struct caml_ba_array *dmat = Caml_ba_array_val(diff_mat);
     struct caml_ba_array *wmat = Caml_ba_array_val(weight_mat);
+
+    struct caml_ba_array *wgrad_ba = Caml_ba_array_val(diff_mat);
+    struct caml_ba_array *bgrad_ba = Caml_ba_array_val(weight_mat);
+
     struct caml_ba_array *actmat = Caml_ba_array_val(act_mat);
     struct caml_ba_array *prev_actmat = Caml_ba_array_val(prev_act_mat);
 
@@ -93,7 +99,10 @@ CAMLprim value cc_fully_connected_bp(value weight_mat, value prev_act_mat,
     struct mat act_data = mat_of_ba(actmat);
     struct mat prev_act_data = mat_of_ba(prev_actmat);
 
-    struct mat prev_diff, wgrad, bgrad;
+    struct mat wgrad = mat_of_ba(wgrad_ba);
+    struct mat bgrad = mat_of_ba(bgrad_ba);
+
+    struct mat prev_diff;
 
     int ret = fully_connected_bp(&wdata, &prev_act_data, &act_data,
                                  &diff_data, &prev_diff, &wgrad, &bgrad);

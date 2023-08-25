@@ -47,6 +47,12 @@ type (_, _) param_list =
               ('b, 'c) param_list ->
             ('a, 'c) param_list
 
+type (_, _) bp_param_list =
+  | BPL_Nil : ('a, 'a) bp_param_list
+  | BPL_Cons : ('b, 'c) layer_params *
+                 (('a, 'b) layer_params, _) bp_param_list ->
+               (('a, 'c) layer_params, _) bp_param_list
+
 type (_, _) bp_list =
   | BP_Nil : (('a, 'a) layer * 'a * 'a, _) bp_list
   | BP_Cons : ((('b , 'c) layer * 'b * 'c) *

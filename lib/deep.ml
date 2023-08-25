@@ -202,18 +202,18 @@ let loss data nn =
   let avg_loss = List.length data |> float_of_int |> (/.) @@ loss in
   Ok avg_loss
 
-let fully_connected_bp prev_layer meta params (Tensor1 act_prev)
+let fully_connected_bp prev_layer grad_acc meta params (Tensor1 act_prev)
       (Tensor1 act) (Tensor1 diff_mat) =
+
   let open Fully_connected in
   let (prev_diff, wgrad, bgrad) =
     cc_fully_connected_bp params.weight_mat.matrix act_prev.matrix
-      act.matrix diff_mat.matrix
+      act.matrix diff_mat.matrix grad_acc.weight_mat.matrix grad_acc.bias_mat.matrix
   in
   
   { prev_diff = prev_diff |> Vec.create |> make_tens1;
     grad = FullyConnectedParams { weight_mat = wgrad |> Mat.create;
-                                  bias_mat = bgrad |> Vec.create;
-             }
+                                  bias_mat = bgrad |> Vec.create; }
   }
 
 let flatten_bp prev_layer meta (Tensor2 act_prev) (Tensor1 diff) =
@@ -224,26 +224,26 @@ let flatten_bp prev_layer meta (Tensor2 act_prev) (Tensor1 diff) =
     grad = Flatten2DParams;
   }
 
-let backprop_layer : type a b. (a, b) layer -> bool -> a -> b -> b ->
+let backprop_layer : type a b. (a, b) layer -> (a, b) layer_params -> bool -> a -> b -> b ->
                           (a, b) backprop_layer
-  = fun layer prev_layer act_prev act diff_mat ->
-  match layer with
-  | Input3 _ ->
+  = fun layer param_lay prev_layer act_prev act diff_mat ->
+  match layer, param_lay with
+  | Input3 _, Input3Params ->
      { prev_diff = diff_mat;
        grad = Input3Params;
      }
-  | Input2 _ ->
+  | Input2 _, Input2Params ->
      { prev_diff = diff_mat;
        grad = Input2Params;
      }
-  | Input1 _ ->
+  | Input1 _, Input1Params ->
      { prev_diff = diff_mat;
        grad = Input1Params;
      }
-  | Flatten2D meta ->
+  | Flatten2D meta, Flatten2DParams ->
      flatten_bp prev_layer meta act_prev diff_mat
-  | FullyConnected (meta, params) ->
-     fully_connected_bp prev_layer meta params act_prev act diff_mat
+  | FullyConnected (meta, params), FullyConnectedParams grad ->
+     fully_connected_bp prev_layer grad meta params act_prev act diff_mat
 (*
   | Conv3D (meta, params) ->
      conv3d_bp meta params prev_layer act act_prev diff_mat 
@@ -252,31 +252,68 @@ let backprop_layer : type a b. (a, b) layer -> bool -> a -> b -> b ->
   | Flatten _ -> 
      flatten_bp act_prev diff_mat
  *)
+
+let param_list_rev plist =
+
+  let rec rev : type a b c. (a, c) param_list ->
+                     (b, a) bp_param_list ->
+                     (b, c) bp_param_list =
+    fun plist acc ->
+    match plist with
+    | PL_Nil -> acc
+    | PL_Cons (param, tail) ->
+       rev tail @@ BPL_Cons(param, acc)
+  in
+
+  rev plist BPL_Nil
  
 let rec backprop_nn :
-          type a b c x. ((b, a) layer * b * a, c) bp_list -> a ->
+          type a b c n x. ((b, a) layer * b * a, c) bp_list ->
+               a ->
                (a, x) param_list ->
+               ((b, a) layer_params, n) bp_param_list ->
                (b, x) param_list =
   
-  fun bp_list diff grad_acc ->
-  match bp_list with
-  | BP_Nil ->
+  fun bp_list diff grad_acc bp_acc ->
+  match bp_list, bp_acc with
+  | BP_Nil, BPL_Nil ->
      grad_acc
 
-  | BP_Cons ((lay, input, out), tail) ->
+  | BP_Cons ((lay, input, out), tail), BPL_Cons(param_acc, bpl_tail) ->
      let prev =
        (match tail with
         | BP_Nil | BP_Cons (_, BP_Nil) -> false
         | _ -> true
        )
      in
+
+     let x : (a, b) backprop_layer =
+       (match (lay : (b,a) layer), (param_acc: (b, a) layer_params) with
+  | Input3 _, Input3Params ->
+     { prev_diff = diff;
+       grad = Input3Params;
+     }
+  | Input2 _, Input2Params ->
+     { prev_diff = diff;
+       grad = Input2Params;
+     }
+  | Input1 _, Input1Params ->
+     { prev_diff = diff;
+       grad = Input1Params;
+     }
+  | Flatten2D meta, Flatten2DParams ->
+     flatten_bp prev meta input diff
+  | FullyConnected (meta, params), FullyConnectedParams grad ->
+     fully_connected_bp prev grad meta params input out diff
+       )
+in
      
-     let bp_layer = backprop_layer lay prev input out diff in
+     let bp_layer = backprop_layer lay param_acc prev input out diff in
 
      let param_list = PL_Cons (bp_layer.grad, grad_acc) in
      let prev_diff_mat = bp_layer.prev_diff in
      
-     backprop_nn tail prev_diff_mat param_list
+     backprop_nn tail prev_diff_mat param_list bpl_tail
 
   
 let nn_gradient learn_rate nn data =
