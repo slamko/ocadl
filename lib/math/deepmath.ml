@@ -62,12 +62,6 @@ let res_to_bool = function
      Printf.eprintf "error: %s\n" err ;
      false
 
-external cc_mat3_random : int -> int -> int -> Mat3.tensor = "cc_mat3_random"
-
-external cc_mat_random : int -> int -> Mat.tensor = "cc_mat_random"
-
-external cc_vec_random : int -> Vec.tensor = "cc_vec_random"
-
 external cc_mat3_nil : int -> int -> int -> Mat3.tensor = "cc_mat3_nil"
 
 external cc_mat_nil : int -> int -> Mat.tensor = "cc_mat_nil"
