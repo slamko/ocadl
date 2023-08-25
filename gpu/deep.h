@@ -1,24 +1,20 @@
-
 #ifndef DEEP_H
 #define DEEP_H
 
-#include <CL/cl.h>
-#include "blac.h"
+#include "blasc.h"
 
-int fully_connected_bp(cl_context context, cl_command_queue queue,
-                       cl_program program,
-                       struct mat *weight_mat,
-                       struct mat *prev_act_vec,
-                       struct mat *act_mat,
-                       struct mat *diff_mat,
-                       struct mat *prev_diff,
-                       struct mat *wmat_grad,
+int fully_connected_bp(
+                       const struct mat *weight_mat,
+                       const struct mat *prev_act_vec,
+                       const struct mat *act_vec,
+                       const struct mat *diff_vec,
+                       struct mat *prev_diff_vec,
+                       struct mat *wgrad_mat,
                        struct mat *bgrad_mat);
 
-
-int fully_connected_ff(cl_context context, cl_command_queue queue,
-                       cl_program program, struct mat *input,
-                       struct mat *weight_mat, struct mat *bias_vec,
+int fully_connected_ff(const struct mat *input,
+                       const struct mat *weight_mat,
+                       const struct mat *bias_vec,
                        struct mat *res);
 
 #endif

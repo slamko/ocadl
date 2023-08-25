@@ -51,7 +51,6 @@ int build_prog(std::string source_name, cl::Device device, cl::Program *prog) {
   std::stringstream buf;
   buf << prog_file.rdbuf();
   std::string src = buf.str();
-  std::cout << src << std::endl;
 
   cl::Program::Sources sources;
   sources.push_back({src.c_str(), src.length()});

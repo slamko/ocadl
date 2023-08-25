@@ -7,6 +7,7 @@
 
 #include "ocl.h"
 #include "blasc.h"
+#include "deep.h"
 
 struct mat mat_of_ba(struct caml_ba_array *ba) {
     struct mat mat = {0};
@@ -65,15 +66,13 @@ CAMLprim value cc_fully_connected_ff(value input, value weight_mat,
     struct mat bdata = mat_of_ba(bmat);
 
     struct mat res_mat = {0};
-    int ret = 0;
-    /* int ret = fully_connected_ff(context, command_queue, nn_prog, */
-                                 /* &indata, &wdata, &bdata, &res_mat); */
+    int ret = fully_connected_ff(&indata, &wdata, &bdata, &res_mat);
 
     if (ret) {
         caml_fatal_error("Feed forward failed %d\n", ret);
     }
                                             
-    long dims[1] = { wmat->dim[1] };
+    long dims[1] = { res_mat.cols };
 
     CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
                              res_mat.matrix, dims));
@@ -83,8 +82,6 @@ CAMLprim value cc_fully_connected_bp(value weight_mat, value prev_act_mat,
                                      value act_mat, value diff_mat) {
     CAMLparam4(weight_mat, prev_act_mat, act_mat, diff_mat);
     CAMLlocal1(res_tuple);
-
-    /* Store_field(res_tuple, 0); */
 
     struct caml_ba_array *dmat = Caml_ba_array_val(diff_mat);
     struct caml_ba_array *wmat = Caml_ba_array_val(weight_mat);
@@ -97,11 +94,9 @@ CAMLprim value cc_fully_connected_bp(value weight_mat, value prev_act_mat,
     struct mat prev_act_data = mat_of_ba(prev_actmat);
 
     struct mat prev_diff, wgrad, bgrad;
-    int ret = 0;
 
-    /* int ret = fully_connected_bp(context, command_queue, nn_prog, */
-                                 /* &wdata, &prev_act_data, &act_data, */
-                                 /* &diff_data, &prev_diff, &wgrad, &bgrad); */
+    int ret = fully_connected_bp(&wdata, &prev_act_data, &act_data,
+                                 &diff_data, &prev_diff, &wgrad, &bgrad);
 
     if (ret) {
         caml_fatal_error("Fully connected backpropagation failed %d\n", ret);
@@ -200,9 +195,9 @@ CAMLprim value cc_vec_sum(value vec) {
 
     float sum = 0.0;
 
-    /* if ((ret = vec_sum(context, command_queue, math_prog, &vmat, &sum))) { */
-        /* printf ("Vec sum error %d\n", ret); */
-    /* } */
+    if ((ret = vec_sum(&vmat, &sum))) {
+        printf ("Vec sum error %d\n", ret);
+    }
     
     CAMLreturn(caml_copy_double(sum));
 }

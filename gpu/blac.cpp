@@ -70,7 +70,7 @@ struct mat mat_nil(size_t rows, size_t cols) {
     return mat3_nil(rows, cols, 1);
 }
 
-void mat_print(mat *mat) {
+void mat_print(const struct mat *mat) {
     for (size_t d3 = 0; d3 < mat->dim3; d3++) {
         for (size_t r = 0; r < mat->rows; r++) {
             for (size_t c = 0; c < mat->cols; c++) {
@@ -134,7 +134,7 @@ extern "C" int mat_add(const mat *a, const mat *b, mat *c) {
   return ret;
 }
 
-extern "C" int mat_sub(const mat *a, const mat *b, mat *c) {
+extern "C" int mat_sub(const mat *a, const mat *b, mat *c) { 
   using namespace cl;
   int ret = 0;
 

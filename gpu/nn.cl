@@ -1,12 +1,6 @@
 float sigmoid(float x) {
     float val = (1.0 / (1.0 + exp(-x)));
-
-    if (isnan(val)) {
-        if (!isnan(x)) {
-            printf("Sigmoid nan: %f\n", x);
-        }
-    }
-    
+   
     return val; 
 }
 

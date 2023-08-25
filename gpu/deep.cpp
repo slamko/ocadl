@@ -1,13 +1,17 @@
 #include <CL/opencl.hpp>
 #include <iostream>
 #include "ocl.hpp"
+
+extern "C" {
 #include "blasc.h"
+  #include "deep.h"
+}
 
 extern "C" int fully_connected_bp(
-                       struct mat *weight_mat,
-                       struct mat *prev_act_vec,
-                       struct mat *act_vec,
-                       struct mat *diff_vec,
+                       const struct mat *weight_mat,
+                       const struct mat *prev_act_vec,
+                       const struct mat *act_vec,
+                       const struct mat *diff_vec,
                        struct mat *prev_diff_vec,
                        struct mat *wgrad_mat,
                        struct mat *bgrad_vec) {
@@ -43,11 +47,12 @@ extern "C" int fully_connected_bp(
   Buffer wgrad_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, wgrad_size, NULL };
   Buffer bgrad_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, bgrad_size, NULL };
 
-  Kernel kernel { math_prog, "dense_bp" };
+  Kernel kernel { nn_prog, "dense_bp" };
   size_t width = weight_mat->cols;
   size_t global_work_size [1] = { width };
-  size_t dim1 = align(width, 128);
-  size_t ldim1 = width < 128 ? width : 128;
+
+  size_t ldim1 = 32;
+  size_t dim1 = align(width, ldim1);
 
   cl_ulong n = weight_mat->rows;
 
@@ -61,9 +66,9 @@ extern "C" int fully_connected_bp(
   ret |= kernel.setArg(3, diff_buf);
   ret |= kernel.setArg(4, sizeof(n), &n);
 
-  ret |= kernel.setArg(5, &cache_buf);
-  ret |= kernel.setArg(6, &wgrad_buf);
-  ret |= kernel.setArg(7, &bgrad_buf);
+  ret |= kernel.setArg(5, cache_buf);
+  ret |= kernel.setArg(6, wgrad_buf);
+  ret |= kernel.setArg(7, bgrad_buf);
 
   if (ret) return ret;
 
@@ -88,3 +93,59 @@ extern "C" int fully_connected_bp(
 
   return ret;
 }
+
+extern "C" int fully_connected_ff(const struct mat *input,
+                                  const struct mat *weight_mat,
+                                  const struct mat *bias_vec,
+                                  struct mat *res) {
+  using namespace cl;
+
+  cl_int ret = {0};
+  
+  if (input->cols != weight_mat->rows
+      || weight_mat->cols != bias_vec->cols) {
+    return 1;
+  }
+  
+  *res = mat_nil(1, weight_mat->cols);
+  
+  size_t inp_mat_size = mat_mem_size(input);
+  size_t wmat_size = mat_mem_size(weight_mat);
+  size_t bmat_size = mat_mem_size(bias_vec);
+  size_t res_mat_size = mat_mem_size(res);
+  
+  Kernel kernel { nn_prog, "dense_ff" };
+  cl_mem_flags in_flags =  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS;
+  
+  Buffer inp_buf { context, in_flags, inp_mat_size, input->matrix };
+  Buffer wmat_buf { context, in_flags, wmat_size, weight_mat->matrix };
+  Buffer bmat_buf { context, in_flags, bmat_size, bias_vec->matrix };
+  
+  Buffer res_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, res_mat_size, NULL };
+  
+  cl_ulong mat_dim = weight_mat->rows;
+  ret |= kernel.setArg(0, inp_buf);
+  ret |= kernel.setArg(1, wmat_buf);
+  ret |= kernel.setArg(2, bmat_buf);
+  ret |= kernel.setArg(3, res_buf);
+
+  ret |= kernel.setArg(4, sizeof(mat_dim), &mat_dim);
+  if (ret) return ret;
+  
+  cl_ulong dim = weight_mat->cols;
+  size_t ldim1 = 32;
+  size_t dim1 = align(dim, ldim1);
+ 
+  auto glob_range = NDRange(dim1);
+  auto loc_range = NDRange(ldim1);
+
+  ret = queue.enqueueNDRangeKernel(kernel, NullRange, glob_range, loc_range);
+  if (ret) return ret;
+
+  ret = queue.enqueueReadBuffer(res_buf, CL_TRUE, 0, res_mat_size, res->matrix);
+  mat_print(weight_mat);
+
+  return ret;
+}
+
+

@@ -21,10 +21,12 @@ C_INCL = /home/slamko/.opam/default/lib/ocaml
 CPP_SRC =
 CPP_SRC += gpu/ocl.cpp
 CPP_SRC += gpu/blac.cpp
+CPP_SRC += gpu/deep.cpp
 
 OBJS =
 OBJS += ocl.o
 OBJS += blac.o
+OBJS += deep.o
 OBJS += gemm.o
 
 CAML_PKGS = 

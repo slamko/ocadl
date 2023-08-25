@@ -160,6 +160,7 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     | Error err -> failwith err
   in
 
+ *)
   let* res = loss train_data nn in
   Printf.printf "Cost: %f\n" res;
 
@@ -174,17 +175,16 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   Printf.printf "trained loss: %f\n" new_res ;
 
   perform trained_nn train_data ;
- *)
 
   let m1 = Mat.random (Row 28) (Col 16) in
   let m2 = Mat.random (Row 28) (Col 16) in
   (* let scaled = cc_mat_scale 2.0 m1.matrix in *)
   let scaled = cc_mat_scale 3.0 m1.matrix in
 
-  Printf.printf "M1: \n%!" ;
-  cc_mat_print m1.matrix ;
-  Printf.printf "Scaled: %d \n%!" @@ Bigarray.Array2.dim2 scaled;
-  cc_mat_print scaled ;
+  (* Printf.printf "M1: \n%!" ; *)
+  (* cc_mat_print m1.matrix ; *)
+  (* Printf.printf "Scaled: %d \n%!" @@ Bigarray.Array2.dim2 scaled; *)
+  (* cc_mat_print scaled ; *)
   (* perform nn train_data ; *)
   (* let m1 = Mat.random (Row 64) (Col 64) in *)
   (* let m2 = Mat.random (Row 64) (Col 64) in *)
