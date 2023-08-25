@@ -80,6 +80,7 @@ extern "C" int fully_connected_bp(
   if (ret) return ret;
 
   ret |= queue.enqueueReadBuffer(cache_buf, CL_TRUE, 0, cache_size, cache_mat.matrix);
+  // ret |= queue.enqueueReadBuffer(prev_diff_buf, CL_TRUE, 0, prev_diff_size, prev_diff_vec->matrix);
   ret |= queue.enqueueReadBuffer(wgrad_buf, CL_TRUE, 0, wgrad_size, wgrad_mat->matrix);
   ret |= queue.enqueueReadBuffer(bgrad_buf, CL_TRUE, 0, bgrad_size, bgrad_vec->matrix);
 
@@ -94,6 +95,7 @@ extern "C" int fully_connected_bp(
 
   return ret;
 }
+
 
 extern "C" int fully_connected_ff(const struct mat *input,
                                   const struct mat *weight_mat,

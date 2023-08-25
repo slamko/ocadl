@@ -279,7 +279,7 @@ let rec backprop_nn :
      backprop_nn tail prev_diff_mat param_list
 
   
-let nn_gradient nn data =
+let nn_gradient learn_rate nn data =
 
   let rec bp_rec : type inp out n. (n, inp, out) nnet ->
                         (inp, out) train_data ->
@@ -289,7 +289,7 @@ let nn_gradient nn data =
     match data with
     | [] -> bp_grad_acc
     | cur_sample::data_tail ->
-       let ff_net      = forward (get_data_input cur_sample) nn in
+       let ff_net = forward (get_data_input cur_sample) nn in
 
        (* show_nnet ff_net.backprop_nn |> print_string; *)
        let expected = get_data_out cur_sample in
@@ -367,7 +367,7 @@ let nn_gradient nn data =
   let scale_fact =
     List.length data
     |> float_of_int
-    |> (fun x -> 1. /. x) in
+    |> (fun x -> learn_rate /. x) in
   (* print_endline "Full nn"; *)
   let param_nn = nn_params_scale scale_fact newn in
   Ok param_nn
@@ -444,14 +444,13 @@ let rec learn_rec pool pool_size data epoch_num
           |> cons @@
                Task.async pool
                  (fun _ ->
-                   let@ grad = nn_gradient nn data in
+                   let@ grad = nn_gradient learning_rate nn data in
                    grad 
                  )
           |> spawn_bp_pool (i - 1)
      in
 
-     Printf.printf "Epoch: %d\n%!" epoch_num ;
-     flush stdout ;
+     (* Printf.printf "Epoch: %d\n%!" epoch_num ; *)
 
      let cycles_to_batch = batch_size - (pools_per_batch * pool_size) in
      let thread_num =
@@ -474,9 +473,9 @@ let rec learn_rec pool pool_size data epoch_num
        |> List.map @@ Task.await pool in
 
      (* print_string "hello\n"; *)
-     let full_grad = List.hd grad_list
-       (* grad_list *)
-       (* |> List.fold_left (nn_params_apply cc_mat_add) grad_acc *)
+     let full_grad = 
+       grad_list
+       |> List.fold_left (nn_params_apply cc_mat_add) grad_acc
      in
      
      let batch_grad =
@@ -489,7 +488,7 @@ let rec learn_rec pool pool_size data epoch_num
        if cycles_to_batch = cur_domain_num
        then
          full_grad
-         |> nn_params_scale learning_rate
+         (* |> nn_params_scale learning_rate *)
          |> nn_apply_params cc_mat_sub nn 
        else nn
      in

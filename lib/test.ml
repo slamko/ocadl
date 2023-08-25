@@ -111,8 +111,9 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     make_input2d (Mat.make_shape (Row 28) (Col 28))
     (* make_input1d (Vec.make_shape (Col 2)) *)
     |> make_flatten2d
-    |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
-    |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
+    |> make_fully_connected ~ncount:256 ~act:sigmoid ~deriv:sigmoid'
+    |> make_fully_connected ~ncount:128 ~act:sigmoid ~deriv:sigmoid'
+    |> make_fully_connected ~ncount:64 ~act:sigmoid ~deriv:sigmoid'
     (* |> make_fully_connected ~ncount:3 ~act:sigmoid ~deriv:sigmoid' *)
     |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn in
@@ -174,7 +175,7 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   Printf.printf "initial loss: %f\n" res ;
   Printf.printf "trained loss: %f\n" new_res ;
 
-  perform trained_nn train_data ;
+  (* perform trained_nn train_data ; *)
 
   let m1 = Mat.random (Row 28) (Col 16) in
   let m2 = Mat.random (Row 28) (Col 16) in

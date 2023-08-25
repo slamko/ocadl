@@ -32,7 +32,7 @@ OBJS += gemm.o
 CAML_PKGS = 
 CAML_PKGS =csv,domainslib,unix,ppx_deriving.show,ppx_deriving.enum
 
-FLAGS = -g
+FLAGS = -O2
 
 debug: FLAGS = -g
 
