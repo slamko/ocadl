@@ -13,6 +13,8 @@ struct mat {
 
 void mat_print(struct mat *mat);
 
+size_t mat_mem_size(const struct mat *mat);
+
 struct mat mat3_of_array(float *matrix,
                          size_t rows, size_t cols, size_t dim3);
 

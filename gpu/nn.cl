@@ -14,10 +14,10 @@ float sigmoid_deriv(float act) {
     return (act * (1.0 - act));
 }
 
-__kernel void dense_ff(__global const float *input,
-                       __global const float *weight_mat,
-                       __global const float *bias_mat,
-                       __global float *res,
+__kernel void dense_ff(__global __read_only const float *input,
+                       __global __read_only const float *weight_mat,
+                       __global __read_only const float *bias_mat,
+                       __global __write_only float *res,
                        unsigned long dim) {
 
     size_t x = get_global_id(0);
@@ -33,14 +33,14 @@ __kernel void dense_ff(__global const float *input,
     res[x] = r;
 }
 
-__kernel void dense_bp(__global const float *weight_mat,
-                       __global const float *prev_act_mat,
-                       __global const float *act_mat,
-                       __global const float *diff_mat,
+__kernel void dense_bp(__global __read_only const float *weight_mat,
+                       __global __read_only const float *prev_act_mat,
+                       __global __read_only const float *act_mat,
+                       __global __read_only const float *diff_mat,
                        unsigned long dim,
-                       __global float *cache,
-                       __global float *wmat_grad,
-                       __global float *bmat_grad) {
+                       __global __write_only float *cache,
+                       __global __write_only float *wmat_grad,
+                       __global __write_only float *bmat_grad) {
 
     size_t x = get_global_id(0);
     size_t width = get_global_size(0);

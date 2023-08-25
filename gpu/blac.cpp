@@ -105,9 +105,9 @@ extern "C" int mat_add(const mat *a, const mat *b, mat *c) {
   Buffer cbuf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, c_size, NULL };
 
   Kernel kernel { math_prog, "matrix_add" };
+
   size_t dim1 = c->rows < 16 ? c->rows : align(c->rows, 16);
   size_t dim2 = c->cols < 16 ? c->cols : align(c->cols, 16);
-  std::cout << dim1 << "Dim2" << dim2 << std::endl;
 
   ret = kernel.setArg(0, abuf);
   if (ret) return ret;
@@ -136,6 +136,7 @@ extern "C" int mat_add(const mat *a, const mat *b, mat *c) {
 
 extern "C" int mat_sub(const mat *a, const mat *b, mat *c) {
   using namespace cl;
+  int ret = 0;
 
   if (a->rows != b->rows || a->cols != b->cols) {
     return 1;
@@ -150,30 +151,37 @@ extern "C" int mat_sub(const mat *a, const mat *b, mat *c) {
 
   Buffer abuf { context, in_flags, a_size, a->matrix };
   Buffer bbuf { context, in_flags, b_size, b->matrix };
-  Buffer cbuf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, c_size, c->matrix };
+  Buffer cbuf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, c_size, NULL };
 
   Kernel kernel { math_prog, "matrix_sub" };
+
   size_t dim1 = c->rows < 16 ? c->rows : align(c->rows, 16);
   size_t dim2 = c->cols < 16 ? c->cols : align(c->cols, 16);
 
-  kernel.setArg(0, abuf);
-  kernel.setArg(1, bbuf);
-  kernel.setArg(2, cbuf);
-  kernel.setArg(3, &dim1);
-  kernel.setArg(4, &dim2);
+  ret |= kernel.setArg(0, abuf);
+  ret |= kernel.setArg(1, bbuf);
+  ret |= kernel.setArg(2, cbuf);
+  ret |= kernel.setArg(3, sizeof(size_t), &dim1);
+  ret |= kernel.setArg(4, sizeof(size_t), &dim2);
+  if (ret) return ret;
 
-  size_t ldim1 = c->rows < 16 ? c->rows : c->rows;
-  size_t ldim2 = c->cols < 16 ? c->cols : c->cols;
+  size_t ldim1 = c->rows < 16 ? c->rows : 16;
+  size_t ldim2 = c->cols < 16 ? c->cols : 16;
 
   auto glob_range = NDRange(dim1, dim2);
   auto loc_range = NDRange(ldim1, ldim2);
-  queue.enqueueNDRangeKernel(kernel, NullRange, glob_range, loc_range);
-  queue.enqueueReadBuffer(cbuf, CL_TRUE, 0, c_size, c->matrix);
-  return 0;
+
+  ret = queue.enqueueNDRangeKernel(kernel, NullRange, glob_range, loc_range);
+  if (ret) return ret;
+
+  ret = queue.enqueueReadBuffer(cbuf, CL_TRUE, 0, c_size, c->matrix);
+
+  return ret;
 }
 
 extern "C" int mat_scale(const struct mat *mat, struct mat *res, float scale) {
   using namespace cl;
+  int ret = 0;
 
   if (mat->rows == 0 || mat->cols == 0) {
     return 1;
@@ -186,26 +194,37 @@ extern "C" int mat_scale(const struct mat *mat, struct mat *res, float scale) {
   cl_mem_flags in_flags =  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS;
 
   Buffer mat_buf { context, in_flags, mat_size, mat->matrix };
-  Buffer res_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, res_size, res->matrix };
+  Buffer res_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, res_size, NULL };
 
   Kernel kernel { math_prog, "matrix_scale" };
   size_t dim1 = mat->rows < 16 ? mat->rows : align(mat->rows, 16);
   size_t dim2 = mat->cols < 16 ? mat->cols : align(mat->cols, 16);
 
-  kernel.setArg(0, mat_buf);
-  kernel.setArg(1, res_buf);
-  kernel.setArg(2, sizeof(float), &scale);
-  kernel.setArg(3, sizeof(size_t), &dim1);
-  kernel.setArg(4, sizeof(size_t), &dim2);
+  ret |= kernel.setArg(0, mat_buf);
+  ret |= kernel.setArg(1, res_buf);
+  ret |= kernel.setArg(2, sizeof(float), &scale);
+  ret |= kernel.setArg(3, sizeof(size_t), &dim1);
+  ret |= kernel.setArg(4, sizeof(size_t), &dim2);
+  if (ret) return ret;
 
-  size_t ldim1 = mat->rows < 16 ? mat->rows : mat->rows;
-  size_t ldim2 = mat->cols < 16 ? mat->cols : mat->cols;
+  size_t ldim1 = mat->rows < 16 ? mat->rows : 16;
+  size_t ldim2 = mat->cols < 16 ? mat->cols : 16;
 
   auto glob_range = NDRange(dim1, dim2);
   auto loc_range = NDRange(ldim1, ldim2);
-  queue.enqueueNDRangeKernel(kernel, NullRange, glob_range);
-  queue.enqueueReadBuffer(res_buf, CL_TRUE, 0, res_size, res->matrix);
-  queue.flush();
+
+  ret = queue.enqueueNDRangeKernel(kernel, NullRange, glob_range);
+  ret = queue.enqueueReadBuffer(res_buf, CL_TRUE, 0, res_size, res->matrix);
+
+  return 0;
+}
+
+extern "C" int vec_sum(const struct mat *mat, float *res) {
+  *res = 0.0;
+
+  for (size_t i = 0; i < mat->rows * mat->cols; i++) {
+    *res += mat->matrix[i];
+  }
 
   return 0;
 }
