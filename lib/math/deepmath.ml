@@ -93,7 +93,7 @@ external gpu_init : unit -> unit = "cc_gpu_init"
 external gpu_finish : unit -> unit = "cc_gpu_finish"
 
 external cc_fully_connected_bp : Mat.tensor -> Vec.tensor -> Vec.tensor ->
-                                 Vec.tensor -> Mat.tensor -> Vec.tensor ->
+                                 Vec.tensor -> Mat.tensor -> Vec.tensor -> bool ->
                                 (Vec.tensor * Mat.tensor * Vec.tensor) =
   "cc_fully_connected_bp_bytecode" "cc_fully_connected_bp_native"
 

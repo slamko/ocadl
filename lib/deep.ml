@@ -208,7 +208,7 @@ let fully_connected_bp prev_layer grad_acc meta params (Tensor1 act_prev)
   let open Fully_connected in
   let (prev_diff, wgrad, bgrad) =
     cc_fully_connected_bp params.weight_mat.matrix act_prev.matrix
-      act.matrix diff_mat.matrix grad_acc.weight_mat.matrix grad_acc.bias_mat.matrix
+      act.matrix diff_mat.matrix grad_acc.weight_mat.matrix grad_acc.bias_mat.matrix prev_layer
   in
   
   { prev_diff = prev_diff |> Vec.create |> make_tens1;
@@ -289,7 +289,13 @@ let rec backprop_nn :
   | BP_Cons ((lay, input, out), tail), BPL_Cons(param_acc, ptail) ->
      let prev =
        (match tail with
-        | BP_Nil | BP_Cons (_, BP_Nil) -> false
+        | BP_Nil
+          | BP_Cons (_, BP_Nil)
+          | BP_Cons ((Flatten2D _, _, _), _)
+          | BP_Cons ((Flatten _, _, _), _)
+          | BP_Cons ((Pooling2D _, _, _), _)
+          | BP_Cons ((Pooling _, _, _), _)
+          -> false
         | _ -> true
        )
      in

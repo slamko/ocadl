@@ -14,7 +14,8 @@ extern "C" int fully_connected_bp(
                        const struct mat *diff_vec,
                        struct mat *prev_diff_vec,
                        struct mat *wgrad_mat,
-                       struct mat *bgrad_vec) {
+                       struct mat *bgrad_vec,
+                       _Bool prev_layer) {
   using namespace cl;
   int ret = 0;
 
@@ -23,7 +24,7 @@ extern "C" int fully_connected_bp(
     return 1;
   }
 
-  *prev_diff_vec = mat_make(1, weight_mat->rows);
+  *prev_diff_vec = mat_nil(1, weight_mat->rows);
   // *wgrad_mat     = mat_make(weight_mat->rows, weight_mat->cols);
   // *bgrad_vec     = mat_make(1, act_vec->cols);
   
@@ -85,11 +86,13 @@ extern "C" int fully_connected_bp(
   ret |= queue.enqueueReadBuffer(bgrad_buf, CL_TRUE, 0, bgrad_size, bgrad_vec->matrix);
   if (ret) return ret;
 
-  for (size_t i = 0; i < n; i++) {
-    prev_diff_vec->matrix[i] = 0.0;
-    for (size_t j = 0; j < cache_mat.cols; j++) {
-      prev_diff_vec->matrix[i] +=
-        cache_mat.matrix[i * cache_mat.cols + j];
+  if (prev_layer) {
+    for (size_t i = 0; i < n; i++) {
+      prev_diff_vec->matrix[i] = 0.0;
+      for (size_t j = 0; j < cache_mat.cols; j++) {
+        prev_diff_vec->matrix[i] +=
+          cache_mat.matrix[i * cache_mat.cols + j];
+      }
     }
   }
 
