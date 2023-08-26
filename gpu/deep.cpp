@@ -82,7 +82,10 @@ extern "C" int fully_connected_bp(
   ret |= queue.enqueueReadBuffer(cache_buf, CL_TRUE, 0, cache_size, cache_mat.matrix);
   // ret |= queue.enqueueReadBuffer(prev_diff_buf, CL_TRUE, 0, prev_diff_size, prev_diff_vec->matrix);
   ret |= queue.enqueueReadBuffer(wgrad_buf, CL_TRUE, 0, wgrad_size, wgrad_mat->matrix);
+
   ret |= queue.enqueueReadBuffer(bgrad_buf, CL_TRUE, 0, bgrad_size, bgrad_vec->matrix);
+  mat_print(wgrad_mat);
+  if (ret) return ret;
 
   for (size_t i = 0; i < n; i++) {
     prev_diff_vec->matrix[i] = 0.0;

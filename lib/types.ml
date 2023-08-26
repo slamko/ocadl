@@ -55,7 +55,7 @@ type (_, _) bp_param_list =
 
 type (_, _) bp_list =
   | BP_Nil : ('a, 'a) bp_list
-  | BP_Cons : ((('b , 'c) layer * ('b, 'c) layer_params * 'b * 'c) *
+  | BP_Cons : ((('b , 'c) layer * 'b * 'c) *
                ('a , 'b) bp_list)
             -> ('a , 'c) bp_list
 
@@ -76,7 +76,7 @@ type ('n, 'a, 'b) nnet = {
 
 type ('a, 'b, 'c) feed_forward = {
     bp_input : ('a, 'a) layer * 'a * 'a;
-    bp_data : (('a, 'b) layer * 'a * 'b, 'c) bp_list
+    bp_data : ('a, 'b) bp_list
   }
 
 type ('a, 'b) train_data = ('b * 'a) list

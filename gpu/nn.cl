@@ -67,8 +67,8 @@ __kernel void dense_bp(__global __read_only const float *weight_mat,
                        unsigned long dim,
                        unsigned long width,
                        __global __read_write float *cache,
-                       __global __read_write float *wmat_grad,
-                       __global __read_write float *bmat_grad) {
+                       __global float *wmat_grad,
+                       __global float *bmat_grad) {
 
     size_t x = get_global_id(0);
 
@@ -99,8 +99,8 @@ __kernel void dense_bp(__global __read_only const float *weight_mat,
 __kernel void conv_ff(__global __read_only const float *image,
                         __global __read_only const float *kern,
                         __global __read_only const float *bias_vec,
-                        __constant unsigned long stride,
-                        __constant unsigned long padding,
+                        unsigned long stride,
+                        unsigned long padding,
                         unsigned long actf, 
                         unsigned long im_width,
                         unsigned long im_height,
@@ -184,29 +184,26 @@ __kernel void pooling_ff(__global __read_only const float *image,
 
     switch (pooling_type) {
     case POOLING_MAX:
-        float max = 0.0;
         for (unsigned long r = 0; r < filter_width; r++) {
             for (unsigned long c = 0; c < filter_height; c++) {
-                float cur_pixel = image[i * im_size + y * im_width + r * im_width + x + c];
+                float cur_pixel = image[z * im_size + y * im_width + r * im_width + x + c];
 
-                if (cur_pixel > max) {
-                    max = cur_pixel;
+                if (cur_pixel > r) {
+                    r = cur_pixel;
                 }
             }
         }
 
-        r = max;
         break;
     case POOLING_AVG:
-        float avg = 0.0;
         for (unsigned long r = 0; r < filter_width; r++) {
             for (unsigned long c = 0; c < filter_height; c++) {
-                float cur_pixel = image[i * im_size + y * im_width + r * im_width + x + c];
-                avg += cur_pixel;
+                float cur_pixel = image[z * im_size + y * im_width + r * im_width + x + c];
+                r += cur_pixel;
             }
         }
 
-        r = avg / filter_size;
+        r /= filter_size;
         break;
     default:
         printf("Error: Unknown pooling type\n");

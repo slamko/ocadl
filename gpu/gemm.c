@@ -78,18 +78,19 @@ CAMLprim value cc_fully_connected_ff(value input, value weight_mat,
                              res_mat.matrix, dims));
 }
 
-CAMLprim value cc_fully_connected_bp(value weight_mat, value prev_act_mat,
+CAMLprim value cc_fully_connected_bp_native(value weight_mat, value prev_act_mat,
                                      value act_mat, value diff_mat,
-                                     value grad_mat, value bgrad_mat) {
+                                     value wgrad_mat, value bgrad_mat) {
 
-    CAMLparam4(weight_mat, prev_act_mat, act_mat, diff_mat);
+    CAMLparam5(weight_mat, prev_act_mat, act_mat, diff_mat, wgrad_mat);
+    CAMLxparam1(bgrad_mat);
     CAMLlocal1(res_tuple);
 
     struct caml_ba_array *dmat = Caml_ba_array_val(diff_mat);
     struct caml_ba_array *wmat = Caml_ba_array_val(weight_mat);
 
-    struct caml_ba_array *wgrad_ba = Caml_ba_array_val(diff_mat);
-    struct caml_ba_array *bgrad_ba = Caml_ba_array_val(weight_mat);
+    struct caml_ba_array *wgrad_ba = Caml_ba_array_val(wgrad_mat);
+    struct caml_ba_array *bgrad_ba = Caml_ba_array_val(bgrad_mat);
 
     struct caml_ba_array *actmat = Caml_ba_array_val(act_mat);
     struct caml_ba_array *prev_actmat = Caml_ba_array_val(prev_act_mat);
@@ -131,6 +132,14 @@ CAMLprim value cc_fully_connected_bp(value weight_mat, value prev_act_mat,
                 caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
                               bgrad.matrix, bg_dims));
     CAMLreturn(res_tuple);
+}
+
+CAMLprim value cc_fully_connected_bp_bytecode(value *argv, int argn) {
+    if (argn != 6) {
+        caml_fatal_error("Wrong number of args for C stub");
+    }
+    
+    return cc_fully_connected_bp_native(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
 }
 
 CAMLprim value cc_vec_scale(value scale, value mat) {

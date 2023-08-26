@@ -63,15 +63,14 @@ let forward_layer : type a b. a -> (a, b) layer -> b
 let forward input nn =
 
   let rec forward_rec : type a b x. (a, b) ff_list -> a ->
-                             (a, b) param_list ->
                              (x, a) bp_list ->
                              (x, b) bp_list
-    = fun layers input paraml acc ->
-    match layers, paraml with
-    | FF_Nil, PL_Nil -> acc
-    | FF_Cons (lay, tail), PL_Cons (param, ptail) ->
+    = fun layers input acc ->
+    match layers with
+    | FF_Nil -> acc
+    | FF_Cons (lay, tail) ->
        let act = forward_layer input lay in
-       let upd_acc = BP_Cons ((lay, param, input, act), acc) in
+       let upd_acc = BP_Cons ((lay, input, act), acc) in
        forward_rec tail act upd_acc
   in
 
@@ -225,25 +224,33 @@ let flatten_bp prev_layer meta (Tensor2 act_prev) (Tensor1 diff) =
     grad = Flatten2DParams;
   }
 
-let backprop_layer : type a b. (a, b) layer -> (a, b) layer_params -> bool -> a -> b -> b ->
+let backprop_layer : type a b n x. (a, b) layer ->
+                          (n, x) layer_params ->
+                          bool -> a -> b -> b ->
                           (a, b) backprop_layer
   = fun layer param_lay prev_layer act_prev act diff_mat ->
-  match layer, param_lay with
-  | Input3 _, Input3Params ->
+  match layer with
+  | Input3 _ ->
      { prev_diff = diff_mat;
        grad = Input3Params;
      }
-  | Input2 _, Input2Params ->
+  | Input2 _ ->
      { prev_diff = diff_mat;
        grad = Input2Params;
      }
-  | Input1 _, Input1Params ->
+  | Input1 _ ->
      { prev_diff = diff_mat;
        grad = Input1Params;
      }
-  | Flatten2D meta, Flatten2DParams ->
+  | Flatten2D meta ->
      flatten_bp prev_layer meta act_prev diff_mat
-  | FullyConnected (meta, params), FullyConnectedParams grad ->
+  | FullyConnected (meta, params) ->
+     let grad =
+       (match param_lay with
+        | FullyConnectedParams fp -> fp
+        | _ -> failwith "Unmatched grad type"
+       )
+     in
      fully_connected_bp prev_layer grad meta params act_prev act diff_mat
 (*
   | Conv3D (meta, params) ->
@@ -269,10 +276,9 @@ let param_list_rev plist =
   rev plist BPL_Nil
  
 let rec backprop_nn :
-          type a b c n x. (b, a) bp_list ->
-               a ->
+          type a b c d n x. (b, a) bp_list -> a ->
                (a, x) param_list ->
-               (b, a) bp_param_list ->
+               (b, n) bp_param_list ->
                (b, x) param_list =
   
   fun bp_list diff grad_acc bp_acc ->
@@ -280,7 +286,7 @@ let rec backprop_nn :
   | BP_Nil, BPL_Nil ->
      grad_acc
 
-  | BP_Cons ((lay, input, out), tail), BPL_Cons(param_acc, bpl_tail) ->
+  | BP_Cons ((lay, input, out), tail), BPL_Cons(param_acc, ptail) ->
      let prev =
        (match tail with
         | BP_Nil | BP_Cons (_, BP_Nil) -> false
@@ -288,33 +294,12 @@ let rec backprop_nn :
        )
      in
 
-     let x : (_, a) backprop_layer =
-       (match lay, param_acc with
-  | Input3 _, Input3Params ->
-     { prev_diff = diff;
-       grad = Input3Params;
-     }
-  | Input2 _, Input2Params ->
-     { prev_diff = diff;
-       grad = Input2Params;
-     }
-  | Input1 _, Input1Params ->
-     { prev_diff = diff;
-       grad = Input1Params;
-     }
-  | Flatten2D meta, Flatten2DParams ->
-     flatten_bp prev meta input diff
-  | FullyConnected (meta, params), FullyConnectedParams grad ->
-     fully_connected_bp prev grad meta params input out diff
-       )
-in
-     
      let bp_layer = backprop_layer lay param_acc prev input out diff in
 
      let param_list = PL_Cons (bp_layer.grad, grad_acc) in
      let prev_diff_mat = bp_layer.prev_diff in
      
-     backprop_nn tail prev_diff_mat param_list bpl_tail
+     backprop_nn tail prev_diff_mat param_list ptail
 
   
 let nn_gradient learn_rate nn data =
@@ -393,11 +378,11 @@ let nn_gradient learn_rate nn data =
            )
          in
 
+       let paraml_acc = param_list_rev bp_grad_acc.param_list in
        let bp_grad =
-         { param_list = backprop_nn ff_net.bp_data res_diff PL_Nil } in
+         { param_list = backprop_nn ff_net.bp_data res_diff PL_Nil paraml_acc } in
        
-       nn_params_apply cc_mat_add bp_grad bp_grad_acc
-       |> bp_rec nn data_tail
+       bp_rec nn data_tail bp_grad
    
   in
  
@@ -409,7 +394,6 @@ let nn_gradient learn_rate nn data =
   (* print_endline "Full nn"; *)
   let param_nn = nn_params_scale scale_fact newn in
   Ok param_nn
-
 
 let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
                              (inp, out) train_data ->
@@ -511,9 +495,9 @@ let rec learn_rec pool pool_size data epoch_num
        |> List.map @@ Task.await pool in
 
      (* print_string "hello\n"; *)
-     let full_grad = 
-       grad_list
-       |> List.fold_left (nn_params_apply cc_mat_add) grad_acc
+     let full_grad = List.hd grad_list
+       (* grad_list *)
+       (* |> List.fold_left (nn_params_apply cc_mat_add) grad_acc *)
      in
      
      let batch_grad =
