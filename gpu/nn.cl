@@ -19,6 +19,9 @@ float relu(float x) {
 #define ACTF_SIGMOID 0
 #define ACTF_RELU 1
 
+#define POOLING_MAX 0
+#define POOLING_AVG 1
+
 void atomic_add_f(volatile __global float *addr, float val)
 {
   union {
@@ -148,9 +151,69 @@ __kernel void conv_ff(__global __read_only const float *image,
     case ACTF_RELU:
         r = relu(biased_sum);
         break;
+    default:
+        printf("Error: Unknown activation function\n");
+        break;
     }
     
     res[z * res_size + y * res_width + x] = r; 
 }
+
+
+__kernel void pooling_ff(__global __read_only const float *image,
+                         unsigned long stride,
+                         unsigned long filter_width,
+                         unsigned long filter_height,
+                         unsigned long im_width,
+                         unsigned long im_height,
+                         unsigned long im_num,
+                         unsigned long pooling_type,
+                         unsigned long res_width,
+                         unsigned long res_height,
+                        __global __write_only float *res) {
     
+    size_t x = get_global_id(0);
+    size_t y = get_global_id(1);
+    size_t z = get_global_id(2);
+
+    size_t im_size = im_width * im_height;
+    size_t filter_size = filter_width * filter_height;
+    size_t res_size = res_width * res_height;
+
+    float r = 0.0;
+
+    switch (pooling_type) {
+    case POOLING_MAX:
+        float max = 0.0;
+        for (unsigned long r = 0; r < filter_width; r++) {
+            for (unsigned long c = 0; c < filter_height; c++) {
+                float cur_pixel = image[i * im_size + y * im_width + r * im_width + x + c];
+
+                if (cur_pixel > max) {
+                    max = cur_pixel;
+                }
+            }
+        }
+
+        r = max;
+        break;
+    case POOLING_AVG:
+        float avg = 0.0;
+        for (unsigned long r = 0; r < filter_width; r++) {
+            for (unsigned long c = 0; c < filter_height; c++) {
+                float cur_pixel = image[i * im_size + y * im_width + r * im_width + x + c];
+                avg += cur_pixel;
+            }
+        }
+
+        r = avg / filter_size;
+        break;
+    default:
+        printf("Error: Unknown pooling type\n");
+        break;
+    }
+
+    res[z * res_size + y * res_width + x] = r; 
+}
+
 
