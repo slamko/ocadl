@@ -44,8 +44,8 @@ extern "C" int fully_connected_bp(
   Buffer diff_buf { context, in_flags, diff_size, diff_vec->matrix };
 
   Buffer prev_diff_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, prev_diff_size, NULL };
-  Buffer wgrad_buf { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, wgrad_size, NULL };
-  Buffer bgrad_buf { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, bgrad_size, NULL };
+  Buffer wgrad_buf { context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_READ_ONLY, wgrad_size, wgrad_mat->matrix };
+  Buffer bgrad_buf { context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_READ_ONLY, bgrad_size, bgrad_vec->matrix };
 
   Kernel kernel { nn_prog, "dense_bp" };
   size_t width = weight_mat->cols;
@@ -82,9 +82,7 @@ extern "C" int fully_connected_bp(
   ret |= queue.enqueueReadBuffer(cache_buf, CL_TRUE, 0, cache_size, cache_mat.matrix);
   // ret |= queue.enqueueReadBuffer(prev_diff_buf, CL_TRUE, 0, prev_diff_size, prev_diff_vec->matrix);
   ret |= queue.enqueueReadBuffer(wgrad_buf, CL_TRUE, 0, wgrad_size, wgrad_mat->matrix);
-
   ret |= queue.enqueueReadBuffer(bgrad_buf, CL_TRUE, 0, bgrad_size, bgrad_vec->matrix);
-  mat_print(wgrad_mat);
   if (ret) return ret;
 
   for (size_t i = 0; i < n; i++) {

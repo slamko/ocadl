@@ -114,6 +114,8 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     |> make_fully_connected ~ncount:256 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:128 ~act:sigmoid ~deriv:sigmoid'
     |> make_fully_connected ~ncount:64 ~act:sigmoid ~deriv:sigmoid'
+    (* |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid' *)
+    (* |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid' *)
     (* |> make_fully_connected ~ncount:3 ~act:sigmoid ~deriv:sigmoid' *)
     |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
     |> make_nn in
