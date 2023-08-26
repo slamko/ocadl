@@ -8,6 +8,17 @@ float sigmoid_deriv(float act) {
     return (act * (1.0 - act));
 }
 
+float relu(float x) {
+    if (x > 0.0) {
+        return x;
+    }
+
+    return 0.0;
+}
+
+#define ACTF_SIGMOID 0
+#define ACTF_RELU 1
+
 void atomic_add_f(volatile __global float *addr, float val)
 {
   union {
@@ -82,21 +93,29 @@ __kernel void dense_bp(__global __read_only const float *weight_mat,
    bmat_grad[x] += diff * cur_act_deriv;
 }
 
-__kernel void conv2d_ff(__global __read_only const float * __global *image,
-                        __global __read_only const float * __global *kern,
+__kernel void conv_ff(__global __read_only const float *image,
+                        __global __read_only const float *kern,
+                        __global __read_only const float *bias_vec,
                         __constant unsigned long stride,
                         __constant unsigned long padding,
+                        unsigned long actf, 
                         unsigned long im_width,
                         unsigned long im_height,
                         unsigned long kern_num,
                         unsigned long image_num,
                         unsigned long kern_width,
                         unsigned long kern_height,
-                        __global __write_only float *__global *res) {
+                        unsigned long res_width,
+                        unsigned long res_height,
+                        __global __write_only float *res) {
     
     size_t x = get_global_id(0);
     size_t y = get_global_id(1);
     size_t z = get_global_id(2);
+
+    size_t im_size = im_width * im_height;
+    size_t kern_size = kern_width * kern_height;
+    size_t res_size = res_width * res_height;
 
     if (x >= im_width || y >= im_height || z >= kern_num) {
         return;
@@ -111,12 +130,27 @@ __kernel void conv2d_ff(__global __read_only const float * __global *image,
     for (unsigned long i = 0; i < image_num; i++) {
         for (unsigned long r = 0; r < kern_width; r++) {
             for (unsigned long c = 0; c < kern_height; c++) {
-                sum += kern[z][r * kern_width + c] * image[i][y * im_width + x + c + r * im_width];
-                }
+                float cur_kval = kern[z * kern_size + r * kern_width + c];
+                float cur_pixel = image[i * im_size + y * im_width + r * im_width + x + c];
+
+                sum += cur_kval * cur_pixel;
+            }
         }
     }
 
-    res[z][y * res_width + x] = sum;
+    float biased_sum = sum + bias_vec[z];
+
+    float r = 0.0;
+    switch (actf) {
+    case ACTF_SIGMOID:
+        r = sigmoid(biased_sum);
+        break;
+    case ACTF_RELU:
+        r = relu(biased_sum);
+        break;
+    }
+    
+    res[z * res_size + y * res_width + x] = r; 
 }
     
 
