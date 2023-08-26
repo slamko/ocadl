@@ -153,3 +153,61 @@ extern "C" int fully_connected_ff(const struct mat *input,
 }
 
 
+extern "C" int conv2d_ff(const struct mat *input,
+                         const struct mat *weight_mat,
+                         const struct mat *bias_vec,
+                         struct mat *res) {
+  using namespace cl;
+
+  cl_int ret = {0};
+  
+  if (input->cols != weight_mat->rows
+      || weight_mat->cols != bias_vec->cols) {
+    return 1;
+  }
+  
+  *res = mat_nil(1, weight_mat->cols);
+  
+  size_t inp_mat_size = mat_mem_size(input);
+  size_t wmat_size = mat_mem_size(weight_mat);
+  size_t bmat_size = mat_mem_size(bias_vec);
+  size_t res_mat_size = mat_mem_size(res);
+  
+  Kernel kernel { nn_prog, "dense_ff" };
+  cl_mem_flags in_flags =  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS;
+  
+  Buffer inp_buf { context, in_flags, inp_mat_size, input->matrix };
+  Buffer wmat_buf { context, in_flags, wmat_size, weight_mat->matrix };
+  Buffer bmat_buf { context, in_flags, bmat_size, bias_vec->matrix };
+  SVMAllocator<float, SVMTraitCoarse<>> svm_alloc { context };
+  // svm_alloc.
+  Buffer res_buf { context, CL_MEM_WRITE_ONLY, res_mat_size, NULL };
+  
+  cl_ulong mat_dim = weight_mat->rows;
+  cl_ulong width = weight_mat->cols;
+
+  ret |= kernel.setArg(0, inp_buf);
+  ret |= kernel.setArg(1, wmat_buf);
+  ret |= kernel.setArg(2, bmat_buf);
+  ret |= kernel.setArg(3, res_buf);
+  ret |= kernel.setArg(4, sizeof(cl_ulong), &mat_dim);
+  ret |= kernel.setArg(5, sizeof(cl_ulong), &width);
+
+  if (ret) return ret;
+  
+  cl_ulong dim = weight_mat->cols;
+  size_t ldim1 = 32;
+  size_t dim1 = align(dim, ldim1);
+ 
+  auto glob_range = NDRange(dim1);
+  auto loc_range = NDRange(ldim1);
+
+  ret = queue.enqueueNDRangeKernel(kernel, NullRange, glob_range, loc_range);
+  if (ret) return ret;
+
+  ret = queue.enqueueReadBuffer(res_buf, CL_TRUE, 0, res_mat_size, res->matrix);
+
+  return ret;
+}
+
+

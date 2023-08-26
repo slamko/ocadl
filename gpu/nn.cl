@@ -82,3 +82,41 @@ __kernel void dense_bp(__global __read_only const float *weight_mat,
    bmat_grad[x] += diff * cur_act_deriv;
 }
 
+__kernel void conv2d_ff(__global __read_only const float * __global *image,
+                        __global __read_only const float * __global *kern,
+                        __constant unsigned long stride,
+                        __constant unsigned long padding,
+                        unsigned long im_width,
+                        unsigned long im_height,
+                        unsigned long kern_num,
+                        unsigned long image_num,
+                        unsigned long kern_width,
+                        unsigned long kern_height,
+                        __global __write_only float *__global *res) {
+    
+    size_t x = get_global_id(0);
+    size_t y = get_global_id(1);
+    size_t z = get_global_id(2);
+
+    if (x >= im_width || y >= im_height || z >= kern_num) {
+        return;
+    }
+
+    if (x % stride || y % stride) {
+        return;
+    }
+
+    float sum = 0.0;
+
+    for (unsigned long i = 0; i < image_num; i++) {
+        for (unsigned long r = 0; r < kern_width; r++) {
+            for (unsigned long c = 0; c < kern_height; c++) {
+                sum += kern[z][r * kern_width + c] * image[i][y * im_width + x + c + r * im_width];
+                }
+        }
+    }
+
+    res[z][y * res_width + x] = sum;
+}
+    
+

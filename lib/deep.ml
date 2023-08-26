@@ -63,14 +63,15 @@ let forward_layer : type a b. a -> (a, b) layer -> b
 let forward input nn =
 
   let rec forward_rec : type a b x. (a, b) ff_list -> a ->
-                             ((x, a) layer * x * a, _) bp_list ->
-                             ((x, b) layer * x * b, _) bp_list
-    = fun layers input acc ->
-    match layers with
-    | FF_Nil -> acc
-    | FF_Cons (lay, tail) ->
+                             (a, b) param_list ->
+                             (x, a) bp_list ->
+                             (x, b) bp_list
+    = fun layers input paraml acc ->
+    match layers, paraml with
+    | FF_Nil, PL_Nil -> acc
+    | FF_Cons (lay, tail), PL_Cons (param, ptail) ->
        let act = forward_layer input lay in
-       let upd_acc = BP_Cons ((lay, input, act), acc) in
+       let upd_acc = BP_Cons ((lay, param, input, act), acc) in
        forward_rec tail act upd_acc
   in
 
@@ -268,10 +269,10 @@ let param_list_rev plist =
   rev plist BPL_Nil
  
 let rec backprop_nn :
-          type a b c n x. ((b, a) layer * b * a, c) bp_list ->
+          type a b c n x. (b, a) bp_list ->
                a ->
                (a, x) param_list ->
-               ((b, a) layer_params, n) bp_param_list ->
+               (b, a) bp_param_list ->
                (b, x) param_list =
   
   fun bp_list diff grad_acc bp_acc ->
@@ -287,8 +288,8 @@ let rec backprop_nn :
        )
      in
 
-     let x : (a, b) backprop_layer =
-       (match (lay : (b,a) layer), (param_acc: (b, a) layer_params) with
+     let x : (_, a) backprop_layer =
+       (match lay, param_acc with
   | Input3 _, Input3Params ->
      { prev_diff = diff;
        grad = Input3Params;

@@ -50,14 +50,14 @@ type (_, _) param_list =
 type (_, _) bp_param_list =
   | BPL_Nil : ('a, 'a) bp_param_list
   | BPL_Cons : ('b, 'c) layer_params *
-                 (('a, 'b) layer_params, _) bp_param_list ->
-               (('a, 'c) layer_params, _) bp_param_list
+                 ('a, 'b) bp_param_list ->
+               ('a, 'c) bp_param_list
 
 type (_, _) bp_list =
-  | BP_Nil : (('a, 'a) layer * 'a * 'a, _) bp_list
-  | BP_Cons : ((('b , 'c) layer * 'b * 'c) *
-               (('a , 'b) layer * 'a * 'b, _) bp_list)
-            -> (('a , 'c) layer * 'a * 'c, _) bp_list
+  | BP_Nil : ('a, 'a) bp_list
+  | BP_Cons : ((('b , 'c) layer * ('b, 'c) layer_params * 'b * 'c) *
+               ('a , 'b) bp_list)
+            -> ('a , 'c) bp_list
 
 type ('n, 'a, 'b) build_nn = {
     build_input : ('a, 'a) layer;
