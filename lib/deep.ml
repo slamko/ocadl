@@ -27,8 +27,9 @@ let forward_layer : type a b. a -> (a, b) layer -> b
      (match input with
      | Tensor1 tens -> 
         (* Vec.print tens; *)
+        let act = actf_to_enum fc.activation in
         cc_fully_connected_ff tens.matrix
-          fcp.weight_mat.matrix fcp.bias_mat.matrix
+          fcp.weight_mat.matrix fcp.bias_mat.matrix act
         |> Vec.create |> make_tens1
      )
   | Flatten2D meta ->
@@ -194,7 +195,6 @@ let loss data nn =
          in
 
          loss_rec nn data_tail (err +. (diff *. diff))
-
        
   in
 
@@ -206,9 +206,10 @@ let fully_connected_bp prev_layer grad_acc meta params (Tensor1 act_prev)
       (Tensor1 act) (Tensor1 diff_mat) =
 
   let open Fully_connected in
+  let actf = actf_to_enum meta.activation in
   let (prev_diff, wgrad, bgrad) =
     cc_fully_connected_bp params.weight_mat.matrix act_prev.matrix
-      act.matrix diff_mat.matrix grad_acc.weight_mat.matrix grad_acc.bias_mat.matrix prev_layer
+      act.matrix diff_mat.matrix grad_acc.weight_mat.matrix grad_acc.bias_mat.matrix prev_layer actf
   in
   
   { prev_diff = prev_diff |> Vec.create |> make_tens1;

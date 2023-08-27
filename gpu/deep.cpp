@@ -15,6 +15,7 @@ extern "C" int fully_connected_bp(
                        struct mat *prev_diff_vec,
                        struct mat *wgrad_mat,
                        struct mat *bgrad_vec,
+                       long actf,
                        _Bool prev_layer) {
   using namespace cl;
   int ret = 0;
@@ -71,6 +72,7 @@ extern "C" int fully_connected_bp(
   ret |= kernel.setArg(6, cache_buf);
   ret |= kernel.setArg(7, wgrad_buf);
   ret |= kernel.setArg(8, bgrad_buf);
+  ret |= kernel.setArg(9, sizeof(cl_long), &actf);
 
   if (ret) return ret;
 
@@ -103,7 +105,8 @@ extern "C" int fully_connected_bp(
 extern "C" int fully_connected_ff(const struct mat *input,
                                   const struct mat *weight_mat,
                                   const struct mat *bias_vec,
-                                  struct mat *res) {
+                                  struct mat *res,
+                                  long actf) {
   using namespace cl;
 
   cl_int ret = {0};
@@ -138,6 +141,7 @@ extern "C" int fully_connected_ff(const struct mat *input,
   ret |= kernel.setArg(3, res_buf);
   ret |= kernel.setArg(4, sizeof(cl_ulong), &mat_dim);
   ret |= kernel.setArg(5, sizeof(cl_ulong), &width);
+  ret |= kernel.setArg(6, sizeof(cl_long), &actf);
 
   if (ret) return ret;
   

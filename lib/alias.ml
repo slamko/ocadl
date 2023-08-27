@@ -9,6 +9,11 @@ type mat3 = Mat3.t
 type mat  = Mat.t
 type vec  = Vec.t
 
+type actf =
+  | Sigmoid [@value 0]
+  | Relu
+[@@deriving enum]
+
 module New = struct
   type t = {b : float}
 end

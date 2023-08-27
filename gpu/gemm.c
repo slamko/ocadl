@@ -54,8 +54,10 @@ CAMLprim value cc_mat_nil(value rows, value cols) {
 }
 
 CAMLprim value cc_fully_connected_ff(value input, value weight_mat,
-                                     value bias_mat) {
+                                     value bias_mat, value actf_val) {
     CAMLparam3(input, weight_mat, bias_mat);
+
+    long actf = Long_val(actf_val);
 
     struct caml_ba_array *inmat = Caml_ba_array_val(input);
     struct caml_ba_array *wmat = Caml_ba_array_val(weight_mat);
@@ -66,7 +68,7 @@ CAMLprim value cc_fully_connected_ff(value input, value weight_mat,
     struct mat bdata = mat_of_ba(bmat);
 
     struct mat res_mat = {0};
-    int ret = fully_connected_ff(&indata, &wdata, &bdata, &res_mat);
+    int ret = fully_connected_ff(&indata, &wdata, &bdata, &res_mat, actf);
 
     if (ret) {
         caml_fatal_error("Feed forward failed %d\n", ret);
@@ -81,15 +83,16 @@ CAMLprim value cc_fully_connected_ff(value input, value weight_mat,
 CAMLprim value cc_fully_connected_bp_native(value weight_mat, value prev_act_mat,
                                             value act_mat, value diff_mat,
                                             value wgrad_mat, value bgrad_mat,
-                                            value prev_layer_val) {
+                                            value prev_layer_val, value actf_val) {
 
     CAMLparam5(weight_mat, prev_act_mat, act_mat, diff_mat, wgrad_mat);
-    CAMLxparam2(bgrad_mat, prev_layer_val);
+    CAMLxparam3(bgrad_mat, prev_layer_val, actf_val);
     CAMLlocal1(res_tuple);
 
     struct caml_ba_array *dmat = Caml_ba_array_val(diff_mat);
     struct caml_ba_array *wmat = Caml_ba_array_val(weight_mat);
     _Bool prev_layer = Bool_val(prev_layer_val);
+    long actf = Long_val(actf_val);
 
     struct caml_ba_array *wgrad_ba = Caml_ba_array_val(wgrad_mat);
     struct caml_ba_array *bgrad_ba = Caml_ba_array_val(bgrad_mat);
@@ -108,7 +111,7 @@ CAMLprim value cc_fully_connected_bp_native(value weight_mat, value prev_act_mat
     struct mat prev_diff;
 
     int ret = fully_connected_bp(&wdata, &prev_act_data, &act_data,
-                                 &diff_data, &prev_diff, &wgrad, &bgrad, prev_layer);
+                                 &diff_data, &prev_diff, &wgrad, &bgrad, prev_layer, actf);
 
     if (ret) {
         caml_fatal_error("Fully connected backpropagation failed %d\n", ret);
@@ -137,11 +140,11 @@ CAMLprim value cc_fully_connected_bp_native(value weight_mat, value prev_act_mat
 }
 
 CAMLprim value cc_fully_connected_bp_bytecode(value *argv, int argn) {
-    if (argn != 7) {
+    if (argn != 8) {
         caml_fatal_error("Wrong number of args for C stub");
     }
     
-    return cc_fully_connected_bp_native(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+    return cc_fully_connected_bp_native(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
 }
 
 CAMLprim value cc_vec_scale(value scale, value mat) {
@@ -324,7 +327,7 @@ CAMLprim value cc_gpu_finish() {
     CAMLparam0();
     int ret = 0;
     
-    ocl_finish();
+    ret = ocl_finish();
 
     CAMLreturn(Val_unit);
 }

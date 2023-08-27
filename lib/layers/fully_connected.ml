@@ -7,8 +7,7 @@ type params = {
   }
 
 type meta = {
-    activation : activation;
-    derivative : deriv;
+    activation : actf;
     out_shape : vec tensor shape;
   }
 

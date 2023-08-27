@@ -111,13 +111,13 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     make_input2d (Mat.make_shape (Row 28) (Col 28))
     (* make_input1d (Vec.make_shape (Col 2)) *)
     |> make_flatten2d
-    |> make_fully_connected ~ncount:256 ~act:sigmoid ~deriv:sigmoid'
-    |> make_fully_connected ~ncount:128 ~act:sigmoid ~deriv:sigmoid'
-    |> make_fully_connected ~ncount:64 ~act:sigmoid ~deriv:sigmoid'
+    |> make_fully_connected ~ncount:256 ~actf:Sigmoid
+    |> make_fully_connected ~ncount:128 ~actf:Sigmoid
+    |> make_fully_connected ~ncount:64 ~actf:Sigmoid
     (* |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid' *)
     (* |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid' *)
     (* |> make_fully_connected ~ncount:3 ~act:sigmoid ~deriv:sigmoid' *)
-    |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
+    |> make_fully_connected ~ncount:10 ~actf:Sigmoid
     |> make_nn in
 
 (*
@@ -183,6 +183,7 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   let m2 = Mat.random (Row 28) (Col 16) in
   (* let scaled = cc_mat_scale 2.0 m1.matrix in *)
   let scaled = cc_mat_scale 3.0 m1.matrix in
+  Printf.printf "Act: %d\n" (actf_to_enum Sigmoid) ;
 
   (* Printf.printf "M1: \n%!" ; *)
   (* cc_mat_print m1.matrix ; *)

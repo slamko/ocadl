@@ -4,11 +4,6 @@ open Alias
 open Bigarray
 open Tensor
 
-type actf =
-  | Sigmoid
-  | Relu
-[@@deriving enum]
-
 type pooling =
   | Max
   | Avarage
@@ -68,7 +63,7 @@ external cc_mat_nil : int -> int -> Mat.tensor = "cc_mat_nil"
 
 external cc_vec_nil : int -> Vec.tensor = "cc_vec_nil"
 
-external cc_fully_connected_ff : Vec.tensor -> Mat.tensor -> Vec.tensor ->
+external cc_fully_connected_ff : Vec.tensor -> Mat.tensor -> Vec.tensor -> int ->
   Vec.tensor = "cc_fully_connected_ff"
 
 external cc_mat_add : Mat.tensor -> Mat.tensor -> Mat.tensor = "cc_mat_add"
@@ -93,7 +88,7 @@ external gpu_init : unit -> unit = "cc_gpu_init"
 external gpu_finish : unit -> unit = "cc_gpu_finish"
 
 external cc_fully_connected_bp : Mat.tensor -> Vec.tensor -> Vec.tensor ->
-                                 Vec.tensor -> Mat.tensor -> Vec.tensor -> bool ->
+                                 Vec.tensor -> Mat.tensor -> Vec.tensor -> bool -> int ->
                                 (Vec.tensor * Mat.tensor * Vec.tensor) =
   "cc_fully_connected_bp_bytecode" "cc_fully_connected_bp_native"
 

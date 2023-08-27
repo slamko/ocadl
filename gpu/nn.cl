@@ -16,6 +16,12 @@ float relu(float x) {
     return 0.0;
 }
 
+float relu_deriv(float x) {
+    if (x > 0.0) return 1.0;
+
+    return 0.0;
+}
+
 #define ACTF_SIGMOID 0
 #define ACTF_RELU 1
 
@@ -42,7 +48,8 @@ __kernel void dense_ff(__global __read_only const float *input,
                        __global __read_only const float *bias_mat,
                        __global __write_only float *res,
                        unsigned long dim,
-                       unsigned long width) {
+                       unsigned long width,
+                       long actf) {
 
     size_t x = get_global_id(0);
 
@@ -56,7 +63,21 @@ __kernel void dense_ff(__global __read_only const float *input,
          sum += input[i] * weight_mat[x + i * width];
     }
 
-    float r = sigmoid(sum + bias_mat[x]);
+    float biased_sum = sum + bias_mat[x];
+    float r = 0.0;
+
+    switch (actf) {
+    case ACTF_SIGMOID:
+        r = sigmoid(biased_sum);
+        break;
+    case ACTF_RELU:
+        r = relu(biased_sum);
+        break;
+    default:
+        printf("Error: Unknown activation function\n");
+        break;
+    }
+    
     res[x] = r;
 }
 
@@ -68,7 +89,8 @@ __kernel void dense_bp(__global __read_only const float *weight_mat,
                        unsigned long width,
                        __global __read_write float *cache,
                        __global float *wmat_grad,
-                       __global float *bmat_grad) {
+                       __global float *bmat_grad,
+                       long actf) {
 
     size_t x = get_global_id(0);
 
@@ -78,7 +100,20 @@ __kernel void dense_bp(__global __read_only const float *weight_mat,
 
     float diff = diff_mat[x];
     float cur_act = act_mat[x];
-    float cur_act_deriv = sigmoid_deriv(cur_act);
+
+    float cur_act_deriv = 0.0;
+
+    switch (actf) {
+    case ACTF_SIGMOID:
+        cur_act_deriv = sigmoid_deriv(cur_act);
+        break;
+    case ACTF_RELU:
+        cur_act_deriv = relu_deriv(cur_act);
+        break;
+    default:
+        printf("Error: Unknown activation function\n");
+        break;
+    }
      
     for (unsigned long i = 0; i < dim; i++) {
          size_t wmati = i * width + x;

@@ -151,7 +151,7 @@ let make_input3d shape =
     build_list = Build_Cons (in_layer, Build_Nil);
   }
 
-let make_fully_connected ~ncount ~act ~deriv layers =
+let make_fully_connected ~ncount ~actf layers =
   let prev_ncount =
     match layers.build_list with
     | Build_Cons (lay, _) ->
@@ -165,8 +165,7 @@ let make_fully_connected ~ncount ~act ~deriv layers =
 
   let meta =
     { Fully_connected.
-      activation = act;
-      derivative = deriv;
+      activation = actf;
       out_shape  = Shape.make_shape_vec (Vec.make_shape (Col ncount));
     }
   in
