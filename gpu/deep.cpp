@@ -101,7 +101,6 @@ extern "C" int fully_connected_bp(
   return ret;
 }
 
-
 extern "C" int fully_connected_ff(const struct mat *input,
                                   const struct mat *weight_mat,
                                   const struct mat *bias_vec,

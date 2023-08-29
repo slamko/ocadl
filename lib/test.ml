@@ -177,13 +177,13 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   Printf.printf "initial loss: %f\n" res ;
   Printf.printf "trained loss: %f\n" new_res ;
 
-  (* perform trained_nn train_data ; *)
+  perform trained_nn train_data ;
 
   let m1 = Mat.random (Row 28) (Col 16) in
   let m2 = Mat.random (Row 28) (Col 16) in
   (* let scaled = cc_mat_scale 2.0 m1.matrix in *)
   let scaled = cc_mat_scale 3.0 m1.matrix in
-  Printf.printf "Act: %d\n" (actf_to_enum Sigmoid) ;
+  (* Printf.printf "Act: %d\n" (actf_to_enum Sigmoid) ; *)
 
   (* Printf.printf "M1: \n%!" ; *)
   (* cc_mat_print m1.matrix ; *)
