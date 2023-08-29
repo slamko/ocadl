@@ -7,6 +7,13 @@ external cc_mat_print : (float, float32_elt, c_layout) Array2.t ->
 external cc_vec_print : (float, float32_elt, c_layout) Array1.t ->
                         unit = "cc_mat_print"
 
+
+external cc_mat_free : (float, float32_elt, c_layout) Array2.t ->
+                        unit = "cc_mat_free"
+
+external cc_vec_free : (float, float32_elt, c_layout) Array1.t ->
+                        unit = "cc_mat_free"
+
 let randf () =
   Random.float 2.0 -. 1.0
 
@@ -30,7 +37,13 @@ module Vec = struct
   let make_shape cols =
     { dim1 = cols }
 
+  let wrap big_arr =
+    { matrix = big_arr;
+      shape = { dim1 = Col (Array1.dim big_arr) }
+    }
+
   let create big_arr =
+    Gc.finalise cc_vec_free big_arr ;
     { matrix = big_arr;
       shape = { dim1 = Col (Array1.dim big_arr) }
     }
@@ -89,7 +102,14 @@ module Mat = struct
   let make_shape dim1 dim2 =
     { dim1; dim2 }
 
+  let wrap big_arr =
+    { matrix = big_arr;
+      shape = { dim1 = Row (Array2.dim1 big_arr);
+                dim2 = Col (Array2.dim2 big_arr); }
+    }
+
   let create big_arr =
+    Gc.finalise cc_mat_free big_arr ;
     { matrix = big_arr;
       shape = { dim1 = Row (Array2.dim1 big_arr);
                 dim2 = Col (Array2.dim2 big_arr); }

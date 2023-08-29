@@ -313,6 +313,16 @@ CAMLprim value cc_mat_flatten_bp(value rows, value cols, value mat) {
                              mat_data->data, new_dim));
 }
 
+CAMLprim value cc_mat_free(value mat_arr) {
+    CAMLparam1(mat_arr);
+    struct caml_ba_array *mat_data = Caml_ba_array_val(mat_arr);
+    struct mat mat = mat_of_ba(mat_data);
+
+    mat_free(&mat);
+
+    CAMLreturn(Val_unit);
+}
+
 CAMLprim value cc_mat_print(value mat_arr) {
     CAMLparam1(mat_arr);
     struct caml_ba_array *mat_data = Caml_ba_array_val(mat_arr);

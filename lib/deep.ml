@@ -35,7 +35,7 @@ let forward_layer : type a b. a -> (a, b) layer -> b
   | Flatten2D meta ->
      let (Tensor2 tens) = input in
      cc_mat_flatten tens.matrix
-     |> Vec.create |> make_tens1
+     |> Vec.wrap |> make_tens1
 
 (*
   | Conv3D (cn, cnp) -> 
@@ -213,15 +213,15 @@ let fully_connected_bp prev_layer grad_acc meta params (Tensor1 act_prev)
   in
   
   { prev_diff = prev_diff |> Vec.create |> make_tens1;
-    grad = FullyConnectedParams { weight_mat = wgrad |> Mat.create;
-                                  bias_mat = bgrad |> Vec.create; }
+    grad = FullyConnectedParams { weight_mat = wgrad |> Mat.wrap;
+                                  bias_mat = bgrad |> Vec.wrap; }
   }
 
 let flatten_bp prev_layer meta (Tensor2 act_prev) (Tensor1 diff) =
   { prev_diff = cc_mat_flatten_bp
                   (row act_prev.shape.dim1) 
                   (col act_prev.shape.dim2) diff.matrix
-                |> Mat.create |> make_tens2;
+                |> Mat.wrap |> make_tens2;
     grad = Flatten2DParams;
   }
 
