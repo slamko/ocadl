@@ -93,8 +93,9 @@ __kernel void dense_bp(__global __read_only const float *weight_mat,
                        long actf) {
 
     size_t x = get_global_id(0);
+    size_t y = get_global_id(1);
 
-    if (x >= width) {
+    if (x >= width || y >= dim) {
         return;
     }
 
@@ -115,20 +116,36 @@ __kernel void dense_bp(__global __read_only const float *weight_mat,
         break;
     }
      
-    for (unsigned long i = 0; i < dim; i++) {
-         size_t wmati = i * width + x;
+         size_t wmati = y * width + x;
 
          float weight = weight_mat[wmati];
-         float prev_act = prev_act_mat[i];
+         float prev_act = prev_act_mat[y];
 
          float dprev = diff * cur_act_deriv * weight;
          float dw = diff * cur_act_deriv * prev_act;
 
          wmat_grad[wmati] += dw;
          cache[wmati] = dprev;
-    }
 
    bmat_grad[x] += diff * cur_act_deriv;
+}
+
+__kernel void mat_sum(__global __read_only float *mat,
+                        unsigned long rows,
+                        unsigned long cols,
+                        __global __write_only float *res) {
+    size_t x = get_global_id(0);
+
+    if (x >= rows) {
+        return;
+    }
+
+    float sum = 0.0;
+    for (unsigned int i = 0; i < cols; i++) {
+        sum += mat[x * cols + i];  
+    }
+
+    res[x] = sum;
 }
 
 __kernel void conv_ff(__global __read_only const float *image,

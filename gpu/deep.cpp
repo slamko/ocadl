@@ -50,17 +50,20 @@ extern "C" int fully_connected_bp(
   Buffer bgrad_buf { context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_READ_ONLY, bgrad_size, bgrad_vec->matrix };
 
   Kernel kernel { nn_prog, "dense_bp" };
-  size_t width = weight_mat->cols;
+  cl_ulong n = weight_mat->rows;
+  cl_ulong width = weight_mat->cols;
+
   size_t global_work_size [1] = { width };
 
-  size_t ldim1 = 32;
+  size_t ldim1 = 8;
+  size_t ldim2 = 16;
   size_t dim1 = align(width, ldim1);
+  size_t dim2 = n;
 
-  cl_ulong n = weight_mat->rows;
 
   struct mat cache_mat = mat_make(n, act_vec->cols);
   size_t cache_size = mat_mem_size(&cache_mat);
-  Buffer cache_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, cache_size, NULL };
+  Buffer cache_buf { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, cache_size, NULL };
 
   ret |= kernel.setArg(0, wmat_buf);
   ret |= kernel.setArg(1, prev_act_buf);
@@ -76,13 +79,13 @@ extern "C" int fully_connected_bp(
 
   if (ret) return ret;
 
-  auto glob_range = NDRange(dim1);
-  auto loc_range = NDRange(ldim1);
+  auto glob_range = NDRange(dim1, dim2);
+  auto loc_range = NDRange(ldim1, ldim2);
 
   ret = queue.enqueueNDRangeKernel(kernel, NullRange, glob_range, loc_range);
   if (ret) return ret;
 
-  ret |= queue.enqueueReadBuffer(cache_buf, CL_TRUE, 0, cache_size, cache_mat.matrix);
+  // ret |= queue.enqueueReadBuffer(cache_buf, CL_TRUE, 0, cache_size, cache_mat.matrix);
   // ret |= queue.enqueueReadBuffer(prev_diff_buf, CL_TRUE, 0, prev_diff_size, prev_diff_vec->matrix);
   ret |= queue.enqueueReadBuffer(wgrad_buf, CL_TRUE, 0, wgrad_size, wgrad_mat->matrix);
   ret |= queue.enqueueReadBuffer(bgrad_buf, CL_TRUE, 0, bgrad_size, bgrad_vec->matrix);
@@ -97,6 +100,8 @@ extern "C" int fully_connected_bp(
       }
     }
   }
+
+  mat_free(&cache_mat);
 
   return ret;
 }
