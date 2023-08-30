@@ -181,6 +181,7 @@ extern "C" int conv_ff(const struct mat *input,
                        unsigned long res_width,
                        unsigned long res_height,
                        struct mat *res) {
+  
   using namespace cl;
 
   cl_int ret = {0};

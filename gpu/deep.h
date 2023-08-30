@@ -21,4 +21,14 @@ int fully_connected_ff(const struct mat *input,
                        struct mat *res,
                        long actf);
 
+int conv_ff(const struct mat *input,
+                       const struct mat *kernels,
+                       const struct mat *bias_vec,
+                       long actf,
+                       unsigned long padding,
+                       unsigned long stride,
+                       unsigned long res_width,
+                       unsigned long res_height,
+                       struct mat *res);
+ 
 #endif

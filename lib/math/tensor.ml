@@ -7,6 +7,8 @@ external cc_mat_print : (float, float32_elt, c_layout) Array2.t ->
 external cc_vec_print : (float, float32_elt, c_layout) Array1.t ->
                         unit = "cc_mat_print"
 
+external cc_mat3_free : (float, float32_elt, c_layout) Array3.t ->
+                        unit = "cc_mat_free"
 
 external cc_mat_free : (float, float32_elt, c_layout) Array2.t ->
                         unit = "cc_mat_free"
@@ -189,7 +191,15 @@ module Mat3 = struct
       dim3 = Col (Array3.dim3 mat.matrix)
     }
 
+  let wrap matrix =
+    { matrix;
+      shape = { dim1 = Row (Array3.dim1 matrix);
+                dim2 = Col (Array3.dim2 matrix);
+                dim3 = Col (Array3.dim3 matrix) }
+    }
+
   let create matrix =
+    Gc.finalise cc_mat3_free matrix ;
     { matrix;
       shape = { dim1 = Row (Array3.dim1 matrix);
                 dim2 = Col (Array3.dim2 matrix);
