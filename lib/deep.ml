@@ -23,6 +23,7 @@ let forward_layer : type a b. a -> (a, b) layer -> b
   | Input3 _ -> input
   | Input2 _ -> input
   | Input1 _ -> input
+
   | FullyConnected (fc, fcp) ->
      let (Tensor1 tens) = input in
      let act = actf_to_enum fc.activation in
@@ -38,34 +39,35 @@ let forward_layer : type a b. a -> (a, b) layer -> b
   | Conv2D (meta, params) ->
      let (Tensor2 tens) = input in
      let (Shape.ShapeMat out_shape) = meta.out_shape in
+     (* cc_ma *)
      conv2d_ff tens params.kernels params.bias_mat
        meta.act meta.padding meta.stride out_shape.dim2 out_shape.dim1
      |> make_tens2 
-     
 
-(*
   | Conv3D (cn, cnp) -> 
-     (match input with
-     | Tensor3 tens -> 
-        tens
-        |> conv3d_forward cn cnp
-     )
-  | Flatten _ ->
-     (match input with
-     | Tensor3 tens ->
-        tens
-        |> Vec.to_mat
-        |> Mat.flatten
-        |> Mat.to_vec
-        |> make_tens1
-     )
+     let (Tensor3 tens) = input in
+     let (Shape.ShapeMatVec out_shape) = cn.out_shape in
+     conv3d_ff tens cnp.kernels cnp.bias_mat cn.act cn.padding cn.stride
+       out_shape.dim2 out_shape.dim1 
+     |> make_tens3
+
+  | Pooling2D pl ->
+     let (Tensor2 tens) = input in
+     let (Shape.ShapeMat out_shape) = pl.out_shape in
+     let (Shape.ShapeMat filter_shape) = pl.filter_shape in
+     pooling2d_ff tens pl.fselect pl.stride out_shape filter_shape
+     |> make_tens2
+
   | Pooling pl ->
-     (match input with
-      | Tensor3 tens ->
-         tens
-         |> pooling_forward pl
-     )
- *)
+     let (Tensor3 tens) = input in
+     let (Shape.ShapeMatVec out_shape) = pl.out_shape in
+     let (Shape.ShapeMat filter_shape) = pl.filter_shape in
+     pooling3d_ff tens pl.fselect pl.stride out_shape filter_shape
+     |> make_tens3
+  (* | Flatten _ -> *)
+     (* cc_mat_flatten *)
+
+
 
 let forward input nn =
 

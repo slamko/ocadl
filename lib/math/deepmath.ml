@@ -4,11 +4,6 @@ open Alias
 open Bigarray
 open Tensor
 
-type pooling =
-  | Max
-  | Avarage
-[@@deriving enum]
-
 let sigmoid (x : float) : float =
   1. /. (1. +. exp(-. x))
 
@@ -97,8 +92,8 @@ external cc_pooling3d_ff : Mat3.tensor -> int -> int -> int -> int -> int -> int
   "cc_pooling_ff_bytecode" "cc_pooling_ff_native"
 
 let pooling3d_ff (inp : mat3) pool_type stride
-      (res_shape : Mat.shape) (filter_shape : Mat.shape) =
-  cc_pooling3d_ff inp.matrix pool_type stride
+      (res_shape : Mat3.shape) (filter_shape : Mat.shape) =
+  cc_pooling3d_ff inp.matrix (pooling_to_enum pool_type) stride
     (col res_shape.dim2) (row res_shape.dim1)
     (col filter_shape.dim2) (row filter_shape.dim1)
   |> Mat3.create
@@ -109,7 +104,7 @@ external cc_pooling2d_ff : Mat.tensor -> int -> int -> int -> int -> int -> int 
 
 let pooling2d_ff (inp : mat) pool_type stride
       (res_shape : Mat.shape) (filter_shape : Mat.shape) =
-  cc_pooling2d_ff inp.matrix pool_type stride
+  cc_pooling2d_ff inp.matrix (pooling_to_enum pool_type) stride
     (col res_shape.dim2) (row res_shape.dim1)
     (col filter_shape.dim2) (row filter_shape.dim1)
   |> Mat.create
@@ -118,8 +113,8 @@ external cc_conv3d_ff : Mat3.tensor -> Mat3.tensor -> Vec.tensor ->
                       int -> int -> int -> int -> int -> Mat3.tensor =
   "cc_conv_ff_bytecode" "cc_conv_ff_native"
 
-let conv3d_ff (inp : mat3) (kerns : mat3) (bias : vec) actf padding stride resw resh =
-  cc_conv3d_ff inp.matrix kerns.matrix bias.matrix actf padding stride resw resh
+let conv3d_ff (inp : mat3) (kerns : mat3) (bias : vec) actf padding stride (Col resw) (Row resh) =
+  cc_conv3d_ff inp.matrix kerns.matrix bias.matrix (actf_to_enum actf) padding stride resw resh
   |> Mat3.create
 
 external cc_conv2d_ff : Mat.tensor -> Mat.tensor -> Vec.tensor ->

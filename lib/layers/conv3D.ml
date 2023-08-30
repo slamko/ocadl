@@ -9,8 +9,7 @@ type params = {
 type meta = {
     padding : int;
     stride : int;
-    act : activation;
-    deriv : deriv;
+    act : actf;
     kernel_num : int;
     out_shape : mat3 tensor shape;
   }

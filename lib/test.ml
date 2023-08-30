@@ -126,10 +126,10 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     |> make_conv2d ~padding:1 ~stride:1 ~act:Relu
          ~kernel_shape:(Mat.make_shape (Row 4) (Col 4))
 
-(*
-    |> make_pooling ~stride:2 ~f:pooling_max ~fbp:pooling_max_deriv
+    |> make_pooling2d ~stride:2 ~f:Max
          ~filter_shape:(Mat.make_shape (Row 4) (Col 4))
 
+(*
     |> make_conv2d ~padding:1 ~stride:1 ~act:relu ~deriv:relu'
          ~kernel_shape:(make_shape (Row 4) (Col 4))
          ~kernel_num:1

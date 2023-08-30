@@ -14,6 +14,11 @@ type actf =
   | Relu
 [@@deriving enum]
 
+type pooling =
+  | Max [@value 0]
+  | Avarage
+[@@deriving enum]
+
 module New = struct
   type t = {b : float}
 end

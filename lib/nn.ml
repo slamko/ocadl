@@ -230,7 +230,7 @@ let make_conv2d ~kernel_shape ~act ~padding ~stride layers =
   { layers with build_list = Build_Cons(layer, layers.build_list) }
 
 let make_conv3d ~kernel_shape ~kernel_num
-      ~act ~deriv ~padding ~stride layers =
+      ~act ~padding ~stride layers =
   let open Mat in
 
   let prev_shape =
@@ -265,7 +265,6 @@ let make_conv3d ~kernel_shape ~kernel_num
       padding;
       stride;
       act;
-      deriv;
       kernel_num;
       out_shape;
    } in
@@ -283,9 +282,44 @@ let make_conv3d ~kernel_shape ~kernel_num
   let layer = Conv3D (meta, params) in
   { layers with build_list = Build_Cons(layer, layers.build_list) }
 
-(*
+let make_pooling2d ~filter_shape ~stride ~f layers =
+  let open Mat in
 
-let make_pooling ~filter_shape ~stride ~f ~fbp layers =
+  let prev_shape =
+    match layers.build_list with
+    | Build_Cons (lay, _) ->
+       (match lay with
+        | Conv2D (meta, _) -> meta.out_shape
+        | Pooling2D meta -> meta.out_shape
+        | Input2 meta -> meta.shape
+       )
+  in
+
+  let new_dim in_dim filt_dim =
+    ((in_dim +  - filt_dim) / stride) + 1 in
+
+  let Shape.ShapeMat(prev_image_shape) = prev_shape in
+  
+  let meta = { Pooling2D.
+               fselect = f;
+               stride;
+               filter_shape = Shape.make_shape_mat filter_shape;
+               out_shape =
+                 Shape.make_shape_mat
+                   (Mat.make_shape
+                      (Row (new_dim
+                              (get_row prev_image_shape.dim1)
+                              (get_row filter_shape.dim1)))
+                      (Col (new_dim
+                              (get_col prev_image_shape.dim2)
+                              (get_col filter_shape.dim2))))
+             } in
+
+  let layer = Pooling2D meta in
+  {layers with build_list = Build_Cons (layer, layers.build_list) }
+
+
+let make_pooling ~filter_shape ~stride ~f layers =
   let open Mat in
 
   let prev_shape =
@@ -299,34 +333,31 @@ let make_pooling ~filter_shape ~stride ~f ~fbp layers =
   in
 
   let new_dim in_dim filt_dim =
-    ((in_dim +  - filt_dim)
-     / stride) + 1 in
+    ((in_dim +  - filt_dim) / stride) + 1 in
 
-  let Shape.ShapeMatVec(prev_image_shape, prev_out_shape) = prev_shape in
-  (* let Shape.ShapeMat (filter_mat_shape) = filter_shape in *)
+  let Shape.ShapeMatVec(prev_image_shape) = prev_shape in
   
   let meta = { Pooling.
                fselect = f;
-               fderiv = fbp;
                stride;
                filter_shape = Shape.make_shape_mat filter_shape;
                out_shape =
                  Shape.make_shape_mat_vec
-                   (Mat.make_shape
+                   (Mat3.make_shape
                       (Row (new_dim
                               (get_row prev_image_shape.dim1)
                               (get_row filter_shape.dim1)))
                       (Col (new_dim
                               (get_col prev_image_shape.dim2)
-                              (get_col filter_shape.dim2))))
-                   prev_out_shape
+                              (get_col filter_shape.dim2)))
+                      (prev_image_shape.dim3))
              } in
 
   let layer = Pooling meta in
   {layers with build_list = Build_Cons (layer, layers.build_list) }
 
 let make_flatten layers =
-  let Shape.ShapeMatVec (prev_image_shape, prev_out_shape) =
+  let prev_image_shape =
     match layers.build_list with
     | Build_Cons (lay, _) ->
        (match lay with
@@ -340,16 +371,12 @@ let make_flatten layers =
     { Flatten.
       out_shape =
         Shape.make_shape_vec
-        @@ Vec.make_shape
-             (Col
-                ((Mat.shape_size prev_image_shape) *
-                   (Vec.shape_size prev_out_shape)))
+        @@ Vec.make_shape (Col (Shape.shape_size prev_image_shape))
 
     } in
 
   let layer = Flatten meta in
   { layers with build_list = Build_Cons (layer, layers.build_list) }
- *)
 
 let make_flatten2d layers =
   let Shape.ShapeMat (prev_image_shape) =
