@@ -24,18 +24,24 @@ let forward_layer : type a b. a -> (a, b) layer -> b
   | Input2 _ -> input
   | Input1 _ -> input
   | FullyConnected (fc, fcp) ->
-     (match input with
-     | Tensor1 tens -> 
-        (* Vec.print tens; *)
-        let act = actf_to_enum fc.activation in
-        cc_fully_connected_ff tens.matrix
-          fcp.weight_mat.matrix fcp.bias_mat.matrix act
-        |> Vec.create |> make_tens1
-     )
+     let (Tensor1 tens) = input in
+     let act = actf_to_enum fc.activation in
+     cc_fully_connected_ff tens.matrix
+       fcp.weight_mat.matrix fcp.bias_mat.matrix act
+     |> Vec.create |> make_tens1
+
   | Flatten2D meta ->
      let (Tensor2 tens) = input in
      cc_mat_flatten tens.matrix
      |> Vec.wrap |> make_tens1
+
+  | Conv2D (meta, params) ->
+     let (Tensor2 tens) = input in
+     let (Shape.ShapeMat out_shape) = meta.out_shape in
+     conv2d_ff tens params.kernels params.bias_mat
+       meta.act meta.padding meta.stride out_shape.dim2 out_shape.dim1
+     |> make_tens2 
+     
 
 (*
   | Conv3D (cn, cnp) -> 
@@ -424,7 +430,11 @@ let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
        (meta.out_shape, Shape.get_shape data_in)
     | Conv3D (meta, _), Tensor3 _ ->
        (meta.out_shape, Shape.get_shape data_in)
+    | Conv2D (meta, _), Tensor2 _ ->
+       (meta.out_shape, Shape.get_shape data_in)
     | Pooling meta, Tensor3 _ ->
+       (meta.out_shape, Shape.get_shape data_in)
+    | Pooling2D meta, Tensor2 _ ->
        (meta.out_shape, Shape.get_shape data_in)
   in
 
@@ -447,7 +457,11 @@ let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
            (meta.shape, Shape.get_shape data_out)
         | Conv3D (m, _), Tensor3 _ ->
            m.out_shape, Shape.get_shape data_out
+        | Conv2D (meta, _), Tensor2 _ ->
+           meta.out_shape, Shape.get_shape data_out
         | Pooling m, Tensor3 _ ->
+           m.out_shape, Shape.get_shape data_out
+        | Pooling2D m, Tensor2 _ ->
            m.out_shape, Shape.get_shape data_out
        )
   in

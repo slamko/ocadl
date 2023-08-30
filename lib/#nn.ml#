@@ -632,9 +632,31 @@ let nn_apply_params proc nn params =
            
 
           FF_Cons(new_lay, apply_rec t1 t2)
-(*
-       | Conv3D (meta, nn_param), Conv3DParams apply_param ->
-          let kernels = Vec.map2
+       | Conv2D (meta, nn_param), Conv2DParams apply_param ->
+          let bias1_as_mat =
+             (cc_mat_flatten_bp 1 (col nn_param.bias_mat.shape.dim1)
+                nn_param.bias_mat.matrix) in
+
+           let bias2_as_mat =
+             (cc_mat_flatten_bp 1 (col apply_param.bias_mat.shape.dim1)
+                apply_param.bias_mat.matrix) in
+
+           let new_lay =
+             FullyConnected (meta, {
+                 weight_mat = proc
+                                nn_param.weight_mat.matrix
+                                apply_param.weight_mat.matrix
+                              |> Mat.create ;
+
+                 bias_mat = proc bias1_as_mat bias2_as_mat
+                            |> cc_mat_flatten
+                            |> Vec.create
+                 ;
+               }) in
+           
+
+
+          let kernels = .map2
                               (fun v1 v2 -> proc v1 v2)
                               nn_param.kernels apply_param.kernels in
           let bias_mat = proc
@@ -648,7 +670,6 @@ let nn_apply_params proc nn params =
                   bias_mat;
               }) in
           FF_Cons(new_lay, apply_rec t1 t2)
-         *)
         (*
        | Conv3D (meta, nn_param), Conv3DParams apply_param ->
           let kernels = Vec.map2

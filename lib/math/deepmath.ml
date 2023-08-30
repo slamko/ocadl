@@ -92,13 +92,21 @@ external cc_fully_connected_bp : Mat.tensor -> Vec.tensor -> Vec.tensor ->
                                 (Vec.tensor * Mat.tensor * Vec.tensor) =
   "cc_fully_connected_bp_bytecode" "cc_fully_connected_bp_native"
 
-external cc_conv_ff : Mat3.tensor -> Mat3.tensor -> Vec.tensor ->
+external cc_conv3d_ff : Mat3.tensor -> Mat3.tensor -> Vec.tensor ->
                       int -> int -> int -> int -> int -> Mat3.tensor =
   "cc_conv_ff_bytecode" "cc_conv_ff_native"
 
-let conv_ff (inp : mat3) (kerns : mat3) (bias : vec) actf padding stride resw resh =
-  cc_conv_ff inp.matrix kerns.matrix bias.matrix actf padding stride resw resh
+let conv3d_ff (inp : mat3) (kerns : mat3) (bias : vec) actf padding stride resw resh =
+  cc_conv3d_ff inp.matrix kerns.matrix bias.matrix actf padding stride resw resh
   |> Mat3.create
+
+external cc_conv2d_ff : Mat.tensor -> Mat.tensor -> Vec.tensor ->
+                      int -> int -> int -> int -> int -> Mat.tensor =
+  "cc_conv_ff_bytecode" "cc_conv_ff_native"
+
+let conv2d_ff (inp : mat) (kerns : mat) (bias : vec) actf padding stride (Col resw) (Row resh) =
+  cc_conv2d_ff inp.matrix kerns.matrix bias.matrix (actf_to_enum actf) padding stride resw resh
+  |> Mat.create
 
 external cc_mat_scale : float -> Mat.tensor -> Mat.tensor = "cc_mat_scale"
 

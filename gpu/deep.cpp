@@ -216,6 +216,7 @@ extern "C" int conv_ff(const struct mat *input,
 
   kern_set_size_arg(kernel, sizeof(cl_ulong), &stride);
   kern_set_size_arg(kernel, sizeof(cl_ulong), &padding);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &actf);
 
   kern_set_size_arg(kernel, sizeof(cl_ulong), &input->cols);
   kern_set_size_arg(kernel, sizeof(cl_ulong), &input->rows);

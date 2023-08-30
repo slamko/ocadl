@@ -120,16 +120,13 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     |> make_fully_connected ~ncount:10 ~actf:Sigmoid
     |> make_nn in
 
-(*
   let conv_nn =
-    make_input3d @@ Shape.make_shape_mat_vec
-                      (Mat.make_shape (Row 28) (Col 28))
-                      (Vec.make_shape (Col 1))
+    make_input2d (Mat.make_shape (Row 28) (Col 28)) 
 
-    |> make_conv3d ~padding:1 ~stride:1 ~act:relu ~deriv:relu'
+    |> make_conv2d ~padding:1 ~stride:1 ~act:Relu
          ~kernel_shape:(Mat.make_shape (Row 4) (Col 4))
-         ~kernel_num:1
 
+(*
     |> make_pooling ~stride:2 ~f:pooling_max ~fbp:pooling_max_deriv
          ~filter_shape:(Mat.make_shape (Row 4) (Col 4))
 
@@ -139,19 +136,19 @@ let test train_data_fname save_file epochs learning_rate batch_size =
 
     |> make_pooling ~stride:2 ~f:pooling_max ~fbp:pooling_max_deriv
          ~filter_shape:(make_shape (Row 4) (Col 4))
+ *)
 
-    |> make_flatten
-    |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid'
-    |> make_fully_connected ~ncount:10 ~act:sigmoid ~deriv:sigmoid'
+    |> make_flatten2d
+    |> make_fully_connected ~ncount:16 ~actf:Sigmoid
+    |> make_fully_connected ~ncount:10 ~actf:Sigmoid
     |> make_nn
   in
- *)
   
   let nn =
     (* if Sys.file_exists !save_file *)
     (* then restore_nn_from_json !save_file base_nn *)
     (* else *)
-      base_nn
+      conv_nn
   in
 (*  
   let trained_nn =
@@ -167,6 +164,7 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   let* res = loss train_data nn in
   Printf.printf "Cost: %f\n" res;
 
+  (*
   let* trained_nn = learn train_data
                       ~epoch_num:epochs ~learning_rate
                       ~batch_size nn in
@@ -178,11 +176,8 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   Printf.printf "trained loss: %f\n" new_res ;
 
   perform trained_nn train_data ;
+   *)
 
-  let m1 = Mat.random (Row 28) (Col 16) in
-  let m2 = Mat.random (Row 28) (Col 16) in
-  (* let scaled = cc_mat_scale 2.0 m1.matrix in *)
-  let scaled = cc_mat_scale 3.0 m1.matrix in
   (* Printf.printf "Act: %d\n" (actf_to_enum Sigmoid) ; *)
 
   (* Printf.printf "M1: \n%!" ; *)
