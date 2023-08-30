@@ -92,6 +92,28 @@ external cc_fully_connected_bp : Mat.tensor -> Vec.tensor -> Vec.tensor ->
                                 (Vec.tensor * Mat.tensor * Vec.tensor) =
   "cc_fully_connected_bp_bytecode" "cc_fully_connected_bp_native"
 
+external cc_pooling3d_ff : Mat3.tensor -> int -> int -> int -> int -> int -> int ->
+                           Mat3.tensor =
+  "cc_pooling_ff_bytecode" "cc_pooling_ff_native"
+
+let pooling3d_ff (inp : mat3) pool_type stride
+      (res_shape : Mat.shape) (filter_shape : Mat.shape) =
+  cc_pooling3d_ff inp.matrix pool_type stride
+    (col res_shape.dim2) (row res_shape.dim1)
+    (col filter_shape.dim2) (row filter_shape.dim1)
+  |> Mat3.create
+
+external cc_pooling2d_ff : Mat.tensor -> int -> int -> int -> int -> int -> int ->
+                           Mat.tensor =
+  "cc_pooling_ff_bytecode" "cc_pooling_ff_native"
+
+let pooling2d_ff (inp : mat) pool_type stride
+      (res_shape : Mat.shape) (filter_shape : Mat.shape) =
+  cc_pooling2d_ff inp.matrix pool_type stride
+    (col res_shape.dim2) (row res_shape.dim1)
+    (col filter_shape.dim2) (row filter_shape.dim1)
+  |> Mat.create
+
 external cc_conv3d_ff : Mat3.tensor -> Mat3.tensor -> Vec.tensor ->
                       int -> int -> int -> int -> int -> Mat3.tensor =
   "cc_conv_ff_bytecode" "cc_conv_ff_native"

@@ -31,4 +31,12 @@ int conv_ff(const struct mat *input,
                        unsigned long res_height,
                        struct mat *res);
  
+int pooling_ff(const struct mat *input,
+                          long type,
+                          unsigned long stride,
+                          unsigned long res_width,
+                          unsigned long res_height,
+                          unsigned long filter_width,
+                          unsigned long filter_height,
+                          struct mat *res);
 #endif

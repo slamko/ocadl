@@ -192,6 +192,51 @@ CAMLprim value cc_conv_ff_bytecode(value *argv, int argn) {
     return cc_conv_ff_native(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
 }
 
+CAMLprim value cc_pooling_ff_native(value input,
+                                    value type_val, value stride_val,
+                                    value res_width_val, value res_height_val,
+                                    value filterw_val, value filterh_val) {
+
+    CAMLparam5(input, type_val, stride_val, res_width_val, res_height_val);
+    CAMLxparam2(filterw_val, filterh_val);
+
+    struct caml_ba_array *inp_arr = Caml_ba_array_val(input);
+
+    long stride = Long_val(stride_val);
+    long res_width = Long_val(res_width_val);
+    long res_height = Long_val(res_height_val);
+
+    long type = Long_val(type_val);
+    long filter_width = Long_val(filterw_val);
+    long filter_height = Long_val(filterh_val);
+
+    struct mat inp_mat = mat_of_ba(inp_arr);
+    
+    struct mat res_mat = {0};
+
+    int ret = pooling_ff(&inp_mat, type, stride, res_width, res_height,
+                         filter_width, filter_height, &res_mat);
+
+    if (ret) {
+        caml_fatal_error("Pooling feed forward failed %d\n", ret);
+    }
+                                            
+    long dims[3] = { res_width, res_height, inp_mat.dim3 };
+
+    CAMLreturn(
+        caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 3,
+                      res_mat.matrix, dims));
+}
+
+CAMLprim value cc_pooling_ff_bytecode(value *argv, int argn) {
+    if (argn != 2) {
+        caml_fatal_error("Wrong number of args for C stub");
+    }
+    
+    return cc_pooling_ff_native(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+}
+
+
 CAMLprim value cc_vec_scale(double scale, value mat) {
     /* CAMLparam1(mat); */
 

@@ -252,13 +252,13 @@ extern "C" int conv_ff(const struct mat *input,
 }
 
 extern "C" int pooling_ff(const struct mat *input,
-                       long type,
-                       unsigned long stride,
-                       unsigned long res_width,
-                       unsigned long res_height,
-                       unsigned long filter_width,
-                       unsigned long filter_height,
-                       struct mat *res) {
+                          long type,
+                          unsigned long stride,
+                          unsigned long res_width,
+                          unsigned long res_height,
+                          unsigned long filter_width,
+                          unsigned long filter_height,
+                          struct mat *res) {
   using namespace cl;
 
   cl_int ret = {0};
