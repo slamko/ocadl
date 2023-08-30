@@ -212,6 +212,7 @@ extern "C" int conv_ff(const struct mat *input,
   size_t argi = 0;
   kern_set_arg(kernel, inp_buf);
   kern_set_arg(kernel, kern_vec_buf);
+  kern_set_size_arg(kernel, kern_vec_size, NULL);
   kern_set_arg(kernel, bmat_buf);
 
   kern_set_size_arg(kernel, sizeof(cl_ulong), &stride);
@@ -317,10 +318,10 @@ extern "C" int pooling_ff(const struct mat *input,
 
   ret = queue.enqueueReadBuffer(res_buf, CL_TRUE, 0, res_mat_size, res->matrix);
 
-  printf("POoling res\n");
+  // printf("POoling res\n");
 
-  mat_print(res);
-  printf("POoling res\n\n");
+  // mat_print(res);
+  // printf("POoling res\n\n");
   return ret;
 }
 
