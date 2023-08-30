@@ -211,7 +211,6 @@ __kernel void conv_ff(__global __read_only const float *image,
     res[z * res_size + y * res_width + x] = r; 
 }
 
-
 __kernel void pooling_ff(__global __read_only const float *image,
                          unsigned long stride,
                          unsigned long filter_width,

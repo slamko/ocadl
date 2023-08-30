@@ -164,55 +164,82 @@ extern "C" int fully_connected_ff(const struct mat *input,
   return ret;
 }
 
+#define kern_set_arg(kernel, buf) \
+  ret |= kernel.setArg(argi, buf);    \
+  argi++;
 
-extern "C" int conv2d_ff(const struct mat *input,
-                         const struct mat *weight_mat,
-                         const struct mat *bias_vec,
-                         struct mat *res) {
+#define kern_set_size_arg(kernel, size, arg)     \
+  ret |= kernel.setArg(argi, size, arg);          \
+  argi++;
+
+extern "C" int conv_ff(const struct mat *input,
+                       const struct mat *kernels,
+                       const struct mat *bias_vec,
+                       long actf,
+                       unsigned long padding,
+                       unsigned long stride,
+                       unsigned long res_width,
+                       unsigned long res_height,
+                       struct mat *res) {
   using namespace cl;
 
   cl_int ret = {0};
   
-  if (input->cols != weight_mat->rows
-      || weight_mat->cols != bias_vec->cols) {
+  if (kernels->dim3 != bias_vec->dim3) {
     return 1;
   }
   
-  *res = mat_nil(1, weight_mat->cols);
+  *res = mat3_make(res_width, res_height, kernels->dim3);
   
   size_t inp_mat_size = mat_mem_size(input);
-  size_t wmat_size = mat_mem_size(weight_mat);
+  size_t kern_vec_size = mat_mem_size(kernels);
   size_t bmat_size = mat_mem_size(bias_vec);
   size_t res_mat_size = mat_mem_size(res);
   
-  Kernel kernel { nn_prog, "dense_ff" };
+  Kernel kernel { nn_prog, "conv_ff" };
   cl_mem_flags in_flags =  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS;
   
   Buffer inp_buf { context, in_flags, inp_mat_size, input->matrix };
-  Buffer wmat_buf { context, in_flags, wmat_size, weight_mat->matrix };
+  Buffer kern_vec_buf { context, in_flags, kern_vec_size, kernels->matrix };
   Buffer bmat_buf { context, in_flags, bmat_size, bias_vec->matrix };
-  SVMAllocator<float, SVMTraitCoarse<>> svm_alloc { context };
-  // svm_alloc.
   Buffer res_buf { context, CL_MEM_WRITE_ONLY, res_mat_size, NULL };
   
-  cl_ulong mat_dim = weight_mat->rows;
-  cl_ulong width = weight_mat->cols;
+  cl_ulong xdim = input->cols;
+  cl_ulong ydim = input->rows;
+  cl_ulong zdim = res->dim3;
 
-  ret |= kernel.setArg(0, inp_buf);
-  ret |= kernel.setArg(1, wmat_buf);
-  ret |= kernel.setArg(2, bmat_buf);
-  ret |= kernel.setArg(3, res_buf);
-  ret |= kernel.setArg(4, sizeof(cl_ulong), &mat_dim);
-  ret |= kernel.setArg(5, sizeof(cl_ulong), &width);
+  size_t argi = 0;
+  kern_set_arg(kernel, inp_buf);
+  kern_set_arg(kernel, kern_vec_buf);
+  kern_set_arg(kernel, bmat_buf);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &stride);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &padding);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &input->cols);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &input->rows);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &kernels->dim3);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &input->dim3);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &kernels->cols);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &kernels->rows);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &res_width);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &res_height);
+
+  kern_set_arg(kernel, res_buf);
 
   if (ret) return ret;
   
-  cl_ulong dim = weight_mat->cols;
-  size_t ldim1 = 32;
-  size_t dim1 = align(dim, ldim1);
+  size_t ldim1 = 8, ldim2 = 16, ldim3 = 1;
+
+  size_t dim1 = align(xdim, ldim1);
+  size_t dim2 = align(ydim, ldim2);
+  size_t dim3 = align(zdim, ldim3);
  
-  auto glob_range = NDRange(dim1);
-  auto loc_range = NDRange(ldim1);
+  auto glob_range = NDRange(dim1, dim2, dim3);
+  auto loc_range = NDRange(ldim1, ldim2, ldim3);
 
   ret = queue.enqueueNDRangeKernel(kernel, NullRange, glob_range, loc_range);
   if (ret) return ret;
@@ -222,4 +249,72 @@ extern "C" int conv2d_ff(const struct mat *input,
   return ret;
 }
 
+extern "C" int pooling_ff(const struct mat *input,
+                       long type,
+                       unsigned long stride,
+                       unsigned long res_width,
+                       unsigned long res_height,
+                       unsigned long filter_width,
+                       unsigned long filter_height,
+                       struct mat *res) {
+  using namespace cl;
+
+  cl_int ret = {0};
+  
+  if (!input->matrix) {
+    return 1;
+  }
+  
+  *res = mat3_make(res_width, res_height, input->dim3);
+  
+  size_t inp_mat_size = mat_mem_size(input);
+  size_t res_mat_size = mat_mem_size(res);
+  
+  Kernel kernel { nn_prog, "pooling_ff" };
+  cl_mem_flags in_flags =  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS;
+  
+  Buffer inp_buf { context, in_flags, inp_mat_size, input->matrix };
+  Buffer res_buf { context, CL_MEM_WRITE_ONLY, res_mat_size, NULL };
+  
+  cl_ulong xdim = input->cols;
+  cl_ulong ydim = input->rows;
+  cl_ulong zdim = res->dim3;
+
+  size_t argi = 0;
+  kern_set_arg(kernel, inp_buf);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &stride);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &filter_width);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &filter_height);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &input->cols);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &input->rows);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &input->dim3);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &type);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &res_width);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &res_height);
+
+  kern_set_arg(kernel, res_buf);
+
+  if (ret) return ret;
+  
+  size_t ldim1 = 8, ldim2 = 16, ldim3 = 1;
+
+  size_t dim1 = align(xdim, ldim1);
+  size_t dim2 = align(ydim, ldim2);
+  size_t dim3 = align(zdim, ldim3);
+ 
+  auto glob_range = NDRange(dim1, dim2, dim3);
+  auto loc_range = NDRange(ldim1, ldim2, ldim3);
+
+  ret = queue.enqueueNDRangeKernel(kernel, NullRange, glob_range, loc_range);
+  if (ret) return ret;
+
+  ret = queue.enqueueReadBuffer(res_buf, CL_TRUE, 0, res_mat_size, res->matrix);
+
+  return ret;
+}
 

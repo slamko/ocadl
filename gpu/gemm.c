@@ -147,6 +147,72 @@ CAMLprim value cc_fully_connected_bp_bytecode(value *argv, int argn) {
     return cc_fully_connected_bp_native(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
 }
 
+CAMLprim value cc_conv_ff_native(value input, value kernels,
+                                 value bias_vec, value actf_val,
+                                 value padding, value stride,
+                                 value res_width, value res_height) {
+    /* 
+    CAMLparam5(input, kernels, bias_vec, actf, padding);
+    CAMLxparam3(stride, res_width, res_height);
+
+    struct caml_ba_array *dmat = Caml_ba_array_val(diff_mat);
+    struct caml_ba_array *wmat = Caml_ba_array_val(weight_mat);
+    long actf = Long_val(actf_val);
+
+    struct caml_ba_array *wgrad_ba = Caml_ba_array_val(wgrad_mat);
+    struct caml_ba_array *bgrad_ba = Caml_ba_array_val(bgrad_mat);
+
+    struct caml_ba_array *actmat = Caml_ba_array_val(act_mat);
+    struct caml_ba_array *prev_actmat = Caml_ba_array_val(prev_act_mat);
+
+    struct mat diff_data = mat_of_ba(dmat);
+    struct mat wdata = mat_of_ba(wmat);
+    struct mat act_data = mat_of_ba(actmat);
+    struct mat prev_act_data = mat_of_ba(prev_actmat);
+
+    struct mat wgrad = mat_of_ba(wgrad_ba);
+    struct mat bgrad = mat_of_ba(bgrad_ba);
+
+    struct mat prev_diff;
+
+    int ret = fully_connected_bp(&wdata, &prev_act_data, &act_data,
+                                 &diff_data, &prev_diff, &wgrad, &bgrad, prev_layer, actf);
+
+    if (ret) {
+        caml_fatal_error("Fully connected backpropagation failed %d\n", ret);
+    }
+                                            
+    res_tuple = caml_alloc_tuple(3);
+
+    long pd_dims[1] = { prev_diff.cols };
+    
+    Store_field(res_tuple, 0,
+                caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
+                              prev_diff.matrix, pd_dims));
+
+    long wg_dims[2] = { wgrad.rows, wgrad.cols };
+
+    Store_field(res_tuple, 1,
+                caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
+                              wgrad.matrix, wg_dims));
+ 
+    long bg_dims[1] = { bgrad.cols };
+
+    Store_field(res_tuple, 2,
+                caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
+                              bgrad.matrix, bg_dims));
+    CAMLreturn(res_tuple);
+    */
+}
+
+CAMLprim value cc_conv_ff_bytecode(value *argv, int argn) {
+    if (argn != 8) {
+        caml_fatal_error("Wrong number of args for C stub");
+    }
+    
+    return cc_fully_connected_bp_native(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
+}
+
 CAMLprim value cc_vec_scale(value scale, value mat) {
     CAMLparam2(scale, mat);
 
