@@ -231,7 +231,7 @@ __kernel void pooling_ff(__global __read_only const float *image,
     size_t filter_size = filter_width * filter_height;
     size_t res_size = res_width * res_height;
 
-    float r = 0.0;
+    float res_val = 0.0;
 
     switch (pooling_type) {
     case POOLING_MAX:
@@ -239,8 +239,8 @@ __kernel void pooling_ff(__global __read_only const float *image,
             for (unsigned long c = 0; c < filter_height; c++) {
                 float cur_pixel = image[z * im_size + y * im_width + r * im_width + x + c];
 
-                if (cur_pixel > r) {
-                    r = cur_pixel;
+                if (cur_pixel > res_val) {
+                    res_val = cur_pixel;
                 }
             }
         }
@@ -250,18 +250,18 @@ __kernel void pooling_ff(__global __read_only const float *image,
         for (unsigned long r = 0; r < filter_width; r++) {
             for (unsigned long c = 0; c < filter_height; c++) {
                 float cur_pixel = image[z * im_size + y * im_width + r * im_width + x + c];
-                r += cur_pixel;
+                res_val += cur_pixel;
             }
         }
 
-        r /= filter_size;
+        res_val /= filter_size;
         break;
     default:
         printf("Error: Unknown pooling type\n");
         break;
     }
 
-    res[z * res_size + y * res_width + x] = r; 
+    res[z * res_size + y * res_width + x] = res_val; 
 }
 
 

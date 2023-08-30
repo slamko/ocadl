@@ -1,6 +1,9 @@
 open Common
 open Bigarray
 
+external cc_mat3_print : (float, float32_elt, c_layout) Array3.t ->
+                        unit = "cc_mat_print"
+
 external cc_mat_print : (float, float32_elt, c_layout) Array2.t ->
                         unit = "cc_mat_print"
 

@@ -27,6 +27,7 @@ let forward_layer : type a b. a -> (a, b) layer -> b
   | FullyConnected (fc, fcp) ->
      let (Tensor1 tens) = input in
      let act = actf_to_enum fc.activation in
+     cc_vec_print tens.matrix ;
      cc_fully_connected_ff tens.matrix
        fcp.weight_mat.matrix fcp.bias_mat.matrix act
      |> Vec.create |> make_tens1
@@ -39,7 +40,7 @@ let forward_layer : type a b. a -> (a, b) layer -> b
   | Conv2D (meta, params) ->
      let (Tensor2 tens) = input in
      let (Shape.ShapeMat out_shape) = meta.out_shape in
-     (* cc_ma *)
+     cc_mat_print tens.matrix ;
      conv2d_ff tens params.kernels params.bias_mat
        meta.act meta.padding meta.stride out_shape.dim2 out_shape.dim1
      |> make_tens2 
@@ -53,6 +54,7 @@ let forward_layer : type a b. a -> (a, b) layer -> b
 
   | Pooling2D pl ->
      let (Tensor2 tens) = input in
+     cc_mat_print tens.matrix ;
      let (Shape.ShapeMat out_shape) = pl.out_shape in
      let (Shape.ShapeMat filter_shape) = pl.filter_shape in
      pooling2d_ff tens pl.fselect pl.stride out_shape filter_shape

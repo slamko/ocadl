@@ -278,7 +278,7 @@ extern "C" int pooling_ff(const struct mat *input,
   Buffer inp_buf { context, in_flags, inp_mat_size, input->matrix };
   Buffer res_buf { context, CL_MEM_WRITE_ONLY, res_mat_size, NULL };
   
-  cl_ulong xdim = input->cols;
+  cl_ulong xdim = res->cols;
   cl_ulong ydim = input->rows;
   cl_ulong zdim = res->dim3;
 
@@ -317,6 +317,10 @@ extern "C" int pooling_ff(const struct mat *input,
 
   ret = queue.enqueueReadBuffer(res_buf, CL_TRUE, 0, res_mat_size, res->matrix);
 
+  printf("POoling res\n");
+
+  mat_print(res);
+  printf("POoling res\n\n");
   return ret;
 }
 
