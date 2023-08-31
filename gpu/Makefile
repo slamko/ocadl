@@ -1,14 +1,14 @@
 LIB =
 LIB += OpenCL
 
-all: main.c
-	gcc $^ -g -l$(LIB) -msse4.2 -o vec 
+CPP_SRC =
+CPP_SRC += ocl.cpp
+CPP_SRC += blac.cpp
+CPP_SRC += deep.cpp
+CPP_SRC += test.cpp
 
-bench: bench.c
-	gcc $^ -l $(LIB) -o bench
-
-lib: blac.c
-	gcc -shared -fPIC blac.c -fPIC -l$(LIB) -o libblac.so
+test: $(CPP_SRC)
+	g++ $^ -o test -lOpenCL
 
 clean:
 	$(RM) -f *.out

@@ -164,14 +164,6 @@ extern "C" int fully_connected_ff(const struct mat *input,
   return ret;
 }
 
-#define kern_set_arg(kernel, buf) \
-  ret |= kernel.setArg(argi, buf);    \
-  argi++;
-
-#define kern_set_size_arg(kernel, size, arg)     \
-  ret |= kernel.setArg(argi, size, arg);          \
-  argi++;
-
 extern "C" int conv_ff(const struct mat *input,
                        const struct mat *kernels,
                        const struct mat *bias_vec,
@@ -212,7 +204,6 @@ extern "C" int conv_ff(const struct mat *input,
   size_t argi = 0;
   kern_set_arg(kernel, inp_buf);
   kern_set_arg(kernel, kern_vec_buf);
-  kern_set_size_arg(kernel, kern_vec_size, NULL);
   kern_set_arg(kernel, bmat_buf);
 
   kern_set_size_arg(kernel, sizeof(cl_ulong), &stride);
@@ -235,7 +226,7 @@ extern "C" int conv_ff(const struct mat *input,
 
   if (ret) return ret;
   
-  size_t ldim1 = 8, ldim2 = 16, ldim3 = 1;
+  size_t ldim1 = 32, ldim2 = 32, ldim3 = 1;
 
   size_t dim1 = align(xdim, ldim1);
   size_t dim2 = align(ydim, ldim2);
