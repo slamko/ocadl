@@ -295,6 +295,8 @@ extern "C" int conv2(const struct mat *input,
   return ret;
 }
 
+
+
 extern "C" int conv1(const struct mat *input,
                        const struct mat *kernels,
                        unsigned long padding,

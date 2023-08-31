@@ -8,7 +8,7 @@ CPP_SRC += deep.cpp
 CPP_SRC += test.cpp
 
 test: $(CPP_SRC)
-	g++ $^ -o test -lOpenCL
+	g++ $^ -O2 -o test -msse4.2 -lOpenCL
 
 clean:
 	$(RM) -f *.out

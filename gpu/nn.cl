@@ -25,6 +25,20 @@ float relu_deriv(float x) {
 #define ACTF_SIGMOID 0
 #define ACTF_RELU 1
 
+
+float deriv(float value, long actf) {
+    switch (actf) {
+    case ACTF_SIGMOID:
+        return sigmoid_deriv(value);
+        break;
+    case ACTF_RELU:
+        return relu_deriv(value);
+    default:
+        printf("Error: Unknown activation function\n");
+        break;
+    }
+}
+
 #define POOLING_MAX 0
 #define POOLING_AVG 1
 
@@ -102,32 +116,20 @@ __kernel void dense_bp(__global __read_only const float *weight_mat,
     float diff = diff_mat[x];
     float cur_act = act_mat[x];
 
-    float cur_act_deriv = 0.0;
+    float cur_act_deriv = deriv(cur_act, actf);
+    
+    size_t wmati = y * width + x;
 
-    switch (actf) {
-    case ACTF_SIGMOID:
-        cur_act_deriv = sigmoid_deriv(cur_act);
-        break;
-    case ACTF_RELU:
-        cur_act_deriv = relu_deriv(cur_act);
-        break;
-    default:
-        printf("Error: Unknown activation function\n");
-        break;
-    }
-     
-         size_t wmati = y * width + x;
+    float weight = weight_mat[wmati];
+    float prev_act = prev_act_mat[y];
 
-         float weight = weight_mat[wmati];
-         float prev_act = prev_act_mat[y];
+    float dprev = diff * cur_act_deriv * weight;
+    float dw = diff * cur_act_deriv * prev_act;
 
-         float dprev = diff * cur_act_deriv * weight;
-         float dw = diff * cur_act_deriv * prev_act;
+    wmat_grad[wmati] += dw;
+    cache[wmati] = dprev;
 
-         wmat_grad[wmati] += dw;
-         cache[wmati] = dprev;
-
-   bmat_grad[x] += diff * cur_act_deriv;
+    bmat_grad[x] += diff * cur_act_deriv;
 }
 
 __kernel void mat_sum(__global __read_only float *mat,
@@ -211,6 +213,94 @@ __kernel void conv_ff(__global __read_only const float *image,
     res[z * res_size + y * res_width + x] = r; 
 }
 
+    /*
+__kernel void conv_bp(__global __read_only const float *act,
+                        __global __read_only const float *act_prev,
+                        __global __read_write const float *dz,
+                        __global __read_only const float *diff_mat,
+                        unsigned long stride,
+                        unsigned long padding,
+                        unsigned long actf, 
+                        unsigned long act_width,
+                        unsigned long act_height,
+                        unsigned long kern_num,
+                        unsigned long image_num,
+                        unsigned long kern_width,
+                        unsigned long kern_height,
+                        unsigned long res_width,
+                        unsigned long res_height,
+                        __global __write_only float *bias_grad
+                        __global __write_only float *weight_grad) {
+    
+    size_t x = get_global_id(0);
+    size_t y = get_global_id(1);
+    size_t z = get_global_id(2);
+
+    size_t im_size = im_width * im_height;
+    size_t kern_size = kern_width * kern_height;
+    size_t res_size = res_width * res_height;
+
+    if (x >= im_width || y >= im_height || z >= kern_num) {
+        return;
+    }
+
+    if (x % stride || y % stride) {
+        return;
+    }
+
+
+    for (size_t r = 0; r < act_height; r++) {
+        for (size_t c = 0; c < act_width; c++) {
+            dz[r * act_width + c] = deriv(act[r * act_width + c], actf); 
+        }
+    }
+
+    for (size_t r = 0; r < act_height; r++) {
+        for (size_t c = 0; c < act_width; c++) {
+            dz[r * act_width + c] *= diff_mat[r * act_width + c]; 
+        }
+    }
+    
+    float dz_sum = 0.0;
+
+    for (size_t r = 0; r < act_height; r++) {
+        for (size_t c = 0; c < act_width; c++) {
+            dz_sum += dz[r * act_width + c]; 
+        }
+    }
+    *bias_grad = dz_sum;
+
+    float sum = 0.0;
+    for (unsigned long i = 0; i < image_num; i++) {
+        for (unsigned long r = 0; r < kern_width; r++) {
+            for (unsigned long c = 0; c < kern_height; c++) {
+                float cur_kval = kern[z * kern_size + r * kern_width + c];
+                float cur_pixel = image[i * im_size + y * im_width + r * im_width + x + c];
+
+                sum += cur_kval * cur_pixel;
+            }
+        }
+    }
+
+    float biased_sum = sum + bias_vec[z];
+
+    float r = 0.0;
+    switch (actf) {
+    case ACTF_SIGMOID:
+        r = sigmoid(biased_sum);
+        break;
+    case ACTF_RELU:
+        r = relu(biased_sum);
+        break;
+    default:
+        printf("Error: Unknown activation function\n");
+        break;
+    }
+    
+    res[z * res_size + y * res_width + x] = r; 
+}
+    */
+
 __kernel void pooling_ff(__global __read_only const float *image,
                          unsigned long stride,
                          unsigned long filter_width,
@@ -263,4 +353,3 @@ __kernel void pooling_ff(__global __read_only const float *image,
 
     res[z * res_size + y * res_width + x] = res_val; 
 }
-
