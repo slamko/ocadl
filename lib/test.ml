@@ -155,23 +155,12 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     (* if Sys.file_exists !save_file *)
     (* then restore_nn_from_json !save_file base_nn *)
     (* else *)
-      conv_nn
-  in
-(*  
-  let trained_nn =
-    match learn train_data
-            ~epoch_num:epochs
-            ~learning_rate:!learning_rate
-            ~batch_size:!batch_size nn with
-    | Ok new_nn -> new_nn
-    | Error err -> failwith err
+      base_nn
   in
 
- *)
   let* res = loss train_data nn in
   Printf.printf "Cost: %f\n" res;
 
-  (*
   let* trained_nn = learn train_data
                       ~epoch_num:epochs ~learning_rate
                       ~batch_size nn in
@@ -183,7 +172,6 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   Printf.printf "trained loss: %f\n" new_res ;
 
   perform trained_nn train_data ;
-   *)
 
   (* Printf.printf "Act: %d\n" (actf_to_enum Sigmoid) ; *)
 

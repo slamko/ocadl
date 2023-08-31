@@ -1,5 +1,7 @@
 #include <CL/opencl.hpp>
 #include "ocl.hpp"
+#include "blasc.hpp"
+#include <math.h>
 
 extern "C" {
 #include "blasc.h"
@@ -8,12 +10,20 @@ extern "C" {
 #include <iostream>
 #include <fstream>
 
+void Matrix::print() {
+  mat_print(&matrix);
+}
+
+Matrix::~Matrix() {
+  mat_free(&matrix);
+}
+
 size_t mat_mem_size(const struct mat *mat) {
     return (mat->rows * mat->cols * mat->dim3 * sizeof(*mat->matrix));
 }
 
 void mat_free(struct mat *mat) {
-  std::free(mat->matrix);
+  delete[] mat->matrix;
 }
 
 void fatal_error(std::string msg) {
@@ -42,7 +52,7 @@ struct mat mat_of_array(float *arr, size_t rows, size_t cols) {
 struct mat mat3_random(size_t rows, size_t cols, size_t dim3) {
     size_t mat_dims = rows * cols;
     
-    float *matrix = (float *)std::malloc(mat_dims * sizeof(*matrix));
+    float *matrix = new float[mat_dims];
 
     for (size_t i = 0; i < rows * cols * dim3; i++) {
       matrix[i] = std::rand() % 100;
@@ -58,7 +68,7 @@ struct mat mat3_random(size_t rows, size_t cols, size_t dim3) {
 struct mat mat3_make(size_t rows, size_t cols, size_t dim3) {
     size_t mat_dims = rows * cols;
     
-    float *matrix = (float *)std::malloc(mat_dims * sizeof(*matrix));
+    float *matrix = new float[mat_dims];
 
     if (!matrix) {
         fatal_error("Matrix allocation failed\n");
@@ -74,7 +84,7 @@ struct mat mat_make(size_t rows, size_t cols) {
 struct mat mat3_nil(size_t rows, size_t cols, size_t dim3) {
     size_t mat_dims = rows * cols;
     
-    float *matrix = (float *)std::calloc(mat_dims, sizeof *matrix);
+    float *matrix = new float[mat_dims] ();
     if (!matrix) {
         fatal_error("Matrix allocation failed\n");
     }
@@ -438,7 +448,7 @@ extern "C" int vec_sum(const struct mat *mat, float *res) {
   *res = 0.0;
 
   for (size_t i = 0; i < mat->rows * mat->cols; i++) {
-    *res += mat->matrix[i];
+    *res += std::fabs(mat->matrix[i]);
   }
 
   return 0;

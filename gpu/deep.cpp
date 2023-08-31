@@ -1,10 +1,12 @@
 #include <CL/opencl.hpp>
 #include <iostream>
+
 #include "ocl.hpp"
+#include "blasc.hpp"
 
 extern "C" {
 #include "blasc.h"
-  #include "deep.h"
+#include "deep.h"
 }
 
 extern "C" int fully_connected_bp(
@@ -16,7 +18,7 @@ extern "C" int fully_connected_bp(
                        struct mat *wgrad_mat,
                        struct mat *bgrad_vec,
                        long actf,
-                       _Bool prev_layer) {
+                       bool prev_layer) {
   using namespace cl;
   int ret = 0;
 
@@ -60,9 +62,8 @@ extern "C" int fully_connected_bp(
   size_t dim1 = align(width, ldim1);
   size_t dim2 = n;
 
-
-  struct mat cache_mat = mat_make(n, act_vec->cols);
-  size_t cache_size = mat_mem_size(&cache_mat);
+  Matrix cache_mat { mat_make(n, act_vec->cols) };
+  size_t cache_size = mat_mem_size(&cache_mat.matrix);
   Buffer cache_buf { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, cache_size, NULL };
 
   ret |= kernel.setArg(0, wmat_buf);
@@ -94,14 +95,12 @@ extern "C" int fully_connected_bp(
   if (prev_layer) {
     for (size_t i = 0; i < n; i++) {
       prev_diff_vec->matrix[i] = 0.0;
-      for (size_t j = 0; j < cache_mat.cols; j++) {
+      for (size_t j = 0; j < cache_mat.matrix.cols; j++) {
         prev_diff_vec->matrix[i] +=
-          cache_mat.matrix[i * cache_mat.cols + j];
+          cache_mat.matrix.matrix[i * cache_mat.matrix.cols + j];
       }
     }
   }
-
-  mat_free(&cache_mat);
 
   return ret;
 }
