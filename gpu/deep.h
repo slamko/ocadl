@@ -39,4 +39,17 @@ int pooling_ff(const struct mat *input,
                           unsigned long filter_width,
                           unsigned long filter_height,
                           struct mat *res);
+
+int conv_bp(const struct mat *kernels_mat,
+                       const struct mat *prev_act_mat,
+                       const struct mat *act_mat,
+                       const struct mat *diff_mat,
+                       struct mat *prev_diff_mat,
+                       struct mat *kern_grad_mat,
+                       struct mat *bgrad_vec,
+                       long actf,
+                       unsigned long stride,
+                       unsigned long padding,
+                       int prev_layer);
+ 
 #endif

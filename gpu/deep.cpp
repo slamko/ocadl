@@ -53,8 +53,6 @@ extern "C" int fully_connected_bp(
   cl_ulong n = weight_mat->rows;
   cl_ulong width = weight_mat->cols;
 
-  size_t global_work_size [1] = { width };
-
   size_t ldim1 = 8;
   size_t ldim2 = 16;
   size_t dim1 = align(width, ldim1);
@@ -84,8 +82,6 @@ extern "C" int fully_connected_bp(
   ret = queue.enqueueNDRangeKernel(kernel, NullRange, glob_range, loc_range);
   if (ret) return ret;
 
-  // ret |= queue.enqueueReadBuffer(cache_buf, CL_TRUE, 0, cache_size, cache_mat.matrix.matrix);
-  // ret |= queue.enqueueReadBuffer(prev_diff_buf, CL_TRUE, 0, prev_diff_size, prev_diff_vec->matrix);
   ret |= queue.enqueueReadBuffer(wgrad_buf, CL_TRUE, 0, wgrad_size, wgrad_mat->matrix);
   ret |= queue.enqueueReadBuffer(bgrad_buf, CL_TRUE, 0, bgrad_size, bgrad_vec->matrix);
   if (ret) return ret;
@@ -108,8 +104,9 @@ extern "C" int fully_connected_bp(
   return ret;
 }
 
-extern "C" int conv_bp(const struct mat *prev_act_mat,
+extern "C" int conv_bp(
                        const struct mat *kernels_mat,
+                       const struct mat *prev_act_mat,
                        const struct mat *act_mat,
                        const struct mat *diff_mat,
                        struct mat *prev_diff_mat,
@@ -208,7 +205,7 @@ extern "C" int conv_bp(const struct mat *prev_act_mat,
   dim2 = align(kernels_mat->rows, ldim2);
 
   if (ret) return ret;
-
+  // 
   glob_range = NDRange(dim1, dim2, kernels_mat->dim3);
   loc_range = NDRange(ldim1, ldim2, 1);
 

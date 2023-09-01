@@ -78,9 +78,19 @@ external cc_mat_flatten : Mat.tensor -> Vec.tensor = "cc_mat_flatten"
 external cc_mat_flatten_bp : int -> int -> Vec.tensor ->
                              Mat.tensor = "cc_mat_flatten_bp"
 
+external cc_mat3_flatten : Mat3.tensor -> Vec.tensor = "cc_mat3_flatten"
+
+external cc_mat3_flatten_bp : int -> int -> int -> Vec.tensor ->
+                             Mat3.tensor = "cc_mat3_flatten_bp"
+
 external gpu_init : unit -> unit = "cc_gpu_init"
 
 external gpu_finish : unit -> unit = "cc_gpu_finish"
+
+external cc_conv_bp : Mat.tensor -> Mat.tensor -> Mat.tensor ->
+                                 Mat.tensor -> Mat.tensor -> Vec.tensor -> bool -> int ->
+                                (Mat.tensor * Mat.tensor * Vec.tensor) =
+  "cc_conv_bp_bytecode" "cc_conv2d_bp_native"
 
 external cc_fully_connected_bp : Mat.tensor -> Vec.tensor -> Vec.tensor ->
                                  Vec.tensor -> Mat.tensor -> Vec.tensor -> bool -> int ->

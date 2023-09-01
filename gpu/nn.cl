@@ -151,26 +151,6 @@ __kernel void mat_sum(__global __read_only float *mat,
     res[x] = sum;
 }
 
-__kernel void mat3_sum(__global __read_only float *mat,
-                        unsigned long rows,
-                        unsigned long cols,
-                        __global __write_only float *res) {
-
-    size_t x = get_global_id(0);
-    size_t y = get_global_id(1);
-
-    if (x >= rows) {
-        return;
-    }
-
-    float sum = 0.0;
-    for (unsigned int i = 0; i < cols; i++) {
-        sum += mat[y * (rows * cols) + x * cols + i];  
-    }
-
-    res[x] = sum;
-}
-
 __kernel void conv_ff(__global __read_only const float *image,
                         __global __read_only const float *kern,
                         __global __read_only const float *bias_vec,

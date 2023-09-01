@@ -80,6 +80,73 @@ CAMLprim value cc_fully_connected_ff(value input, value weight_mat,
                              res_mat.matrix, dims));
 }
 
+CAMLprim value cc_conv2d_bp_native(value weight_mat, value prev_act_mat,
+                                            value act_mat, value diff_mat,
+                                            value wgrad_mat, value bgrad_mat,
+                                            value prev_layer_val, value actf_val) {
+
+    CAMLparam5(weight_mat, prev_act_mat, act_mat, diff_mat, wgrad_mat);
+    CAMLxparam3(bgrad_mat, prev_layer_val, actf_val);
+    CAMLlocal1(res_tuple);
+
+    struct caml_ba_array *dmat = Caml_ba_array_val(diff_mat);
+    struct caml_ba_array *wmat = Caml_ba_array_val(weight_mat);
+    _Bool prev_layer = Bool_val(prev_layer_val);
+    long actf = Long_val(actf_val);
+
+    struct caml_ba_array *wgrad_ba = Caml_ba_array_val(wgrad_mat);
+    struct caml_ba_array *bgrad_ba = Caml_ba_array_val(bgrad_mat);
+
+    struct caml_ba_array *actmat = Caml_ba_array_val(act_mat);
+    struct caml_ba_array *prev_actmat = Caml_ba_array_val(prev_act_mat);
+
+    struct mat diff_data = mat_of_ba(dmat);
+    struct mat wdata = mat_of_ba(wmat);
+    struct mat act_data = mat_of_ba(actmat);
+    struct mat prev_act_data = mat_of_ba(prev_actmat);
+
+    struct mat wgrad = mat_of_ba(wgrad_ba);
+    struct mat bgrad = mat_of_ba(bgrad_ba);
+
+    struct mat prev_diff;
+
+    int ret = conv_bp(&wdata, &prev_act_data, &act_data,
+                      &diff_data, &prev_diff, &wgrad, &bgrad, actf, 1, 0, prev_layer);
+
+    if (ret) {
+        caml_fatal_error("Conv back prop failed %d\n", ret);
+    }
+                                            
+    res_tuple = caml_alloc_tuple(3);
+
+    long pd_dims[1] = { prev_diff.cols };
+    
+    Store_field(res_tuple, 0,
+                caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
+                              prev_diff.matrix, pd_dims));
+
+    long wg_dims[2] = { wgrad.rows, wgrad.cols };
+
+    Store_field(res_tuple, 1,
+                caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
+                              wgrad.matrix, wg_dims));
+ 
+    long bg_dims[1] = { bgrad.cols };
+
+    Store_field(res_tuple, 2,
+                caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
+                              bgrad.matrix, bg_dims));
+    CAMLreturn(res_tuple);
+}
+
+CAMLprim value cc_conv_bp_bytecode(value *argv, int argn) {
+    if (argn != 8) {
+        caml_fatal_error("Wrong number of args for C stub");
+    }
+    
+    return cc_conv2d_bp_native(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
+}
+
 CAMLprim value cc_fully_connected_bp_native(value weight_mat, value prev_act_mat,
                                             value act_mat, value diff_mat,
                                             value wgrad_mat, value bgrad_mat,
@@ -387,6 +454,24 @@ CAMLprim value cc_vec_sub(value a, value b) {
 
     CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
                              res_mat.matrix, dims));
+}
+
+CAMLprim value cc_mat3_flatten(value mat) {
+    CAMLparam1(mat);
+    struct caml_ba_array *mat_data = Caml_ba_array_val(mat);
+
+    intnat new_dim[1] = { mat_data->dim[0] * mat_data->dim[1] * mat_data->dim[2]};
+    CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 1,
+                             mat_data->data, new_dim));
+}
+
+CAMLprim value cc_mat3_flatten_bp(value rows, value cols, value dim3, value mat) {
+    CAMLparam3(rows, cols, mat);
+    struct caml_ba_array *mat_data = Caml_ba_array_val(mat);
+
+    intnat new_dim[3] = { Long_val(rows), Long_val(cols), Long_val(dim3) };
+    CAMLreturn(caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 3,
+                             mat_data->data, new_dim));
 }
 
 CAMLprim value cc_mat_flatten(value mat) {

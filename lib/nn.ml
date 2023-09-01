@@ -434,6 +434,17 @@ let fully_connected_zero layer =
     }
 
 let conv2d_zero layer =
+  let open Conv2D in
+  Conv2DParams
+    { kernels  =
+        Mat.zero
+          layer.kernels.shape.dim1
+          layer.kernels.shape.dim2;
+
+      bias_mat = Vec.zero layer.bias_mat.shape.dim1;
+    }
+
+let conv3d_zero layer =
   let open Conv3D in
   Conv3DParams
     { kernels  =
@@ -452,7 +463,8 @@ let param_zero : type a b.
   fun lay ->
   (match lay with
    | FullyConnectedParams fc -> fully_connected_zero fc
-   | Conv3DParams cn -> conv2d_zero cn
+   | Conv3DParams cn -> conv3d_zero cn
+   | Conv2DParams cn -> conv2d_zero cn
    | empty -> empty
   )
 
@@ -462,10 +474,12 @@ let layer_zero : type a b.
   fun lay ->
   (match lay with
    | FullyConnected (_, fc) -> fully_connected_zero fc
-   | Conv3D (_, cn) -> conv2d_zero cn
+   | Conv3D (_, cn) -> conv3d_zero cn
+   | Conv2D (_, cn) -> conv2d_zero cn
    | Flatten _ -> FlattenParams
    | Flatten2D _ -> Flatten2DParams
    | Pooling _ -> PoolingParams
+   | Pooling2D _ -> Pooling2DParams
    | Input3 _ -> Input3Params
    | Input2 _ -> Input2Params
    | Input1 _ -> Input1Params
@@ -659,23 +673,21 @@ let nn_apply_params proc nn params =
            
 
           FF_Cons(new_lay, apply_rec t1 t2)
-(*
-       | Conv3D (meta, nn_param), Conv3DParams apply_param ->
-          let kernels = Vec.map2
-                              (fun v1 v2 -> proc v1 v2)
-                              nn_param.kernels apply_param.kernels in
-          let bias_mat = proc
-                       (Vec.to_mat nn_param.bias_mat)
-                       (Vec.to_mat apply_param.bias_mat)
-                     |> Mat.to_vec in
-             
+
+       | Conv2D (meta, nn_param), Conv2DParams apply_param ->
+          let kernels = cc_mat_sub nn_param.kernels.matrix apply_param.kernels.matrix
+                        |> Mat.create in
+
+          let bias_mat = cc_vec_sub nn_param.bias_mat.matrix apply_param.bias_mat.matrix
+                       |> Vec.create in
+
           let new_lay =
-            Conv3D (meta, {
+            Conv2D (meta, {
                   kernels;
                   bias_mat;
               }) in
+
           FF_Cons(new_lay, apply_rec t1 t2)
-         *)
         (*
        | Conv3D (meta, nn_param), Conv3DParams apply_param ->
           let kernels = Vec.map2

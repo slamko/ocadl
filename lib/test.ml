@@ -123,20 +123,20 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   let conv_nn =
     make_input2d (Mat.make_shape (Row 28) (Col 28)) 
 
-    |> make_conv2d ~padding:1 ~stride:1 ~act:Relu
-         ~kernel_shape:(Mat.make_shape (Row 8) (Col 8))
-
-    |> make_pooling2d ~stride:1 ~f:Max
-         ~filter_shape:(Mat.make_shape (Row 2) (Col 2))
-
-    |> make_conv2d ~padding:1 ~stride:1 ~act:Relu
-         ~kernel_shape:(Mat.make_shape (Row 8) (Col 8))
-
-    |> make_pooling2d ~stride:1 ~f:Max
-         ~filter_shape:(Mat.make_shape (Row 2) (Col 2))
-
+    (* |> make_conv2d ~padding:0 ~stride:1 ~act:Relu *)
+         (* ~kernel_shape:(Mat.make_shape (Row 4) (Col 4)) *)
 
 (*
+    |> make_pooling2d ~stride:1 ~f:Max
+         ~filter_shape:(Mat.make_shape (Row 2) (Col 2))
+
+    |> make_conv2d ~padding:1 ~stride:1 ~act:Relu
+         ~kernel_shape:(Mat.make_shape (Row 8) (Col 8))
+
+    |> make_pooling2d ~stride:1 ~f:Max
+         ~filter_shape:(Mat.make_shape (Row 2) (Col 2))
+
+
     |> make_conv2d ~padding:1 ~stride:1 ~act:relu ~deriv:relu'
          ~kernel_shape:(make_shape (Row 4) (Col 4))
          ~kernel_num:1
@@ -155,7 +155,7 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     (* if Sys.file_exists !save_file *)
     (* then restore_nn_from_json !save_file base_nn *)
     (* else *)
-      base_nn
+      conv_nn
   in
 
   let* res = loss train_data nn in

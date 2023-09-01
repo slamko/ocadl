@@ -32,7 +32,7 @@ let forward_layer : type a b. a -> (a, b) layer -> b
        fcp.weight_mat.matrix fcp.bias_mat.matrix act
      |> Vec.create |> make_tens1
 
-  | Flatten2D meta ->
+  | Flatten2D _ ->
      let (Tensor2 tens) = input in
      cc_mat_flatten tens.matrix
      |> Vec.wrap |> make_tens1
@@ -66,10 +66,11 @@ let forward_layer : type a b. a -> (a, b) layer -> b
      let (Shape.ShapeMat filter_shape) = pl.filter_shape in
      pooling3d_ff tens pl.fselect pl.stride out_shape filter_shape
      |> make_tens3
-  (* | Flatten _ -> *)
-     (* cc_mat_flatten *)
-
-
+  | Flatten _ ->
+     let (Tensor3 tens) = input in
+     cc_mat3_flatten tens.matrix
+     |> Vec.wrap
+     |> make_tens1
 
 let forward input nn =
 
@@ -212,6 +213,21 @@ let loss data nn =
   let avg_loss = List.length data |> float_of_int |> (/.) @@ loss in
   Ok avg_loss
 
+let conv2d_bp prev_layer grad_acc meta params (Tensor2 act_prev)
+      (Tensor2 act) (Tensor2 diff_mat) =
+
+  let open Conv2D in
+  let actf = actf_to_enum meta.act in
+  let (prev_diff, kern_grad, bgrad) =
+    cc_conv_bp params.kernels.matrix act_prev.matrix
+      act.matrix diff_mat.matrix grad_acc.kernels.matrix grad_acc.bias_mat.matrix prev_layer actf
+  in
+  
+  { prev_diff = prev_diff |> Mat.create |> make_tens2;
+    grad = Conv2DParams { kernels = kern_grad |> Mat.wrap;
+                          bias_mat = bgrad |> Vec.wrap; }
+  }
+
 let fully_connected_bp prev_layer grad_acc meta params (Tensor1 act_prev)
       (Tensor1 act) (Tensor1 diff_mat) =
 
@@ -263,14 +279,30 @@ let backprop_layer : type a b n x. (a, b) layer ->
        )
      in
      fully_connected_bp prev_layer grad meta params act_prev act diff_mat
+  | Conv2D (meta, params) ->
+     let grad =
+       (match param_lay with
+        | Conv2DParams fp -> fp
+        | _ -> failwith "Unmatched grad type"
+       )
+     in
+     conv2d_bp prev_layer grad meta params act_prev act diff_mat
+
 (*
   | Conv3D (meta, params) ->
      conv3d_bp meta params prev_layer act act_prev diff_mat 
   | Pooling meta ->
      pooling_bp meta act_prev diff_mat
+*)
+
   | Flatten _ -> 
-     flatten_bp act_prev diff_mat
- *)
+     let (Tensor3 prev) = act_prev in
+     let (Tensor1 diff) = diff_mat in
+
+     { prev_diff = cc_mat3_flatten_bp (row prev.shape.dim1) (col prev.shape.dim2) (col prev.shape.dim3) diff.matrix
+                   |> Mat3.wrap |> make_tens3;
+       grad = FlattenParams
+     }
 
 let param_list_rev plist =
 
@@ -317,7 +349,7 @@ let rec backprop_nn :
      let prev_diff_mat = bp_layer.prev_diff in
      
      backprop_nn tail prev_diff_mat param_list ptail
-
+  | _ -> failwith "Rev backprop paramlist error"
   
 let nn_gradient learn_rate nn data =
 
