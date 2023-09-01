@@ -108,6 +108,135 @@ extern "C" int fully_connected_bp(
   return ret;
 }
 
+extern "C" int conv_bp(const struct mat *prev_act_mat,
+                       const struct mat *kernels_mat,
+                       const struct mat *act_mat,
+                       const struct mat *diff_mat,
+                       struct mat *prev_diff_mat,
+                       struct mat *kern_grad_mat,
+                       struct mat *bgrad_vec,
+                       long actf,
+                       unsigned long stride,
+                       unsigned long padding,
+                       int prev_layer) {
+  using namespace cl;
+  int ret = 0;
+
+  if (diff_mat->cols != act_mat->cols ||
+      diff_mat->rows != act_mat->rows ||
+      act_mat->dim3 != kernels_mat->dim3 ||
+      act_mat->dim3 != diff_mat->dim3 ||
+      kernels_mat->rows > prev_act_mat->rows ||
+      kernels_mat->cols > prev_act_mat->cols ||
+      kern_grad_mat->rows != kernels_mat->rows ||
+      kern_grad_mat->cols != kernels_mat->cols ||
+      kern_grad_mat->dim3 != kernels_mat->dim3) {
+    return 1;
+  }
+
+  *prev_diff_mat= mat3_nil(prev_act_mat->rows, prev_act_mat->cols, prev_act_mat->dim3);
+  
+  size_t prev_act_size = mat_mem_size(prev_act_mat);
+  size_t act_size = mat_mem_size(act_mat);
+  size_t diff_size = mat_mem_size(diff_mat);
+  size_t wmat_size = mat_mem_size(kernels_mat);
+  
+  size_t prev_diff_size = mat_mem_size(prev_diff_mat);
+  size_t kern_grad_size = mat_mem_size(kern_grad_mat);
+  size_t bgrad_size = mat_mem_size(bgrad_vec);
+
+  cl_mem_flags in_flags =  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS;
+
+  Buffer kerns_buf { context, in_flags, wmat_size, kernels_mat->matrix };
+  Buffer prev_act_buf { context, in_flags, prev_act_size, prev_act_mat->matrix };
+  Buffer act_buf { context, in_flags, act_size, act_mat->matrix };
+  Buffer diff_buf { context, in_flags, diff_size, diff_mat->matrix };
+
+  Buffer prev_diff_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, prev_diff_size, NULL };
+  Buffer kern_grad_buf { context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_READ_ONLY, kern_grad_size, kern_grad_mat->matrix };
+  Buffer bgrad_buf { context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_READ_ONLY, bgrad_size, bgrad_vec->matrix };
+
+  Kernel deriv_kernel { nn_prog, "conv_deriv_bp" };
+  Matrix dz_mat { mat_make(act_mat->rows, act_mat->cols) };
+  size_t dz_size = mat_mem_size(&dz_mat.matrix);
+  Buffer dz_buf { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, dz_size, NULL };
+
+  int argi = 0;
+  kern_set_arg(deriv_kernel, act_buf);
+  kern_set_arg(deriv_kernel, diff_buf);
+  kern_set_size_arg(deriv_kernel, sizeof(cl_ulong), &actf);
+  kern_set_size_arg(deriv_kernel, sizeof(cl_ulong), &act_mat->cols);
+  kern_set_size_arg(deriv_kernel, sizeof(cl_ulong), &act_mat->rows);
+  kern_set_arg(deriv_kernel, dz_buf);
+  
+  size_t ldim1 = 8;
+  size_t ldim2 = 16;
+  size_t dim1 = align(act_mat->cols, ldim1);
+  size_t dim2 = align(act_mat->rows, ldim2);
+
+  if (ret) return ret;
+
+  auto glob_range = NDRange(dim1, dim2, act_mat->dim3);
+  auto loc_range = NDRange(ldim1, ldim2, 1);
+
+  ret = queue.enqueueNDRangeKernel(deriv_kernel, NullRange, glob_range, loc_range);
+  if (ret) return ret;
+
+  Kernel bp_kernel { nn_prog, "conv_bp" };
+  argi = 0;
+  kern_set_arg(bp_kernel, prev_act_buf);
+  kern_set_arg(bp_kernel, dz_buf);
+
+  kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &stride);
+  kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &padding);
+  kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &actf);
+
+  kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &act_mat->cols);
+  kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &act_mat->rows);
+  kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &act_mat->dim3);
+
+  kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &prev_act_mat->cols);
+  kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &prev_act_mat->rows);
+  kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &prev_act_mat->dim3);
+
+  kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &kernels_mat->cols);
+  kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &kernels_mat->rows);
+  
+  ldim1 = 8;
+  ldim2 = 16;
+  dim1 = align(kernels_mat->cols, ldim1);
+  dim2 = align(kernels_mat->rows, ldim2);
+
+  if (ret) return ret;
+
+  glob_range = NDRange(dim1, dim2, kernels_mat->dim3);
+  loc_range = NDRange(ldim1, ldim2, 1);
+
+  ret = queue.enqueueNDRangeKernel(bp_kernel, NullRange, glob_range, loc_range);
+  if (ret) return ret;
+
+  ret |= queue.enqueueReadBuffer(kern_grad_buf, CL_TRUE, 0, kern_grad_size, kern_grad_mat->matrix);
+ 
+  /*
+  if (prev_layer) {
+    Kernel sum_kern { nn_prog, "mat_sum" };
+    int argi = 0;
+    kern_set_arg(sum_kern, cache_buf);
+    kern_set_size_arg(sum_kern, sizeof(cl_ulong), &n);
+    kern_set_size_arg(sum_kern, sizeof(cl_ulong), &width);
+    kern_set_arg(sum_kern, prev_diff_buf);
+    
+    auto sum_glob_range = NDRange(align(n, 128));
+    auto sum_loc_range = NDRange(128);
+    ret = queue.enqueueNDRangeKernel(sum_kern, NullRange, sum_glob_range, sum_loc_range);
+    if (ret) return ret;
+    ret |= queue.enqueueReadBuffer(prev_diff_buf, CL_TRUE, 0, prev_diff_size, prev_diff_vec->matrix);
+  }
+  */
+
+  return ret;
+}
+
 extern "C" int fully_connected_ff(const struct mat *input,
                                   const struct mat *weight_mat,
                                   const struct mat *bias_vec,

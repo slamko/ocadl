@@ -239,7 +239,7 @@ __kernel void conv_deriv_bp(__global __read_only const float *act,
                         unsigned long actf, 
                         unsigned long act_width,
                         unsigned long act_height,
-                        __global __write_only float *dz) {
+                        __global __write_only const float *dz) {
 
     size_t x = get_global_id(0);
     size_t y = get_global_id(1);
@@ -252,8 +252,9 @@ __kernel void conv_deriv_bp(__global __read_only const float *act,
     dz[id] = dact * diff_mat[id];
 }
     
-__kernel void conv_bp(__global __read_only const float *act_prev,
-                        __global __read_only const float *dz,
+__kernel void conv_bp(
+                        __global __read_only const float *act_prev,
+                        __global __read_write const float *dz,
                         unsigned long stride,
                         unsigned long padding,
                         unsigned long actf, 
@@ -265,27 +266,26 @@ __kernel void conv_bp(__global __read_only const float *act_prev,
                         unsigned long prev_act_num,
                         unsigned long kern_width,
                         unsigned long kern_height,
-                        __global __write_only float *bias_grad,
+                        __global __write_only float *bias_grad
                         __global __write_only float *kern_grad) {
     
     size_t x = get_global_id(0);
     size_t y = get_global_id(1);
-    size_t z = get_global_id(2);
 
     size_t act_size = act_width * act_height;
     size_t prev_act_size = prev_act_width * prev_act_height;
     size_t kern_size = kern_width * kern_height;
 
-    if (x >= kern_width || y >= kern_height) {
+    if (x >= kern_width || y >= kern_height || z >= kern_num) {
         return;
     }
 
     float sum = 0.0;
-    for (unsigned long i = 0; i < prev_act_num; i++) {
+    for (unsigned long i = 0; i < image_num; i++) {
         for (unsigned long r = 0; r < act_width; r++) {
             for (unsigned long c = 0; c < act_height; c++) {
                 float cur_kval = dz[z * act_size + r * act_width + c];
-                float cur_pixel = act_prev[i * prev_act_size + y * prev_act_width + r * prev_act_width + x + c];
+                float cur_pixel = prev_act[i * prev_act_size + y * prev_act_width + r * prev_act_width + x + c];
 
                 sum += cur_kval * cur_pixel;
             }
