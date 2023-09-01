@@ -111,7 +111,7 @@ CAMLprim value cc_fully_connected_bp_native(value weight_mat, value prev_act_mat
     struct mat prev_diff;
 
     int ret = fully_connected_bp(&wdata, &prev_act_data, &act_data,
-                                 &diff_data, &prev_diff, &wgrad, &bgrad, prev_layer, actf);
+                                 &diff_data, &prev_diff, &wgrad, &bgrad, actf, prev_layer);
 
     if (ret) {
         caml_fatal_error("Fully connected backpropagation failed %d\n", ret);

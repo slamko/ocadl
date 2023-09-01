@@ -136,6 +136,7 @@ __kernel void mat_sum(__global __read_only float *mat,
                         unsigned long rows,
                         unsigned long cols,
                         __global __write_only float *res) {
+
     size_t x = get_global_id(0);
 
     if (x >= rows) {
@@ -214,6 +215,12 @@ __kernel void conv_ff(__global __read_only const float *image,
 }
 
     /*
+__kernel void conv_deriv_bp(__global __read_only const float *act,
+                        __global __read_only const float *act_prev,
+                        __global __read_write const float *dz,
+                        __global __read_only const float *diff_mat,
+ 
+    
 __kernel void conv_bp(__global __read_only const float *act,
                         __global __read_only const float *act_prev,
                         __global __read_write const float *dz,

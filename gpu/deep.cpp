@@ -18,7 +18,7 @@ extern "C" int fully_connected_bp(
                        struct mat *wgrad_mat,
                        struct mat *bgrad_vec,
                        long actf,
-                       bool prev_layer) {
+                       int prev_layer) {
   using namespace cl;
   int ret = 0;
 
@@ -28,8 +28,6 @@ extern "C" int fully_connected_bp(
   }
 
   *prev_diff_vec = mat_nil(1, weight_mat->rows);
-  // *wgrad_mat     = mat_make(weight_mat->rows, weight_mat->cols);
-  // *bgrad_vec     = mat_make(1, act_vec->cols);
   
   size_t prev_act_size = mat_mem_size(prev_act_vec);
   size_t act_size = mat_mem_size(act_vec);
@@ -86,20 +84,25 @@ extern "C" int fully_connected_bp(
   ret = queue.enqueueNDRangeKernel(kernel, NullRange, glob_range, loc_range);
   if (ret) return ret;
 
-  ret |= queue.enqueueReadBuffer(cache_buf, CL_TRUE, 0, cache_size, cache_mat.matrix.matrix);
+  // ret |= queue.enqueueReadBuffer(cache_buf, CL_TRUE, 0, cache_size, cache_mat.matrix.matrix);
   // ret |= queue.enqueueReadBuffer(prev_diff_buf, CL_TRUE, 0, prev_diff_size, prev_diff_vec->matrix);
   ret |= queue.enqueueReadBuffer(wgrad_buf, CL_TRUE, 0, wgrad_size, wgrad_mat->matrix);
   ret |= queue.enqueueReadBuffer(bgrad_buf, CL_TRUE, 0, bgrad_size, bgrad_vec->matrix);
   if (ret) return ret;
 
   if (prev_layer) {
-    for (size_t i = 0; i < n; i++) {
-      prev_diff_vec->matrix[i] = 0.0;
-      for (size_t j = 0; j < cache_mat.matrix.cols; j++) {
-        prev_diff_vec->matrix[i] +=
-          cache_mat.matrix.matrix[i * cache_mat.matrix.cols + j];
-      }
-    }
+    Kernel sum_kern { nn_prog, "mat_sum" };
+    int argi = 0;
+    kern_set_arg(sum_kern, cache_buf);
+    kern_set_size_arg(sum_kern, sizeof(cl_ulong), &n);
+    kern_set_size_arg(sum_kern, sizeof(cl_ulong), &width);
+    kern_set_arg(sum_kern, prev_diff_buf);
+    
+    auto sum_glob_range = NDRange(align(n, 128));
+    auto sum_loc_range = NDRange(128);
+    ret = queue.enqueueNDRangeKernel(sum_kern, NullRange, sum_glob_range, sum_loc_range);
+    if (ret) return ret;
+    ret |= queue.enqueueReadBuffer(prev_diff_buf, CL_TRUE, 0, prev_diff_size, prev_diff_vec->matrix);
   }
 
   return ret;
