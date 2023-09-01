@@ -330,20 +330,20 @@ let rec backprop_nn :
      grad_acc
 
   | BP_Cons ((lay, input, out), tail), BPL_Cons(param_acc, ptail) ->
-     let prev =
-       (match tail with
+     let rec is_prev : type ap bp. (ap, bp) bp_list -> bool =
+       fun bp_tail ->
+       (match bp_tail with
         | BP_Nil
-          | BP_Cons (_, BP_Nil)
-          | BP_Cons ((Flatten2D _, _, _), _)
-          | BP_Cons ((Flatten _, _, _), _)
-          | BP_Cons ((Pooling2D _, _, _), _)
-          | BP_Cons ((Pooling _, _, _), _)
-          -> false
+          | BP_Cons (_, BP_Nil) -> false
+        | BP_Cons ((Flatten2D _, _, _), bp_tail_tail) -> is_prev bp_tail_tail
+        | BP_Cons ((Flatten _, _, _), bp_tail_tail) -> is_prev bp_tail_tail
+        | BP_Cons ((Pooling2D _, _, _), bp_tail_tail) -> is_prev bp_tail_tail
+        | BP_Cons ((Pooling _, _, _), bp_tail_tail) -> is_prev bp_tail_tail
         | _ -> true
        )
      in
 
-     let bp_layer = backprop_layer lay param_acc prev input out diff in
+     let bp_layer = backprop_layer lay param_acc (is_prev tail) input out diff in
 
      let param_list = PL_Cons (bp_layer.grad, grad_acc) in
      let prev_diff_mat = bp_layer.prev_diff in

@@ -172,6 +172,7 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   Printf.printf "initial loss: %f\n" res ;
   Printf.printf "trained loss: %f\n" new_res ;
 
+  nn_print trained_nn ;
   perform trained_nn train_data ;
 
   (* Printf.printf "Act: %d\n" (actf_to_enum Sigmoid) ; *)

@@ -245,7 +245,7 @@ __kernel void conv_bp(__global __read_only const float *act_prev,
                         unsigned long prev_act_num,
                         unsigned long kern_width,
                         unsigned long kern_height,
-                        __global __write_only float *kern_grad) {
+                        __global __read_write float *kern_grad) {
     
     size_t x = get_global_id(0);
     size_t y = get_global_id(1);
@@ -271,7 +271,7 @@ __kernel void conv_bp(__global __read_only const float *act_prev,
         }
     }
 
-    kern_grad[z * kern_size + y * kern_width + x] = sum; 
+    kern_grad[z * kern_size + y * kern_width + x] += sum; 
 }
 
 __kernel void pooling_ff(__global __read_only const float *image,

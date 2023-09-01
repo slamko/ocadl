@@ -518,11 +518,20 @@ let param_scale : type a b. float ->
 
 let fully_connected_print params =
   let open Fully_connected in
-  Printf.printf "\nFully connected\n Weight mat: \n" ;
+  Printf.printf "\nFully connected\n Weight mat: \n%!" ;
   Mat.print params.weight_mat ;
-  Printf.printf "Bias mat: \n" ;
+  Printf.printf "Bias mat: \n%!" ;
   Vec.print params.bias_mat ;
   ()
+
+let conv2d_print params =
+  let open Conv2D in
+  Printf.printf "\Conv2D\n Kernel mat: \n%!" ;
+  Mat.print params.kernels ;
+  Printf.printf "Bias mat: \n%!" ;
+  Vec.print params.bias_mat ;
+  ()
+
 
 let layer_print : type a b. 
              (a, b) layer ->
@@ -530,7 +539,8 @@ let layer_print : type a b.
   function
    | FullyConnected (_, fc) ->
       fully_connected_print fc
-   (* | Conv3D (_, cn) -> conv2d_zero cn *)
+   | Conv2D (_, cn) ->
+      conv2d_print cn
    | _ -> ()
 
 let nn_print nn =
@@ -543,7 +553,7 @@ let nn_print nn =
        rec_print tail
   in                            
 
-  rec_print nn
+  rec_print nn.layers
 
 let nn_params_scale value nn =
 

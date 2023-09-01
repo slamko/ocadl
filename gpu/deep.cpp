@@ -119,7 +119,7 @@ extern "C" int conv_bp(
   using namespace cl;
   int ret = 0;
 
-  mat_print(kernels_mat);
+  // mat_print(kernels_mat);
   if (diff_mat->cols != act_mat->cols ||
       diff_mat->rows != act_mat->rows ||
       act_mat->dim3 != kernels_mat->dim3 ||
@@ -272,6 +272,8 @@ extern "C" int fully_connected_ff(const struct mat *input,
   using namespace cl;
 
   cl_int ret = {0};
+
+  // mat_print (weight_mat);
   
   if (input->cols != weight_mat->rows
       || weight_mat->cols != bias_vec->cols) {
