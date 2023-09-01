@@ -245,7 +245,6 @@ __kernel void conv_bp(__global __read_only const float *act_prev,
                         unsigned long prev_act_num,
                         unsigned long kern_width,
                         unsigned long kern_height,
-                        __global __write_only float *bias_grad,
                         __global __write_only float *kern_grad) {
     
     size_t x = get_global_id(0);

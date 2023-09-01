@@ -56,7 +56,7 @@ extern "C" int fully_connected_bp(
   size_t ldim1 = 8;
   size_t ldim2 = 16;
   size_t dim1 = align(width, ldim1);
-  size_t dim2 = n;
+  size_t dim2 = align(n, ldim2);
 
   Matrix cache_mat { mat_make(n, act_vec->cols) };
   size_t cache_size = mat_mem_size(&cache_mat.matrix);
@@ -119,6 +119,7 @@ extern "C" int conv_bp(
   using namespace cl;
   int ret = 0;
 
+  mat_print(kernels_mat);
   if (diff_mat->cols != act_mat->cols ||
       diff_mat->rows != act_mat->rows ||
       act_mat->dim3 != kernels_mat->dim3 ||
@@ -154,6 +155,7 @@ extern "C" int conv_bp(
   Buffer bgrad_buf { context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_READ_ONLY, bgrad_size, bgrad_vec->matrix };
 
   Kernel deriv_kernel { nn_prog, "conv_deriv_bp" };
+
   Matrix dz_mat { mat_make(act_mat->rows, act_mat->cols) };
   size_t dz_size = mat_mem_size(&dz_mat.matrix);
   Buffer dz_buf { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, dz_size, NULL };
@@ -198,6 +200,8 @@ extern "C" int conv_bp(
 
   kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &kernels_mat->cols);
   kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &kernels_mat->rows);
+
+  kern_set_arg(bp_kernel, kern_grad_buf);
   
   ldim1 = 8;
   ldim2 = 16;
@@ -214,6 +218,32 @@ extern "C" int conv_bp(
 
   ret |= queue.enqueueReadBuffer(kern_grad_buf, CL_TRUE, 0, kern_grad_size, kern_grad_mat->matrix);
  
+  Matrix bcache_mat { mat_make(1, act_mat->rows) };
+  size_t bcache_size = mat_mem_size(&bcache_mat.matrix);
+  Buffer bcache_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, bcache_size, NULL };
+  
+  Kernel sum_kern { nn_prog, "mat_sum" };
+  argi = 0;
+  kern_set_arg(sum_kern, dz_buf);
+  kern_set_size_arg(sum_kern, sizeof(cl_ulong), &act_mat->rows);
+  kern_set_size_arg(sum_kern, sizeof(cl_ulong), &act_mat->cols);
+  kern_set_arg(sum_kern, bcache_buf);
+ 
+  auto sum_loc_range = NDRange(128);
+  auto sum_glob_range = NDRange(align(act_mat->rows, 128));
+  
+  ret = queue.enqueueNDRangeKernel(sum_kern, NullRange, sum_glob_range, sum_loc_range);
+  if (ret) return ret;
+  
+  ret |= queue.enqueueReadBuffer(bcache_buf, CL_TRUE, 0, bcache_size, bcache_mat.matrix.matrix);
+
+  float bcache_sum = 0.0;
+  for (size_t i = 0; i < bcache_mat.matrix.cols; i++) {
+    bcache_sum += bcache_mat.matrix.matrix[i];
+  }
+
+  bgrad_vec->matrix[0] += bcache_sum;
+   
   /*
   if (prev_layer) {
     Kernel sum_kern { nn_prog, "mat_sum" };

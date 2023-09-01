@@ -123,8 +123,8 @@ let test train_data_fname save_file epochs learning_rate batch_size =
   let conv_nn =
     make_input2d (Mat.make_shape (Row 28) (Col 28)) 
 
-    (* |> make_conv2d ~padding:0 ~stride:1 ~act:Relu *)
-         (* ~kernel_shape:(Mat.make_shape (Row 4) (Col 4)) *)
+    |> make_conv2d ~padding:0 ~stride:1 ~act:Relu
+         ~kernel_shape:(Mat.make_shape (Row 2) (Col 2))
 
 (*
     |> make_pooling2d ~stride:1 ~f:Max
@@ -146,6 +146,7 @@ let test train_data_fname save_file epochs learning_rate batch_size =
  *)
 
     |> make_flatten2d
+    |> make_fully_connected ~ncount:16 ~actf:Sigmoid
     |> make_fully_connected ~ncount:16 ~actf:Sigmoid
     |> make_fully_connected ~ncount:10 ~actf:Sigmoid
     |> make_nn
