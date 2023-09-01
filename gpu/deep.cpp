@@ -264,6 +264,72 @@ extern "C" int conv_bp(
   return ret;
 }
 
+extern "C" int pooling_bp(
+                       const struct mat *prev_act_mat,
+                       const struct mat *diff_mat,
+                       struct mat *prev_diff_mat,
+                       long pooling_type,
+                       unsigned long stride,
+                       unsigned long padding,
+                       unsigned long filter_width,
+                       unsigned long filter_height,
+                       int prev_layer) {
+  using namespace cl;
+  int ret = 0;
+
+  *prev_diff_mat = mat3_nil(prev_act_mat->rows, prev_act_mat->cols, prev_act_mat->dim3);
+  
+  size_t prev_act_size = mat_mem_size(prev_act_mat);
+  size_t diff_size = mat_mem_size(diff_mat);
+  
+  size_t prev_diff_size = mat_mem_size(prev_diff_mat);
+
+  cl_mem_flags in_flags =  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS;
+
+  Buffer prev_act_buf { context, in_flags, prev_act_size, prev_act_mat->matrix };
+  Buffer diff_buf { context, in_flags, diff_size, diff_mat->matrix };
+
+  Buffer prev_diff_buf { context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, prev_diff_size, NULL };
+
+  Kernel kernel { nn_prog, "pooling_bp" };
+
+  int argi = 0;
+  kern_set_arg(kernel, prev_act_buf);
+  kern_set_arg(kernel, diff_buf);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &stride);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &padding);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &pooling_type);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &diff_mat->cols);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &diff_mat->rows);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &filter_width);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &filter_height);
+
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &prev_act_mat->cols);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &prev_act_mat->rows);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &prev_act_mat->dim3);
+
+  kern_set_arg(kernel, prev_diff_buf);
+  if (ret) return ret;
+  
+  size_t ldim1 = 8;
+  size_t ldim2 = 16;
+  size_t dim1 = align(diff_mat->cols, ldim1);
+  size_t dim2 = align(diff_mat->rows, ldim2);
+
+  auto glob_range = NDRange(dim1, dim2, diff_mat->dim3);
+  auto loc_range = NDRange(ldim1, ldim2, 1);
+
+  ret = queue.enqueueNDRangeKernel(kernel, NullRange, glob_range, loc_range);
+  if (ret) return ret;
+
+  ret = queue.enqueueReadBuffer(prev_diff_buf, CL_TRUE, 0, prev_diff_size, prev_diff_mat->matrix);
+
+  return ret;
+}
+
 extern "C" int fully_connected_ff(const struct mat *input,
                                   const struct mat *weight_mat,
                                   const struct mat *bias_vec,

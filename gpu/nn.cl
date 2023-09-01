@@ -326,3 +326,68 @@ __kernel void pooling_ff(__global __read_only const float *image,
 
     res[z * res_size + y * res_width + x] = res_val; 
 }
+
+__kernel void pooling_bp(__global __read_only const float *act_prev,
+                        __global __read_only const float *diff_mat,
+                        unsigned long stride,
+                        unsigned long padding,
+                        unsigned long type, 
+                        unsigned long diff_width,
+                        unsigned long diff_height,
+                        unsigned long filter_width,
+                        unsigned long filter_height,
+                        unsigned long prev_act_width,
+                        unsigned long prev_act_height,
+                        unsigned long prev_act_num,
+                        __global __write_only float *prev_diff) {
+    
+    size_t x = get_global_id(0);
+    size_t y = get_global_id(1);
+    size_t z = get_global_id(2);
+
+    size_t diff_size = diff_width * diff_height;
+    size_t prev_act_size = prev_act_width * prev_act_height;
+
+    if (x >= diff_width || y >= diff_height) {
+        return;
+    }
+
+    switch (type) {
+    case POOLING_MAX:;
+        float pix_max = -1000.0; 
+        size_t max_id = 0;
+
+        for (unsigned long r = 0; r < filter_width; r++) {
+            for (unsigned long c = 0; c < filter_height; c++) {
+                size_t id = z * prev_act_size + y * prev_act_width + r * prev_act_width + x + c;
+                float cur_pixel = act_prev[id];
+
+                if (cur_pixel > pix_max) {
+                    pix_max = cur_pixel;
+                    max_id = id; 
+                }
+            }
+        }
+
+        prev_diff[max_id] = diff_mat[z * diff_size + y * diff_width + x];
+
+        break;
+    case POOLING_AVG:
+    /*
+        for (unsigned long r = 0; r < filter_width; r++) {
+            for (unsigned long c = 0; c < filter_height; c++) {
+                float cur_pixel = image[z * im_size + y * im_width + r * im_width + x + c];
+                res_val += cur_pixel;
+            }
+        }
+
+        res_val /= filter_size;
+    */
+        break;
+    default:
+        printf("Error: Unknown pooling type\n");
+        break;
+    }
+}
+
+

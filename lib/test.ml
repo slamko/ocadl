@@ -126,9 +126,12 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     |> make_conv2d ~padding:0 ~stride:1 ~act:Relu
          ~kernel_shape:(Mat.make_shape (Row 2) (Col 2))
 
-(*
     |> make_pooling2d ~stride:1 ~f:Max
          ~filter_shape:(Mat.make_shape (Row 2) (Col 2))
+
+    |> make_pooling2d ~stride:1 ~f:Max
+         ~filter_shape:(Mat.make_shape (Row 2) (Col 2))
+(*
 
     |> make_conv2d ~padding:1 ~stride:1 ~act:Relu
          ~kernel_shape:(Mat.make_shape (Row 8) (Col 8))
@@ -169,11 +172,12 @@ let test train_data_fname save_file epochs learning_rate batch_size =
 
   (* nn_print trained_nn.layers ; *)
 
+  nn_print trained_nn ;
+  perform trained_nn train_data ;
+
   Printf.printf "initial loss: %f\n" res ;
   Printf.printf "trained loss: %f\n" new_res ;
 
-  nn_print trained_nn ;
-  perform trained_nn train_data ;
 
   (* Printf.printf "Act: %d\n" (actf_to_enum Sigmoid) ; *)
 

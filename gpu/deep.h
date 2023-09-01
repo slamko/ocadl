@@ -51,5 +51,17 @@ int conv_bp(const struct mat *kernels_mat,
                        unsigned long stride,
                        unsigned long padding,
                        int prev_layer);
- 
+
+int pooling_bp(
+    const struct mat *prev_act_mat,
+    const struct mat *diff_mat,
+    struct mat *prev_diff_mat,
+    long pooling_type,
+    unsigned long stride,
+    unsigned long padding,
+    unsigned long filter_width,
+    unsigned long filter_height,
+    int prev_layer);
+
+
 #endif

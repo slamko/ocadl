@@ -243,6 +243,16 @@ let fully_connected_bp prev_layer grad_acc meta params (Tensor1 act_prev)
                                   bias_mat = bgrad |> Vec.wrap; }
   }
 
+let pooling2d_bp prev_layer meta (Tensor2 act_prev) (Tensor2 diff) =
+  let open Pooling2D in
+  let (Shape.ShapeMat out_shape) = meta.out_shape in
+  { prev_diff = cc_pooling_bp act_prev.matrix diff.matrix
+                  (pooling_to_enum meta.fselect) meta.stride
+                   (col out_shape.dim2) (row out_shape.dim1)
+                |> Mat.create |> make_tens2;
+    grad = Pooling2DParams;
+  }
+
 let flatten_bp prev_layer meta (Tensor2 act_prev) (Tensor1 diff) =
   { prev_diff = cc_mat_flatten_bp
                   (row act_prev.shape.dim1) 
@@ -287,6 +297,8 @@ let backprop_layer : type a b n x. (a, b) layer ->
        )
      in
      conv2d_bp prev_layer grad meta params act_prev act diff_mat
+  | Pooling2D meta ->
+     pooling2d_bp prev_layer meta act_prev diff_mat
 
 (*
   | Conv3D (meta, params) ->

@@ -87,6 +87,10 @@ external gpu_init : unit -> unit = "cc_gpu_init"
 
 external gpu_finish : unit -> unit = "cc_gpu_finish"
 
+external cc_pooling_bp : Mat.tensor -> Mat.tensor -> int -> int -> int -> int ->
+                         Mat.tensor =
+  "cc_pooling_bp_bytecode" "cc_pooling2d_bp_native"
+
 external cc_conv_bp : Mat.tensor -> Mat.tensor -> Mat.tensor ->
                                  Mat.tensor -> Mat.tensor -> Vec.tensor -> bool -> int ->
                                 (Mat.tensor * Mat.tensor * Vec.tensor) =

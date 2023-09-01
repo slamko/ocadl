@@ -288,21 +288,63 @@ CAMLprim value cc_pooling_ff_native(value input,
         caml_fatal_error("Pooling feed forward failed %d\n", ret);
     }
                                             
-    long dims[3] = { res_width, res_height, inp_mat.dim3 };
+    long dims[2] = { res_width, res_height };
 
     CAMLreturn(
-        caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 3,
+        caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
                       res_mat.matrix, dims));
 }
 
 CAMLprim value cc_pooling_ff_bytecode(value *argv, int argn) {
-    if (argn != 2) {
+    if (argn != 7) {
         caml_fatal_error("Wrong number of args for C stub");
     }
     
     return cc_pooling_ff_native(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
 }
 
+CAMLprim value cc_pooling2d_bp_native(value prev_act_val, value diff_mat_val,
+                                    value type_val, value stride_val,
+                                    value filterw_val, value filterh_val) {
+
+    CAMLparam5(prev_act_val, diff_mat_val, type_val, stride_val, filterw_val);
+    CAMLxparam1(filterh_val);
+
+    struct caml_ba_array *prev_act_arr = Caml_ba_array_val(prev_act_val);
+    struct caml_ba_array *diff_arr = Caml_ba_array_val(diff_mat_val);
+
+    long stride = Long_val(stride_val);
+
+    long type = Long_val(type_val);
+    long filter_width = Long_val(filterw_val);
+    long filter_height = Long_val(filterh_val);
+
+    struct mat prev_act_mat = mat_of_ba(prev_act_arr);
+    struct mat diff_mat = mat_of_ba(diff_arr);
+    
+    struct mat prev_diff_mat = {0};
+
+    int ret = pooling_bp(&prev_act_mat, &diff_mat, &prev_diff_mat, type, stride, 0,
+                         filter_width, filter_height, true);
+
+    if (ret) {
+        caml_fatal_error("Pooling feed forward failed %d\n", ret);
+    }
+                                            
+    long dims[2] = { prev_diff_mat.rows, prev_diff_mat.cols };
+
+    CAMLreturn(
+        caml_ba_alloc(CAML_BA_C_LAYOUT | CAML_BA_FLOAT32, 2,
+                      prev_diff_mat.matrix, dims));
+}
+
+CAMLprim value cc_pooling_bp_bytecode(value *argv, int argn) {
+    if (argn != 2) {
+        caml_fatal_error("Wrong number of args for C stub");
+    }
+    
+    return cc_pooling_ff_native(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+}
 
 CAMLprim value cc_vec_scale(double scale, value mat) {
     /* CAMLparam1(mat); */
