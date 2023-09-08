@@ -1,6 +1,7 @@
 (env
   (dev
-    (flags (:standard -warn-error -A))))
+   (flags
+    (:standard -warn-error -A+p -w -e-l-z-33-32-34-26))))
 
 (include_subdirs unqualified)
 ; (include_subdirs ../vector)
@@ -21,4 +22,17 @@
        ppx_deriving.enum
        ppx_inline_test))
  
- (name ocadl))
+ (name ocadl)
+ (ctypes
+  (external_library_name libgpu)
+  (build_flags_resolver pkg_config)
+  (headers (include "../gpu/gpu.h"))
+  (type_description
+   (instance Types)
+   (functor Type_description))
+  (function_description
+   (concurrency unlocked)
+   (instance Functions)
+   (functor Function_description))
+  (generated_types Types_generated)
+  (generated_entry_point C)))

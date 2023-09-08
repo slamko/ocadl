@@ -1,4 +1,3 @@
-
 let usage_msg = "ocadl -l <train_data_file> -s <save_file> -i <epoch_num> -b <batch_size>"
 
 let epoch_num = ref 11
@@ -21,11 +20,12 @@ let speclist =
   ]
 
 let () =
+  print_endline "hello" ;
   Unix.time () |> int_of_float |> Random.init ;
   Arg.parse speclist anon_fun usage_msg ;
 
     begin match
-      Test.test 
+      Ocadl__Test.test 
          !train_data_file
          !save_file
          !epoch_num

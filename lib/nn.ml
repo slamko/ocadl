@@ -3,6 +3,7 @@ open Alias
 open Common
 open Deepmath
 open Tensor
+open C.Functions
 
 let one_data value =
   Vec.of_array [|value|]
@@ -157,7 +158,7 @@ let make_fully_connected ~ncount ~actf layers =
     | Build_Cons (lay, _) ->
        (match lay with
         | FullyConnected (meta, _) -> meta.out_shape
-        | Flatten meta -> meta.out_shape
+        (* | Flatten meta -> meta.out_shape *)
         | Flatten2D meta -> meta.out_shape
         | Input1 meta -> meta.shape
        ) |> Shape.shape_size
@@ -229,6 +230,44 @@ let make_conv2d ~kernel_shape ~act ~padding ~stride layers =
   let layer = Conv2D (meta, params) in
   { layers with build_list = Build_Cons(layer, layers.build_list) }
 
+let make_pooling2d ~filter_shape ~stride ~f layers =
+  let open Mat in
+
+  let prev_shape =
+    match layers.build_list with
+    | Build_Cons (lay, _) ->
+       (match lay with
+        | Conv2D (meta, _) -> meta.out_shape
+        | Pooling2D meta -> meta.out_shape
+        | Input2 meta -> meta.shape
+       )
+  in
+
+  let new_dim in_dim filt_dim =
+    ((in_dim +  - filt_dim) / stride) + 1 in
+
+  let Shape.ShapeMat(prev_image_shape) = prev_shape in
+  
+  let meta = { Pooling2D.
+               fselect = f;
+               stride;
+               filter_shape = Shape.make_shape_mat filter_shape;
+               out_shape =
+                 Shape.make_shape_mat
+                   (Mat.make_shape
+                      (Row (new_dim
+                              (get_row prev_image_shape.dim1)
+                              (get_row filter_shape.dim1)))
+                      (Col (new_dim
+                              (get_col prev_image_shape.dim2)
+                              (get_col filter_shape.dim2))))
+             } in
+
+  let layer = Pooling2D meta in
+  {layers with build_list = Build_Cons (layer, layers.build_list) }
+
+
+(*
 let make_conv3d ~kernel_shape ~kernel_num
       ~act ~padding ~stride layers =
   let open Mat in
@@ -281,43 +320,6 @@ let make_conv3d ~kernel_shape ~kernel_num
 
   let layer = Conv3D (meta, params) in
   { layers with build_list = Build_Cons(layer, layers.build_list) }
-
-let make_pooling2d ~filter_shape ~stride ~f layers =
-  let open Mat in
-
-  let prev_shape =
-    match layers.build_list with
-    | Build_Cons (lay, _) ->
-       (match lay with
-        | Conv2D (meta, _) -> meta.out_shape
-        | Pooling2D meta -> meta.out_shape
-        | Input2 meta -> meta.shape
-       )
-  in
-
-  let new_dim in_dim filt_dim =
-    ((in_dim +  - filt_dim) / stride) + 1 in
-
-  let Shape.ShapeMat(prev_image_shape) = prev_shape in
-  
-  let meta = { Pooling2D.
-               fselect = f;
-               stride;
-               filter_shape = Shape.make_shape_mat filter_shape;
-               out_shape =
-                 Shape.make_shape_mat
-                   (Mat.make_shape
-                      (Row (new_dim
-                              (get_row prev_image_shape.dim1)
-                              (get_row filter_shape.dim1)))
-                      (Col (new_dim
-                              (get_col prev_image_shape.dim2)
-                              (get_col filter_shape.dim2))))
-             } in
-
-  let layer = Pooling2D meta in
-  {layers with build_list = Build_Cons (layer, layers.build_list) }
-
 
 let make_pooling ~filter_shape ~stride ~f layers =
   let open Mat in
@@ -377,6 +379,8 @@ let make_flatten layers =
 
   let layer = Flatten meta in
   { layers with build_list = Build_Cons (layer, layers.build_list) }
+
+ *)
 
 let make_flatten2d layers =
   let Shape.ShapeMat (prev_image_shape) =
@@ -444,6 +448,7 @@ let conv2d_zero layer =
       bias_mat = Vec.zero layer.bias_mat.shape.dim1;
     }
 
+(*
 let conv3d_zero layer =
   let open Conv3D in
   Conv3DParams
@@ -456,6 +461,7 @@ let conv3d_zero layer =
       bias_mat = Vec.zero layer.bias_mat.shape.dim1;
     }
 
+ *)
 
 let param_zero : type a b. 
              (a, b) layer_params ->
@@ -463,7 +469,7 @@ let param_zero : type a b.
   fun lay ->
   (match lay with
    | FullyConnectedParams fc -> fully_connected_zero fc
-   | Conv3DParams cn -> conv3d_zero cn
+   (* | Conv3DParams cn -> conv3d_zero cn *)
    | Conv2DParams cn -> conv2d_zero cn
    | empty -> empty
   )
@@ -474,11 +480,11 @@ let layer_zero : type a b.
   fun lay ->
   (match lay with
    | FullyConnected (_, fc) -> fully_connected_zero fc
-   | Conv3D (_, cn) -> conv3d_zero cn
+   (* | Conv3D (_, cn) -> conv3d_zero cn *)
+   (* | Flatten _ -> FlattenParams *)
+   (* | Pooling _ -> PoolingParams *)
    | Conv2D (_, cn) -> conv2d_zero cn
-   | Flatten _ -> FlattenParams
    | Flatten2D _ -> Flatten2DParams
-   | Pooling _ -> PoolingParams
    | Pooling2D _ -> Pooling2DParams
    | Input3 _ -> Input3Params
    | Input2 _ -> Input2Params
@@ -487,24 +493,18 @@ let layer_zero : type a b.
 
 let fully_connected_scale value layer =
     let open Fully_connected in
+
     FullyConnectedParams {
-        weight_mat =
-          cc_mat_scale value layer.weight_mat.matrix
-          |> Mat.create ;
-        bias_mat =
-          cc_vec_scale value layer.bias_mat.matrix
-          |> Vec.create;
+        weight_mat = mat_scale value layer.weight_mat ;
+        bias_mat = vec_scale value layer.bias_mat ;
     }
 
-(*
 let conv2d_scale value layer =
-  let open Conv3D in
-  Conv3DParams {
-      kernels =
-        layer.kernels |> Vec.map @@ Mat.map proc;
-    bias_mat = Vec.map proc layer.bias_mat
+  let open Conv2D in
+  Conv2DParams {
+      kernels = mat_scale value layer.kernels ;
+      bias_mat = vec_scale value layer.bias_mat ;
   }
- *)
 
 let param_scale : type a b. float ->
              (a, b) layer_params ->
@@ -512,7 +512,7 @@ let param_scale : type a b. float ->
   fun value lay ->
   (match lay with
    | FullyConnectedParams fc -> fully_connected_scale value fc
-   (* | Conv3DParams cn -> conv2d_scale value cn *)
+   | Conv2DParams cn -> conv2d_scale value cn
    | empty -> empty
   )
 
@@ -526,7 +526,7 @@ let fully_connected_print params =
 
 let conv2d_print params =
   let open Conv2D in
-  Printf.printf "\Conv2D\n Kernel mat: \n%!" ;
+  Printf.printf "\nConv2D\n Kernel mat: \n%!" ;
   Mat.print params.kernels ;
   Printf.printf "Bias mat: \n%!" ;
   Vec.print params.bias_mat ;
@@ -571,6 +571,7 @@ let nn_params_scale value nn =
 
   { param_list = nn_params_scale value nn.param_list } 
                    
+(*
 let nn_params_apply proc nn1 nn2 =
 
   let rec apply_rec : type a b. (a, b) param_list ->
@@ -583,8 +584,7 @@ let nn_params_apply proc nn1 nn2 =
        (match l1, l2 with
         | FullyConnectedParams fc1, FullyConnectedParams fc2 ->
            let bias1_as_mat =
-             (cc_mat_flatten_bp 1 (col fc1.bias_mat.shape.dim1)
-                fc1.bias_mat.matrix) in
+             (mat_flatten_bp (Row 1) fc1.bias_mat.shape.dim1 fc1.bias_mat) in
 
            let bias2_as_mat =
              (cc_mat_flatten_bp 1 (col fc2.bias_mat.shape.dim1)
@@ -646,6 +646,7 @@ let nn_params_apply proc nn1 nn2 =
 
   let param_list = apply_rec nn1.param_list nn2.param_list in
   { param_list }
+ *)
 
 let nn_apply_params proc nn params =
 
@@ -660,36 +661,19 @@ let nn_apply_params proc nn params =
        | FullyConnected (meta, nn_param),
          FullyConnectedParams apply_param ->
           let open Mat in
-          let bias1_as_mat =
-             (cc_mat_flatten_bp 1 (col nn_param.bias_mat.shape.dim1)
-                nn_param.bias_mat.matrix) in
 
-           let bias2_as_mat =
-             (cc_mat_flatten_bp 1 (col apply_param.bias_mat.shape.dim1)
-                apply_param.bias_mat.matrix) in
-
-           let new_lay =
+          let new_lay =
              FullyConnected (meta, {
-                 weight_mat = proc
-                                nn_param.weight_mat.matrix
-                                apply_param.weight_mat.matrix
-                              |> Mat.create ;
-
-                 bias_mat = proc bias1_as_mat bias2_as_mat
-                            |> cc_mat_flatten
-                            |> Vec.create
-                 ;
+                   weight_mat = mat_sub nn_param.weight_mat apply_param.weight_mat ;
+                   bias_mat = vec_sub nn_param.bias_mat apply_param.bias_mat;
                }) in
            
 
           FF_Cons(new_lay, apply_rec t1 t2)
 
        | Conv2D (meta, nn_param), Conv2DParams apply_param ->
-          let kernels = cc_mat_sub nn_param.kernels.matrix apply_param.kernels.matrix
-                        |> Mat.create in
-
-          let bias_mat = cc_vec_sub nn_param.bias_mat.matrix apply_param.bias_mat.matrix
-                       |> Vec.create in
+          let kernels = mat_sub nn_param.kernels apply_param.kernels in
+          let bias_mat = vec_sub nn_param.bias_mat apply_param.bias_mat in
 
           let new_lay =
             Conv2D (meta, {
@@ -698,23 +682,6 @@ let nn_apply_params proc nn params =
               }) in
 
           FF_Cons(new_lay, apply_rec t1 t2)
-        (*
-       | Conv3D (meta, nn_param), Conv3DParams apply_param ->
-          let kernels = Vec.map2
-                              (fun v1 v2 -> proc v1 v2)
-                              nn_param.kernels apply_param.kernels in
-          let bias_mat = proc
-                       (Vec.to_mat nn_param.bias_mat)
-                       (Vec.to_mat apply_param.bias_mat)
-                     |> Mat.to_vec in
-             
-          let new_lay =
-            Conv3D (meta, {
-                  kernels;
-                  bias_mat;
-              }) in
-          FF_Cons(new_lay, apply_rec t1 t2)
-         *)
 
        | Input3 _, Input3Params ->
            FF_Cons (lay, apply_rec t1 t2)
@@ -722,11 +689,11 @@ let nn_apply_params proc nn params =
            FF_Cons (lay, apply_rec t1 t2)
        | Input1 _, Input1Params ->
            FF_Cons (lay, apply_rec t1 t2)
-       | Pooling _, PoolingParams ->
-          FF_Cons (lay, apply_rec t1 t2)
+       (* | Pooling _, PoolingParams -> *)
+          (* FF_Cons (lay, apply_rec t1 t2) *)
+       (* | Flatten _, FlattenParams -> *)
+          (* FF_Cons (lay, apply_rec t1 t2) *)
        | Pooling2D _, Pooling2DParams ->
-          FF_Cons (lay, apply_rec t1 t2)
-       | Flatten _, FlattenParams ->
           FF_Cons (lay, apply_rec t1 t2)
        | Flatten2D _, Flatten2DParams ->
           FF_Cons (lay, apply_rec t1 t2)

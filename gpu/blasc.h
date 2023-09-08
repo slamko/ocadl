@@ -49,7 +49,7 @@ int mat_sub(const struct mat *a, const struct mat *b, struct mat *c);
 
 int mat_scale(const struct mat *mat, struct mat *res, float scale);
 
-int vec_sum(const struct mat *mat, float *res);
+float vec_sum(const struct mat *mat);
 
 int conv2(const struct mat *input,
                        const struct mat *kernels,

@@ -2,9 +2,9 @@ module FC = Fully_connected
 
 type (_, _) layer_params =
   | FullyConnectedParams : FC.params -> (FC.input, FC.out)  layer_params
-  | Conv3DParams : Conv3D.params -> (Conv3D.input, Conv3D.out) layer_params
-  | PoolingParams : (Pooling.input, Pooling.out) layer_params
-  | FlattenParams : (Flatten.input, Flatten.out) layer_params
+  (* | Conv3DParams : Conv3D.params -> (Conv3D.input, Conv3D.out) layer_params *)
+  (* | PoolingParams : (Pooling.input, Pooling.out) layer_params *)
+  (* | FlattenParams : (Flatten.input, Flatten.out) layer_params *)
   | Input3Params : (Input3D.input, Input3D.out) layer_params
   | Conv2DParams : Conv2D.params -> (Conv2D.input, Conv2D.out) layer_params
   | Pooling2DParams : (Pooling2D.input, Pooling2D.out) layer_params
@@ -14,9 +14,9 @@ type (_, _) layer_params =
 
 type (_, _) layer =
   | FullyConnected  : FC.t -> (FC.input, FC.out) layer
-  | Conv3D          : Conv3D.t  -> (Conv3D.input, Conv3D.out) layer
-  | Pooling         : Pooling.t -> (Pooling.input, Pooling.out) layer
-  | Flatten         : Flatten.t -> (Flatten.input, Flatten.out) layer
+  (* | Conv3D          : Conv3D.t  -> (Conv3D.input, Conv3D.out) layer *)
+  (* | Pooling         : Pooling.t -> (Pooling.input, Pooling.out) layer *)
+  (* | Flatten         : Flatten.t -> (Flatten.input, Flatten.out) layer *)
   | Input3          : Input3D.t -> (Input3D.input, Input3D.out) layer
   | Conv2D          : Conv2D.t  -> (Conv2D.input, Conv2D.out) layer
   | Pooling2D       : Pooling2D.t -> (Pooling2D.input, Pooling2D.out) layer

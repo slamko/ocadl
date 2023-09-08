@@ -28,15 +28,16 @@ let forward_layer : type a b. a -> (a, b) layer -> b
      let (Tensor1 tens) = input in
      let act = actf_to_enum fc.activation in
      (* cc_vec_print tens.matrix ; *)
-     cc_fully_connected_ff tens.matrix
-       fcp.weight_mat.matrix fcp.bias_mat.matrix act
-     |> Vec.create |> make_tens1
+     fully_connected_ff tens fcp.weight_mat fcp.bias_mat fc
+     |> make_tens1
 
   | Flatten2D _ ->
      let (Tensor2 tens) = input in
-     cc_mat_flatten tens.matrix
-     |> Vec.wrap |> make_tens1
+     mat_flatten tens |> make_tens1
 
+  | _ -> failwith "Not implemented"
+
+(*
   | Conv2D (meta, params) ->
      let (Tensor2 tens) = input in
      let (Shape.ShapeMat out_shape) = meta.out_shape in
@@ -71,6 +72,7 @@ let forward_layer : type a b. a -> (a, b) layer -> b
      cc_mat3_flatten tens.matrix
      |> Vec.wrap
      |> make_tens1
+ *)
 
 let forward input nn =
 
@@ -92,8 +94,7 @@ let forward input nn =
   }
 
 let tens1_error (res : Vec.t) (exp : Vec.t) =
-  cc_vec_sub res.matrix exp.matrix
-  |> cc_vec_sum
+  vec_sub res exp |> vec_sum
 
 (*
 let tens3_error res exp =
@@ -122,9 +123,8 @@ let get_err : type t. t tensor -> float =
 
  *)
 let tens1_diff (res : vec) (exp : vec) =
-  cc_vec_sub res.matrix exp.matrix
-  |> cc_vec_scale 2.0
-  |> Vec.create
+  vec_sub res exp
+  |> vec_scale 2.0
   |> make_tens1
 
 (* let tens3_diff res exp = *)
@@ -153,6 +153,7 @@ let loss data nn =
                        (* Vec.print res ; *)
                        tens1_error res exp
                    )
+                | _ -> failwith "loss"
                 (*
                 | Conv3D (_, _) ->
                    (match res, expected with
@@ -179,6 +180,7 @@ let loss data nn =
                        (* Vec.print res ; *)
                        tens1_error res exp
                    )
+                | _ -> failwith "loss"
                 (*
                 | Conv3D (_, _) ->
                    (match res, expected with
@@ -212,7 +214,7 @@ let loss data nn =
   let* loss = loss_rec nn data 0. in
   let avg_loss = List.length data |> float_of_int |> (/.) @@ loss in
   Ok avg_loss
-
+(*
 let conv2d_bp prev_layer grad_acc meta params (Tensor2 act_prev)
       (Tensor2 act) (Tensor2 diff_mat) =
 
@@ -228,21 +230,6 @@ let conv2d_bp prev_layer grad_acc meta params (Tensor2 act_prev)
                           bias_mat = bgrad |> Vec.wrap; }
   }
 
-let fully_connected_bp prev_layer grad_acc meta params (Tensor1 act_prev)
-      (Tensor1 act) (Tensor1 diff_mat) =
-
-  let open Fully_connected in
-  let actf = actf_to_enum meta.activation in
-  let (prev_diff, wgrad, bgrad) =
-    cc_fully_connected_bp params.weight_mat.matrix act_prev.matrix
-      act.matrix diff_mat.matrix grad_acc.weight_mat.matrix grad_acc.bias_mat.matrix prev_layer actf
-  in
-  
-  { prev_diff = prev_diff |> Vec.create |> make_tens1;
-    grad = FullyConnectedParams { weight_mat = wgrad |> Mat.wrap;
-                                  bias_mat = bgrad |> Vec.wrap; }
-  }
-
 let pooling2d_bp prev_layer meta (Tensor2 act_prev) (Tensor2 diff) =
   let open Pooling2D in
   let (Shape.ShapeMat out_shape) = meta.out_shape in
@@ -252,14 +239,31 @@ let pooling2d_bp prev_layer meta (Tensor2 act_prev) (Tensor2 diff) =
                 |> Mat.create |> make_tens2;
     grad = Pooling2DParams;
   }
+  *)
 
 let flatten_bp prev_layer meta (Tensor2 act_prev) (Tensor1 diff) =
-  { prev_diff = cc_mat_flatten_bp
-                  (row act_prev.shape.dim1) 
-                  (col act_prev.shape.dim2) diff.matrix
-                |> Mat.wrap |> make_tens2;
+  { prev_diff = mat_flatten_bp
+                  act_prev.shape.dim1 
+                  act_prev.shape.dim2 diff
+                |> make_tens2;
     grad = Flatten2DParams;
   }
+
+let fully_connected_bp prev_layer grad_acc meta params (Tensor1 act_prev)
+      (Tensor1 act) (Tensor1 diff_mat) =
+
+  let open Fully_connected in
+  let (prev_diff, wgrad, bgrad) =
+    fully_connected_bp params.weight_mat act_prev
+      act diff_mat grad_acc.weight_mat grad_acc.bias_mat prev_layer meta
+  in
+  
+  { prev_diff = prev_diff |> make_tens1;
+    grad = FullyConnectedParams { weight_mat = wgrad ;
+                                  bias_mat = bgrad ; }
+  }
+
+
 
 let backprop_layer : type a b n x. (a, b) layer ->
                           (n, x) layer_params ->
@@ -289,6 +293,8 @@ let backprop_layer : type a b n x. (a, b) layer ->
        )
      in
      fully_connected_bp prev_layer grad meta params act_prev act diff_mat
+  | _ -> failwith "bp"
+(*
   | Conv2D (meta, params) ->
      let grad =
        (match param_lay with
@@ -300,12 +306,10 @@ let backprop_layer : type a b n x. (a, b) layer ->
   | Pooling2D meta ->
      pooling2d_bp prev_layer meta act_prev diff_mat
 
-(*
   | Conv3D (meta, params) ->
      conv3d_bp meta params prev_layer act act_prev diff_mat 
   | Pooling meta ->
      pooling_bp meta act_prev diff_mat
-*)
 
   | Flatten _ -> 
      let (Tensor3 prev) = act_prev in
@@ -315,6 +319,7 @@ let backprop_layer : type a b n x. (a, b) layer ->
                    |> Mat3.wrap |> make_tens3;
        grad = FlattenParams
      }
+*)
 
 let param_list_rev plist =
 
@@ -348,9 +353,9 @@ let rec backprop_nn :
         | BP_Nil
           | BP_Cons (_, BP_Nil) -> false
         | BP_Cons ((Flatten2D _, _, _), bp_tail_tail) -> is_prev bp_tail_tail
-        | BP_Cons ((Flatten _, _, _), bp_tail_tail) -> is_prev bp_tail_tail
         | BP_Cons ((Pooling2D _, _, _), bp_tail_tail) -> is_prev bp_tail_tail
-        | BP_Cons ((Pooling _, _, _), bp_tail_tail) -> is_prev bp_tail_tail
+        (* | BP_Cons ((Flatten _, _, _), bp_tail_tail) -> is_prev bp_tail_tail *)
+        (* | BP_Cons ((Pooling _, _, _), bp_tail_tail) -> is_prev bp_tail_tail *)
         | _ -> true
        )
      in
@@ -388,6 +393,7 @@ let nn_gradient learn_rate nn data =
                     | Tensor1 res, Tensor1 exp -> 
                        tens1_diff res exp
                    )
+                | _ -> failwith "grad"
                 (*
                 | Conv3D (_, _) ->
                    (match res, expected with
@@ -413,6 +419,7 @@ let nn_gradient learn_rate nn data =
                     | Tensor1 res, Tensor1 exp -> 
                        tens1_diff res exp
                    )
+                | _ -> failwith "grad"
                 (*
                 | Conv3D (_, _) ->
                    (match res, expected with
@@ -476,14 +483,17 @@ let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
        (meta.shape, Shape.get_shape data_in)
     | FullyConnected (meta, _), Tensor1 _ ->
        (meta.out_shape, Shape.get_shape data_in)
+(*
     | Conv3D (meta, _), Tensor3 _ ->
        (meta.out_shape, Shape.get_shape data_in)
     | Conv2D (meta, _), Tensor2 _ ->
        (meta.out_shape, Shape.get_shape data_in)
     | Pooling meta, Tensor3 _ ->
        (meta.out_shape, Shape.get_shape data_in)
+ *)
     | Pooling2D meta, Tensor2 _ ->
        (meta.out_shape, Shape.get_shape data_in)
+    | _ -> failwith "geon"
   in
 
   let (out_layer_shape, out_data_shape)
@@ -493,24 +503,27 @@ let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
        (match lay, data_out with
         | FullyConnected (m, _) , Tensor1 _ ->
            m.out_shape, Shape.get_shape data_out
+        (*
         | Flatten m, Tensor1 _ ->
            m.out_shape, Shape.get_shape data_out
+       | Input3 m, Tensor3 _ ->
+           m.shape, Shape.get_shape data_out
+           | Conv3D (m, _), Tensor3 _ ->
+           m.out_shape, Shape.get_shape data_out
+        | Pooling m, Tensor3 _ ->
+           m.out_shape, Shape.get_shape data_out
+         *)
         | Flatten2D m, Tensor1 _ ->
            m.out_shape, Shape.get_shape data_out
-        | Input3 m, Tensor3 _ ->
-           m.shape, Shape.get_shape data_out
         | Input2 meta, Tensor2 _ ->
            (meta.shape, Shape.get_shape data_out)
         | Input1 meta, Tensor1 _ ->
            (meta.shape, Shape.get_shape data_out)
-        | Conv3D (m, _), Tensor3 _ ->
-           m.out_shape, Shape.get_shape data_out
         | Conv2D (meta, _), Tensor2 _ ->
            meta.out_shape, Shape.get_shape data_out
-        | Pooling m, Tensor3 _ ->
-           m.out_shape, Shape.get_shape data_out
         | Pooling2D m, Tensor2 _ ->
            m.out_shape, Shape.get_shape data_out
+        | _ -> failwith "geon"
        )
   in
  
@@ -580,7 +593,7 @@ let rec learn_rec pool pool_size data epoch_num
        then
          full_grad
          (* |> nn_params_scale learning_rate *)
-         |> nn_apply_params cc_mat_sub nn 
+         |> nn_apply_params mat_sub nn 
        else nn
      in
      (* nn_print new_nn ; *)

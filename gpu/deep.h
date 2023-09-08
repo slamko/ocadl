@@ -13,7 +13,7 @@ int fully_connected_bp(
                        struct mat *wgrad_mat,
                        struct mat *bgrad_mat,
                        long actf,
-                       int prev_layer);
+                       bool prev_layer);
 
 int fully_connected_ff(const struct mat *input,
                        const struct mat *weight_mat,

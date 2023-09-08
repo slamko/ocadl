@@ -9,16 +9,15 @@ extern "C" {
 #include "deep.h"
 }
 
-extern "C" int fully_connected_bp(
-                       const struct mat *weight_mat,
-                       const struct mat *prev_act_vec,
-                       const struct mat *act_vec,
-                       const struct mat *diff_vec,
-                       struct mat *prev_diff_vec,
-                       struct mat *wgrad_mat,
-                       struct mat *bgrad_vec,
-                       long actf,
-                       int prev_layer) {
+extern "C" int fully_connected_bp(const struct mat *weight_mat,
+                                  const struct mat *prev_act_vec,
+                                  const struct mat *act_vec,
+                                  const struct mat *diff_vec,
+                                  struct mat *prev_diff_vec,
+                                  struct mat *wgrad_mat,
+                                  struct mat *bgrad_vec,
+                                  long actf,
+                                  _Bool prev_layer) {
   using namespace cl;
   int ret = 0;
 

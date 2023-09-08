@@ -1,23 +1,44 @@
 open Common
 open Bigarray
+open C.Functions
+open Ctypes
+open Unsigned
 
-external cc_mat3_print : (float, float32_elt, c_layout) Array3.t ->
-                        unit = "cc_mat_print"
+let mat_tens_to_ba (tens : (float, float32_elt, c_layout) Array2.t) =
+  let input_mat = make matrix in
+  setf input_mat arr (bigarray_start array2 tens) ;
+  setf input_mat rows (Size_t.of_int @@ Array2.dim1 tens) ;
+  setf input_mat cols (Size_t.of_int @@ Array2.dim2 tens) ;
+  setf input_mat dim3 (Size_t.of_int 1) ;
+  input_mat 
 
-external cc_mat_print : (float, float32_elt, c_layout) Array2.t ->
-                        unit = "cc_mat_print"
+let vec_tens_to_ba (tens : (float, float32_elt, c_layout) Array1.t) =
+  let input_mat = make matrix in
+  setf input_mat arr (bigarray_start array1 tens) ;
+  setf input_mat rows (Size_t.of_int 1) ;
+  setf input_mat cols (Size_t.of_int @@ Array1.dim tens) ;
+  setf input_mat dim3 (Size_t.of_int 1) ;
+  input_mat 
 
-external cc_vec_print : (float, float32_elt, c_layout) Array1.t ->
-                        unit = "cc_mat_print"
+let mat3_print mat3 = ()
+  
+let mat_print x =
+  let ba = mat_tens_to_ba x in
+  cc_mat_print (addr ba)
+  
+let vec_print x =
+  let ba = vec_tens_to_ba x in
+  cc_mat_print (addr ba)
 
-external cc_mat3_free : (float, float32_elt, c_layout) Array3.t ->
-                        unit = "cc_mat_free"
+let mat3_free x = ()
 
-external cc_mat_free : (float, float32_elt, c_layout) Array2.t ->
-                        unit = "cc_mat_free"
-
-external cc_vec_free : (float, float32_elt, c_layout) Array1.t ->
-                        unit = "cc_mat_free"
+let mat_free x =
+  let ba = mat_tens_to_ba x in
+  cc_mat_free (addr ba)
+  
+let vec_free x =
+  let ba = vec_tens_to_ba x in
+  cc_mat_free (addr ba)
 
 let randf () =
   Random.float 2.0 -. 1.0
@@ -48,7 +69,7 @@ module Vec = struct
     }
 
   let create big_arr =
-    Gc.finalise cc_vec_free big_arr ;
+    Gc.finalise vec_free big_arr ;
     { matrix = big_arr;
       shape = { dim1 = Col (Array1.dim big_arr) }
     }
@@ -66,7 +87,7 @@ module Vec = struct
   let random cols = init cols (fun _ -> randf ())
 
   let print vec =
-    cc_vec_print vec.matrix
+    vec_print vec.matrix
 
   let of_list lst =
     lst
@@ -114,7 +135,7 @@ module Mat = struct
     }
 
   let create big_arr =
-    Gc.finalise cc_mat_free big_arr ;
+    Gc.finalise mat_free big_arr ;
     { matrix = big_arr;
       shape = { dim1 = Row (Array2.dim1 big_arr);
                 dim2 = Col (Array2.dim2 big_arr); }
@@ -128,7 +149,7 @@ module Mat = struct
   let random rows cols = init rows cols (fun _ _ -> randf ())
 
   let print mat =
-    cc_mat_print mat.matrix
+    mat_print mat.matrix
 
   let of_list (Row rows) (Col cols) lst =
     if List.length lst < rows * cols || rows = 0 || cols = 0
@@ -202,7 +223,7 @@ module Mat3 = struct
     }
 
   let create matrix =
-    Gc.finalise cc_mat3_free matrix ;
+    Gc.finalise mat3_free matrix ;
     { matrix;
       shape = { dim1 = Row (Array3.dim1 matrix);
                 dim2 = Col (Array3.dim2 matrix);

@@ -5,6 +5,8 @@ open Nn
 open Alias
 open Types
 open Tensor
+open Ctypes
+open C.Functions
 
 (*
 let xor_in =
@@ -43,6 +45,7 @@ let rec perform : type inp out n. (n, inp, out) nnet ->
                    Vec.print res ;
                    Vec.print exp ;
                )
+            | _ -> failwith "perf"
            (*
              | Conv3D (_, _) ->
              (match res, expected with
@@ -69,6 +72,7 @@ let rec perform : type inp out n. (n, inp, out) nnet ->
                    Vec.print res ;
                    Vec.print exp
                )
+            | _ -> failwith "perf"
            (*
              | Conv3D (_, _) ->
              (match res, expected with
@@ -98,6 +102,9 @@ let rec perform : type inp out n. (n, inp, out) nnet ->
      perform nn t
 
 let test train_data_fname save_file epochs learning_rate batch_size =
+  gpu_init () ;
+  seal matrix ;
+  
   let train_data =
     if Sys.file_exists train_data_fname
     then read_mnist_train_data train_data_fname
@@ -164,7 +171,7 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     (* if Sys.file_exists !save_file *)
     (* then restore_nn_from_json !save_file base_nn *)
     (* else *)
-      conv_nn
+      base_nn
   in
 
   let* res = loss train_data nn in
@@ -175,37 +182,13 @@ let test train_data_fname save_file epochs learning_rate batch_size =
                       ~batch_size nn in
   let* new_res = loss train_data trained_nn in
 
-  (* nn_print trained_nn.layers ; *)
+  (* nn_print trained_nn; *)
 
-  nn_print trained_nn ;
+  (* nn_print trained_nn ; *)
   perform trained_nn train_data ;
 
   Printf.printf "initial loss: %f\n" res ;
   Printf.printf "trained loss: %f\n" new_res ;
 
-
-  (* Printf.printf "Act: %d\n" (actf_to_enum Sigmoid) ; *)
-
-  (* Printf.printf "M1: \n%!" ; *)
-  (* cc_mat_print m1.matrix ; *)
-  (* Printf.printf "Scaled: %d \n%!" @@ Bigarray.Array2.dim2 scaled; *)
-  (* cc_mat_print scaled ; *)
-  (* perform nn train_data ; *)
-  (* let m1 = Mat.random (Row 64) (Col 64) in *)
-  (* let m2 = Mat.random (Row 64) (Col 64) in *)
-  (* let res = Mat.random (Row 64) (Col 64) in *)
-  (* let r = cc_mat_mul (allocate float m1) *)
-
   Ok ()
  
-
-  (* if not @@ String.equal !save_file "" *)
-  (* then save_to_json !save_file trained_nn.data; *)
-
- (* match res with *)
-  (* | Ok loss -> Printf.printf "Ok %f\n" loss *)
-  (* | Error err -> Printf.eprintf "error: %s\n" err *)
-
-  
-
-

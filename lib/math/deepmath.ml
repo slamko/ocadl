@@ -3,6 +3,9 @@ open Types
 open Alias
 open Bigarray
 open Tensor
+open Ctypes
+open C.Functions
+open Unsigned
 
 let sigmoid (x : float) : float =
   1. /. (1. +. exp(-. x))
@@ -51,6 +54,159 @@ let res_to_bool = function
   | Error err ->
      Printf.eprintf "error: %s\n" err ;
      false
+
+let mat_to_ba (tens : mat) =
+  let input_mat = make matrix in
+  setf input_mat arr (bigarray_start array2 tens.matrix) ;
+  setf input_mat rows (Size_t.of_int @@ row tens.shape.dim1) ;
+  setf input_mat cols (Size_t.of_int @@ col tens.shape.dim2) ;
+  setf input_mat dim3 (Size_t.of_int 1) ;
+  input_mat 
+
+let vec_to_ba (tens : vec) =
+  let input_mat = make matrix in
+  setf input_mat arr (bigarray_start array1 tens.matrix) ;
+  setf input_mat rows (Size_t.of_int 1) ;
+  setf input_mat cols (Size_t.of_int @@ col tens.shape.dim1) ;
+  setf input_mat dim3 (Size_t.of_int 1) ;
+  input_mat 
+
+let fully_connected_ff (input : vec) (wmat : mat) (bvec : vec) meta =
+  let res = make matrix in
+  let inp_mat = vec_to_ba input in
+  let wmat_ba = mat_to_ba wmat in
+  let bmat_ba = vec_to_ba bvec in
+
+  let actf = actf_to_enum meta.Fully_connected.activation in
+
+  let ret  = cc_fully_conntected_ff (addr inp_mat) (addr wmat_ba) (addr bmat_ba) (addr res)
+               (Signed.Long.of_int actf) in
+  if ret > 0
+  then begin 
+    Printf.eprintf "Error code: %d\n" ret ;
+    failwith "Fully connected ff failed" ;
+  end ;
+  
+  getf res arr
+  |> bigarray_of_ptr array1 (Size_t.to_int (getf res cols)) Float32
+  |> Vec.create
+
+let fully_connected_bp (wmat : mat) (prev_act : vec)
+      (act : vec) (diff : vec) (wgrad : mat) (bgrad : vec) prev_layer meta =
+
+  let prev_diff_ba = make matrix in
+  let wmat_ba = mat_to_ba wmat in
+  let prev_act_ba = vec_to_ba prev_act in
+  let act_ba = vec_to_ba act in
+  let diff_ba = vec_to_ba diff in
+  let wgrad_ba = mat_to_ba wgrad in
+  let bgrad_ba = vec_to_ba bgrad in
+
+  let actf = actf_to_enum meta.Fully_connected.activation in
+
+  let ret  = cc_fully_conntected_bp (addr wmat_ba) (addr prev_act_ba) (addr act_ba)
+               (addr diff_ba) (addr prev_diff_ba) (addr wgrad_ba) (addr bgrad_ba)
+               (Signed.Long.of_int actf) prev_layer in
+  if ret > 0
+  then begin 
+    Printf.eprintf "Error code: %d\n" ret ;
+    failwith "Fully connected ff failed" ;
+  end ;
+  
+  let new_prev_diff = getf prev_diff_ba arr
+                      |> bigarray_of_ptr array1 (Size_t.to_int (getf prev_diff_ba cols)) Float32
+                      |> Vec.create in
+
+  let new_wgrad = getf wgrad_ba arr
+                   |> bigarray_of_ptr array2 ((Size_t.to_int (getf wgrad_ba rows)), (Size_t.to_int (getf wgrad_ba cols))) Float32
+                   |> Mat.wrap in
+
+  let new_bgrad = getf bgrad_ba arr
+                   |> bigarray_of_ptr array1 ((Size_t.to_int (getf bgrad_ba cols))) Float32
+                   |> Vec.wrap in
+
+  (new_prev_diff, new_wgrad, new_bgrad)
+
+
+let mat_sub (a : mat) (b : mat) =
+  let res = make matrix in
+  let a_ba = mat_to_ba a in
+  let b_ba = mat_to_ba b in
+
+  let ret = cc_mat_sub (addr a_ba) (addr b_ba) (addr res) in
+  if ret > 0
+  then begin 
+    Printf.eprintf "Error code: %d\n" ret ;
+    failwith "Mat sub failed" ;
+  end ;
+  
+  getf res arr
+  |> bigarray_of_ptr array2 ((Size_t.to_int (getf res rows)), (Size_t.to_int (getf res cols))) Float32
+  |> Mat.create
+
+let vec_sub (a : vec) (b : vec) =
+  let res = make matrix in
+  let a_ba = vec_to_ba a in
+  let b_ba = vec_to_ba b in
+
+  let ret = cc_mat_sub (addr a_ba) (addr b_ba) (addr res) in
+  if ret > 0
+  then begin 
+    Printf.eprintf "Error code: %d\n" ret ;
+    failwith "Vec sub failed" ;
+  end ;
+  
+  getf res arr
+  |> bigarray_of_ptr array1 ((Size_t.to_int (getf res cols))) Float32
+  |> Vec.create
+
+let mat_scale scale (a : mat) =
+  let res = make matrix in
+  let a_ba = mat_to_ba a in
+
+  let ret = cc_mat_scale (addr a_ba) (addr res) scale in
+  if ret > 0
+  then begin 
+    Printf.eprintf "Error code: %d\n" ret ;
+    failwith "Mat scale failed" ;
+  end ;
+  
+  getf res arr
+  |> bigarray_of_ptr array2 ((Size_t.to_int (getf res rows)), (Size_t.to_int (getf res cols))) Float32
+  |> Mat.create
+
+let vec_scale scale (a : vec) =
+  let res = make matrix in
+  let a_ba = vec_to_ba a in
+
+  let ret = cc_mat_scale (addr a_ba) (addr res) scale in
+  if ret > 0
+  then begin 
+    Printf.eprintf "Error code: %d\n" ret ;
+    failwith "Vec scale failed" ;
+  end ;
+  
+  getf res arr
+  |> bigarray_of_ptr array1 ((Size_t.to_int (getf res cols))) Float32
+  |> Vec.create
+
+let mat_flatten (mat : mat) =
+  let ptr = bigarray_start array2 mat.matrix in
+
+  bigarray_of_ptr array1 (row mat.shape.dim1 * col mat.shape.dim2) Float32 ptr
+  |> Vec.wrap
+
+let mat_flatten_bp (Row new_rows) (Col new_cols) (mat : vec) =
+  let ptr = bigarray_start array1 mat.matrix in
+
+  bigarray_of_ptr array2 (new_rows, new_cols) Float32 ptr
+  |> Mat.wrap
+
+let vec_sum (vec: vec) =
+  let ba = vec_to_ba vec in
+  cc_vec_sum (addr ba)
+
+(*
 
 external cc_mat3_nil : int -> int -> int -> Mat3.tensor = "cc_mat3_nil"
 
@@ -142,3 +298,5 @@ let conv2d_ff (inp : mat) (kerns : mat) (bias : vec) actf padding stride (Col re
 external cc_mat_scale : float -> Mat.tensor -> Mat.tensor = "cc_mat_scale"
 
 external cc_vec_scale : (float [@unboxed]) -> Vec.tensor -> Vec.tensor = "cc_vec_scale_byte" "cc_vec_scale"
+
+*)

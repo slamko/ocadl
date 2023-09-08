@@ -15,6 +15,8 @@
 
 (documentation https://url/to/documentation)
 
+(using ctypes 0.2)
+
 (package
  (name ocadl)
  (synopsis "A short synopsis")

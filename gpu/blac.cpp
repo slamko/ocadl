@@ -446,12 +446,12 @@ extern "C" int mat_scale(const struct mat *mat, struct mat *res, float scale) {
   return 0;
 }
 
-extern "C" int vec_sum(const struct mat *mat, float *res) {
-  *res = 0.0;
+extern "C" float vec_sum(const struct mat *mat) {
+  float res = 0.0;
 
   for (size_t i = 0; i < mat->rows * mat->cols; i++) {
-    *res += std::fabs(mat->matrix[i]);
+    res += std::fabs(mat->matrix[i]);
   }
 
-  return 0;
+  return res;
 }

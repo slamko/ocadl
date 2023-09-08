@@ -11,7 +11,7 @@ SRC += lib/math/deepmath.ml
 SRC += lib/nn.ml
 SRC += lib/deep.ml
 SRC += lib/test.ml
-SRC += lib/ocadl.ml
+# SRC += lib/ocadl.ml
 
 C_SRC =
 C_SRC += gpu/gemm.c
@@ -45,3 +45,22 @@ all: $(SRC)
 		-I lib -I lib/layers -I lib/math -I test $(OBJS) \
 		-linkpkg -package $(CAML_PKGS) \
 		$(SRC) -cclib -lOpenCL -cclib -lstdc++
+
+dune: $(SRC)
+	export PKG_CONFIG_PATH=/home/slamko/proj/ai/gocadl/gpu:$PKG_CONFIG_PATH && dune build
+
+clean:
+	dune clean
+	rm -f lib/*.o
+	rm -f lib/*.cmi
+	rm -f lib/*.cma
+	rm -f lib/*.cmxa
+	rm -f lib/*.cmx
+	rm -f lib/*.cmt
+	rm -f *.o
+	rm -f *.cmi
+	rm -f *.cma
+	rm -f *.cmxa
+	rm -f *.cmx
+	rm -f *.cmt
+
