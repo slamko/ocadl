@@ -104,8 +104,7 @@ extern "C" int fully_connected_bp(
   return ret;
 }
 
-extern "C" int conv_bp(
-                       const struct mat *kernels_mat,
+extern "C" int conv_bp(const struct mat *kernels_mat,
                        const struct mat *prev_act_mat,
                        const struct mat *act_mat,
                        const struct mat *diff_mat,
@@ -160,6 +159,10 @@ extern "C" int conv_bp(
   size_t dz_size = mat_mem_size(&dz_mat.matrix);
   Buffer dz_buf { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, dz_size, NULL };
 
+  Matrix padded_mat { mat_make(prev_act_mat->rows + padding * 2, prev_act_mat->cols + padding * 2) }; // 
+  size_t padded_size = mat_mem_size(&padded_mat.matrix);
+  Buffer padded_buf { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, padded_size, NULL };
+
   int argi = 0;
   kern_set_arg(deriv_kernel, act_buf);
   kern_set_arg(deriv_kernel, diff_buf);
@@ -180,10 +183,26 @@ extern "C" int conv_bp(
 
   ret = queue.enqueueNDRangeKernel(deriv_kernel, NullRange, glob_range, loc_range);
   if (ret) return ret;
+  // 
+  Kernel pad_kernel { nn_prog, "conv_pad" };
+  argi = 0;
+  kern_set_arg(pad_kernel, prev_act_buf);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &padding);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &prev_act_mat->cols);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &prev_act_mat->cols + padding * 2);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &prev_act_mat->rows + padding * 2);
+  kern_set_arg(pad_kernel, padded_buf);
+  if (ret) return ret;
+
+  loc_range = NDRange(32);
+  glob_range = NDRange(align(padded_mat.matrix.rows, 32));
+
+  ret = queue.enqueueNDRangeKernel(pad_kernel, NullRange, glob_range, loc_range);
+  if (ret) return ret;
 
   Kernel bp_kernel { nn_prog, "conv_bp" };
   argi = 0;
-  kern_set_arg(bp_kernel, prev_act_buf);
+  kern_set_arg(bp_kernel, padded_buf);
   kern_set_arg(bp_kernel, dz_buf);
 
   kern_set_size_arg(bp_kernel, sizeof(cl_ulong), &stride);
@@ -246,12 +265,13 @@ extern "C" int conv_bp(
    
   /*
   if (prev_layer) {
-    Kernel sum_kern { nn_prog, "mat_sum" };
+    Kernel diff_kern { nn_prog, "mat_sum" };
     int argi = 0;
-    kern_set_arg(sum_kern, cache_buf);
-    kern_set_size_arg(sum_kern, sizeof(cl_ulong), &n);
-    kern_set_size_arg(sum_kern, sizeof(cl_ulong), &width);
-    kern_set_arg(sum_kern, prev_diff_buf);
+
+    kern_set_arg(diff_kern, cache_buf);
+    kern_set_size_arg(diff_kern, sizeof(cl_ulong), &n);
+    kern_set_size_arg(diff_kern, sizeof(cl_ulong), &width);
+    kern_set_arg(diff_kern, prev_diff_buf);
     
     auto sum_glob_range = NDRange(align(n, 128));
     auto sum_loc_range = NDRange(128);
@@ -414,21 +434,42 @@ extern "C" int conv_ff(const struct mat *input,
   size_t kern_vec_size = mat_mem_size(kernels);
   size_t bmat_size = mat_mem_size(bias_vec);
   size_t res_mat_size = mat_mem_size(res);
-  
-  Kernel kernel { nn_prog, "conv_ff" };
+
   cl_mem_flags in_flags =  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS;
-  
-  Buffer inp_buf { context, in_flags, inp_mat_size, input->matrix };
-  Buffer kern_vec_buf { context, in_flags, kern_vec_size, kernels->matrix };
-  Buffer bmat_buf { context, in_flags, bmat_size, bias_vec->matrix };
-  Buffer res_buf { context, CL_MEM_WRITE_ONLY, res_mat_size, NULL };
-  
+ 
   cl_ulong xdim = input->cols;
   cl_ulong ydim = input->rows;
   cl_ulong zdim = res->dim3;
 
+  Buffer inp_buf { context, in_flags, inp_mat_size, input->matrix };
+  Buffer kern_vec_buf { context, in_flags, kern_vec_size, kernels->matrix };
+  Buffer bmat_buf { context, in_flags, bmat_size, bias_vec->matrix };
+  Buffer res_buf { context, CL_MEM_WRITE_ONLY, res_mat_size, NULL };
+
+  Matrix padded_mat { mat_make(input->rows + padding * 2, input->cols + padding * 2) };
+  size_t padded_size = mat_mem_size(&padded_mat.matrix);
+  Buffer padded_buf { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, padded_size, NULL };
+
+  Kernel pad_kernel { nn_prog, "conv_pad" };
   size_t argi = 0;
-  kern_set_arg(kernel, inp_buf);
+  kern_set_arg(pad_kernel, inp_buf);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &padding);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &input->cols);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &input->cols + padding * 2);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &input->rows + padding * 2);
+  kern_set_arg(pad_kernel, padded_buf);
+  if (ret) return ret;
+
+  auto loc_range = NDRange(32);
+  auto glob_range = NDRange(align(padded_mat.matrix.rows, 32));
+
+  ret = queue.enqueueNDRangeKernel(pad_kernel, NullRange, glob_range, loc_range);
+  if (ret) return ret;
+  
+  Kernel kernel { nn_prog, "conv_ff" };
+
+  argi = 0;
+  kern_set_arg(kernel, padded_buf);
   kern_set_arg(kernel, kern_vec_buf);
   kern_set_arg(kernel, bmat_buf);
 
@@ -458,8 +499,8 @@ extern "C" int conv_ff(const struct mat *input,
   size_t dim2 = align(ydim, ldim2);
   size_t dim3 = align(zdim, ldim3);
  
-  auto glob_range = NDRange(dim1, dim2, dim3);
-  auto loc_range = NDRange(ldim1, ldim2, ldim3);
+  glob_range = NDRange(dim1, dim2, dim3);
+  loc_range = NDRange(ldim1, ldim2, ldim3);
 
   ret = queue.enqueueNDRangeKernel(kernel, NullRange, glob_range, loc_range);
   if (ret) return ret;

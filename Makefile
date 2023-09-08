@@ -32,15 +32,16 @@ OBJS += gemm.o
 CAML_PKGS = 
 CAML_PKGS =csv,domainslib,unix,ppx_deriving.show,ppx_deriving.enum
 
-FLAGS = -O2
+CFLAGS = -O2 -D CL_TARGET_OPENCL_VERSION=300 -D CL_HPP_TARGET_OPENCL_VERSION=300
+CAML_FLAGS = -O2
 
 debug: FLAGS = -g
 
 all: $(SRC)
-	gcc	-c $(FLAGS) -I$(C_INCL) $(C_SRC)
-	g++ -c $(FLAGS) -I$(C_INCL) $(CPP_SRC)
+	gcc	-c $(CFLAGS) -I$(C_INCL) $(C_SRC)
+	g++ -c $(CFLAGS) -I$(C_INCL) $(CPP_SRC)
 
-	ocamlfind ocamlopt $(FLAGS) -o ocadl \
+	ocamlfind ocamlopt $(CAML_FLAGS) -o ocadl \
 		-I lib -I lib/layers -I lib/math -I test $(OBJS) \
 		-linkpkg -package $(CAML_PKGS) \
 		$(SRC) -cclib -lOpenCL -cclib -lstdc++

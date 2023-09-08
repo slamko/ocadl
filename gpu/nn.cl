@@ -25,7 +25,6 @@ float relu_deriv(float x) {
 #define ACTF_SIGMOID 0
 #define ACTF_RELU 1
 
-
 float deriv(float value, long actf) {
     switch (actf) {
     case ACTF_SIGMOID:
@@ -230,6 +229,30 @@ __kernel void conv_deriv_bp(__global __read_only const float *act,
     size_t id = z * act_size + y * act_width + x;
     float dact = deriv(act[id], actf);
     dz[id] = dact * diff_mat[id];
+}
+
+__kernel void conv_pad(__global __read_only const float *image,
+                       unsigned long padding,
+                       unsigned long im_width,
+                       unsigned long res_width,
+                       unsigned long res_height,
+                       __global __write_only float *res) {
+
+    size_t x = get_global_id(0);
+
+    if (x >= res_width) {
+        return;
+    }
+
+    for (size_t i = 0; i < res_height; i++) {
+        if ((x >= padding || x <= res_width - padding) &&
+            (i >= padding || i <= res_height - padding)) {
+
+            res[i * res_width + x] = image[i * im_width + x + padding];  
+        } else {
+            res[i * res_width + x] = 0.0;  
+        }
+    }
 }
     
 __kernel void conv_bp(__global __read_only const float *act_prev,
