@@ -36,6 +36,7 @@ float activ(float value, long actf) {
         printf("Error: Unknown activation function\n");
         break;
     }
+    return 0;
 }
 
 float deriv(float value, long actf) {
@@ -49,6 +50,7 @@ float deriv(float value, long actf) {
         printf("Error: Unknown activation function\n");
         break;
     }
+    return 0;
 }
 
 #define POOLING_MAX 0
@@ -151,6 +153,69 @@ __kernel void mat_sum(__global __read_only float *mat,
     res[x] = sum;
 }
 
+float convolve(__global __read_only const float *image,
+               __global __read_only const float *kern,
+               unsigned long stride,
+               unsigned long kern_num,
+               unsigned long image_num,
+               unsigned long im_width,
+               unsigned long im_height,
+               unsigned long res_width,
+               unsigned long res_height,
+               unsigned long kern_width,
+               unsigned long kern_height,
+                size_t x, size_t y, size_t z) {
+
+    if (x >= res_width || y >= res_height || z >= kern_num) {
+        return 0.0;
+    }
+
+    size_t image_size = im_width * im_height;
+    size_t kern_size = kern_width * kern_height;
+
+    float sum = 0.0;
+
+    for (size_t i = 0; i < image_num; i++) {
+        for (unsigned long r = 0; r < kern_width; r += stride) {
+            for (unsigned long c = 0; c < kern_height; c += stride) {
+                float cur_kval = kern[z * kern_size + r * kern_width + c];
+                float cur_pixel = image[i * image_size + y * im_width + r * im_width + x + c];
+    
+                sum += cur_kval * cur_pixel;
+            }
+        }
+    }
+
+    return sum;
+}
+
+__kernel void conv_test(__global __read_only const float *image,
+                        __global __read_only const float *kern,
+                        unsigned long stride,
+                        unsigned long im_width,
+                        unsigned long im_height,
+                        unsigned long kern_num,
+                        unsigned long image_num,
+                        unsigned long kern_width,
+                        unsigned long kern_height,
+                        unsigned long res_width,
+                        unsigned long res_height,
+                        __global __write_only float *res) {
+    
+    size_t x = get_global_id(0);
+    size_t y = get_global_id(1);
+    size_t z = get_global_id(2);
+
+    if (x >= res_width || y >= res_height) {
+        return;
+    }
+
+    float sum = convolve(image, kern, stride, kern_num, image_num, im_width,
+                    im_height, res_width, res_height, kern_width, kern_height,x,y,z);
+
+    res[z * (res_width * res_height) + y * res_width + x] = sum; 
+}
+
 __kernel void conv_ff(__global __read_only const float *image,
                         __global __read_only const float *kern,
                         __global __read_only const float *bias_vec,
@@ -171,35 +236,17 @@ __kernel void conv_ff(__global __read_only const float *image,
     size_t y = get_global_id(1);
     size_t z = get_global_id(2);
 
-    size_t im_size = im_width * im_height;
-    size_t kern_size = kern_width * kern_height;
-    size_t res_size = res_width * res_height;
-
-    if (x >= im_width || y >= im_height || z >= kern_num) {
+    if (x >= res_width || y >= res_height || z >= kern_num) {
         return;
     }
 
-    if (x % stride || y % stride) {
-        return;
-    }
-
-    float sum = 0.0;
-
-    for (unsigned long i = 0; i < image_num; i++) {
-        for (unsigned long r = 0; r < kern_width; r++) {
-            for (unsigned long c = 0; c < kern_height; c++) {
-                float cur_kval = kern[z * kern_size + r * kern_width + c];
-                float cur_pixel = image[i * im_size + y * im_width + r * im_width + x + c];
-
-                sum += cur_kval * cur_pixel;
-            }
-        }
-    }
+    float sum = convolve(image, kern, stride, kern_num, image_num, im_width,
+                    im_height, res_width, res_height, kern_width, kern_height, x, y, z);
 
     float biased_sum = sum + bias_vec[z];
     float r = activ(biased_sum, actf);
    
-    res[z * res_size + y * res_width + x] = r; 
+    res[z * (res_width * res_height) + y * res_width + x] = r; 
 }
 
 __kernel void conv_deriv_bp(__global __read_only const float *act,
@@ -263,25 +310,15 @@ __kernel void conv_bp(__global __read_only const float *act_prev,
     size_t y = get_global_id(1);
     size_t z = get_global_id(2);
 
-    size_t act_size = act_width * act_height;
-    size_t prev_act_size = prev_act_width * prev_act_height;
-    size_t kern_size = kern_width * kern_height;
-
-    if (x >= kern_width || y >= kern_height) {
+    if (x >= kern_width || y >= kern_height || z >= act_num) {
         return;
     }
 
-    float sum = 0.0;
-    for (unsigned long i = 0; i < prev_act_num; i++) {
-        for (unsigned long r = 0; r < act_width; r++) {
-            for (unsigned long c = 0; c < act_height; c++) {
-                float cur_kval = dz[z * act_size + r * act_width + c];
-                float cur_pixel = act_prev[i * prev_act_size + y * prev_act_width + r * prev_act_width + x + c];
+    size_t kern_size = kern_width * kern_height;
 
-                sum += cur_kval * cur_pixel;
-            }
-        }
-    }
+    float sum = convolve(act_prev, dz, stride, prev_act_num, act_num,
+                            prev_act_width, prev_act_height, kern_width,
+                            kern_height, act_width, act_height, x, y, z);
 
     kern_grad[z * kern_size + y * kern_width + x] += sum; 
 }

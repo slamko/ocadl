@@ -37,7 +37,39 @@ TEST_CASE("Matrix padding", "[padding]") {
   REQUIRE(mat_cmp(res_mat, out_mat));
 }
 
-// int main() {
-  // ocl_init();
-  // return 1;
-// }
+TEST_CASE("Matrix convolution", "[convolution]") {
+  ocl_init();
+
+  float inp_arr[] =
+    { 10,12,13,16,
+      20,21,22,28,
+      30,31,35,39,
+      40,42,45,50
+    };
+
+  float kern_arr[] =
+    { 3, 4,
+      5, 6,
+  };
+
+  float res_arr[] =
+    { 304,325,381,
+      480,516,587,
+      666,713,786,
+    };
+
+  Matrix m1 = mat3_of_array(inp_arr, 4, 4, 1);
+  Matrix kern = mat3_of_array(kern_arr, 2, 2, 1);
+
+  Matrix res_mat = mat3_of_array(res_arr, 3, 3, 1);
+  Matrix out_mat = mat3_nil(3, 3, 1);
+
+  int ret = convolve(&m1.matrix, &kern.matrix, 1, 3, 3, &out_mat.matrix);
+
+  REQUIRE(ret == 0);
+
+  std::cout << "Out:\n";
+  mat_print(&out_mat.matrix);
+
+  REQUIRE(mat_cmp(res_mat, out_mat));
+}

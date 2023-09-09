@@ -181,12 +181,12 @@ extern "C" int mat_add(const mat *a, const mat *b, mat *c) {
   return ret;
 }
 
-extern "C" int convolve(const struct mat *input,
-                       const struct mat *kernels,
-                       unsigned long padding,
-                       unsigned long res_width,
-                       unsigned long res_height,
-                       struct mat *res) {
+int convolve(const struct mat *input,
+             const struct mat *kernels,
+             unsigned long stride,
+             unsigned long res_width,
+             unsigned long res_height,
+             struct mat *res) {
   
   using namespace cl;
 
@@ -198,7 +198,7 @@ extern "C" int convolve(const struct mat *input,
   size_t kern_vec_size = mat_mem_size(kernels);
   size_t res_mat_size = mat_mem_size(res);
   
-  Kernel kernel { math_prog, "convolve" };
+  Kernel kernel { nn_prog, "conv_test" };
   cl_mem_flags in_flags =  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS;
   
   Buffer inp_buf { context, in_flags, inp_mat_size, input->matrix };
@@ -212,19 +212,20 @@ extern "C" int convolve(const struct mat *input,
   size_t argi = 0;
   kern_set_arg(kernel, inp_buf);
   kern_set_arg(kernel, kern_vec_buf);
-  kern_set_arg(kernel, res_buf);
 
-  kern_set_size_arg(kernel, sizeof(cl_ulong), &kernels->dim3);
-
-  kern_set_size_arg(kernel, sizeof(cl_ulong), &input->dim3);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &stride);
   kern_set_size_arg(kernel, sizeof(cl_ulong), &input->cols);
   kern_set_size_arg(kernel, sizeof(cl_ulong), &input->rows);
 
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &kernels->dim3);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &input->dim3);
+ 
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &kernels->cols);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &kernels->rows);
   kern_set_size_arg(kernel, sizeof(cl_ulong), &res_width);
   kern_set_size_arg(kernel, sizeof(cl_ulong), &res_height);
 
-  kern_set_size_arg(kernel, sizeof(cl_ulong), &kernels->cols);
-  kern_set_size_arg(kernel, sizeof(cl_ulong), &kernels->rows);
+  kern_set_arg(kernel, res_buf);
 
   if (ret) return ret;
   
