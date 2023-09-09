@@ -85,7 +85,7 @@ extern "C" int fully_connected_bp(const struct mat *weight_mat,
   ret |= queue.enqueueReadBuffer(bgrad_buf, CL_TRUE, 0, bgrad_size, bgrad_vec->matrix);
   if (ret) return ret;
 
-  if (prev_layer) {
+  if (true) {
     Kernel sum_kern { nn_prog, "mat_sum" };
     int argi = 0;
     kern_set_arg(sum_kern, cache_buf);
@@ -102,6 +102,40 @@ extern "C" int fully_connected_bp(const struct mat *weight_mat,
 
   return ret;
 }
+
+int mat_pad(cl::Buffer &mat_buf, unsigned long padding, const struct mat *mat, cl::Buffer *padded_buf) {
+  using namespace cl;
+  int ret = 0;
+
+  size_t padded_rows = mat->rows + padding * 2;
+  size_t padded_cols = mat->cols + padding * 2;
+  size_t padded_size = padded_rows * padded_cols * sizeof (float);
+  *padded_buf = Buffer { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, padded_size, NULL };
+
+  Kernel pad_kernel { nn_prog, "conv_pad" };
+  size_t argi = 0;
+
+  kern_set_arg(pad_kernel, mat_buf);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &padding);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &mat->cols);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &padded_cols);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &padded_rows);
+  kern_set_arg(pad_kernel, *padded_buf);
+
+  if (ret) return ret;
+
+  auto loc_range = NDRange(64);
+  auto glob_range = NDRange(align(padded_rows, 64));
+
+  ret = queue.enqueueNDRangeKernel(pad_kernel, NullRange, glob_range, loc_range);
+
+  // Matrix ms =mat_nil(padded_rows, padded_cols);
+  // ret = queue.enqueueReadBuffer(*padded_buf, CL_TRUE, 0, padded_size, ms.matrix.matrix);
+  // ms.print();
+
+  return ret;
+}
+
 
 extern "C" int conv_bp(const struct mat *kernels_mat,
                        const struct mat *prev_act_mat,
@@ -160,7 +194,6 @@ extern "C" int conv_bp(const struct mat *kernels_mat,
 
   Matrix padded_mat { mat_make(prev_act_mat->rows + padding * 2, prev_act_mat->cols + padding * 2) }; // 
   size_t padded_size = mat_mem_size(&padded_mat.matrix);
-  Buffer padded_buf { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, padded_size, NULL };
 
   int argi = 0;
   kern_set_arg(deriv_kernel, act_buf);
@@ -183,22 +216,10 @@ extern "C" int conv_bp(const struct mat *kernels_mat,
   ret = queue.enqueueNDRangeKernel(deriv_kernel, NullRange, glob_range, loc_range);
   if (ret) return ret;
   // 
-  Kernel pad_kernel { nn_prog, "conv_pad" };
-  argi = 0;
-  kern_set_arg(pad_kernel, prev_act_buf);
-  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &padding);
-  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &prev_act_mat->cols);
-  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &prev_act_mat->cols + padding * 2);
-  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &prev_act_mat->rows + padding * 2);
-  kern_set_arg(pad_kernel, padded_buf);
+  cl::Buffer padded_buf;
+  ret = mat_pad(prev_act_buf, padding, prev_act_mat, &padded_buf);
   if (ret) return ret;
-
-  loc_range = NDRange(32);
-  glob_range = NDRange(align(padded_mat.matrix.rows, 32));
-
-  ret = queue.enqueueNDRangeKernel(pad_kernel, NullRange, glob_range, loc_range);
-  if (ret) return ret;
-
+  
   Kernel bp_kernel { nn_prog, "conv_bp" };
   argi = 0;
   kern_set_arg(bp_kernel, padded_buf);
@@ -409,39 +430,6 @@ extern "C" int fully_connected_ff(const struct mat *input,
   return ret;
 }
 
-int mat_pad(cl::Buffer &mat_buf, unsigned long padding, const struct mat *mat, cl::Buffer *padded_buf) {
-  using namespace cl;
-  int ret = 0;
-
-  size_t padded_rows = mat->rows + padding * 2;
-  size_t padded_cols = mat->cols + padding * 2;
-  size_t padded_size = padded_rows * padded_cols * sizeof (float);
-  *padded_buf = Buffer { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, padded_size, NULL };
-
-  Kernel pad_kernel { nn_prog, "conv_pad" };
-  size_t argi = 0;
-
-  kern_set_arg(pad_kernel, mat_buf);
-  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &padding);
-  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &mat->cols);
-  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &padded_cols);
-  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &padded_rows);
-  kern_set_arg(pad_kernel, *padded_buf);
-
-  if (ret) return ret;
-
-  auto loc_range = NDRange(64);
-  auto glob_range = NDRange(align(padded_rows, 64));
-
-  ret = queue.enqueueNDRangeKernel(pad_kernel, NullRange, glob_range, loc_range);
-
-  // Matrix ms =mat_nil(padded_rows, padded_cols);
-  // ret = queue.enqueueReadBuffer(*padded_buf, CL_TRUE, 0, padded_size, ms.matrix.matrix);
-  // ms.print();
-
-  return ret;
-}
-
 extern "C" int conv_ff(const struct mat *input,
                        const struct mat *kernels,
                        const struct mat *bias_vec,
@@ -481,7 +469,7 @@ extern "C" int conv_ff(const struct mat *input,
   size_t argi = 0;
   Buffer padded_buf;
 
-  printf("Padded: \n");
+  // printf("Padded: \n");
   if ((ret = mat_pad(inp_buf, padding, input, &padded_buf))) {
     return ret;
   }

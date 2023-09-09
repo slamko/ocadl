@@ -27,7 +27,7 @@ let forward_layer : type inp out. inp -> (inp, out) layer -> out
   | FullyConnected (fc, fcp) ->
      let (Tensor1 tens) = input in
      let act = actf_to_enum fc.activation in
-     Vec.print tens ;
+     (* Vec.print tens ; *)
      
      fully_connected_ff tens fcp.weight_mat fcp.bias_mat fc
      |> make_tens1
@@ -38,13 +38,13 @@ let forward_layer : type inp out. inp -> (inp, out) layer -> out
 
   | Pooling2D pl ->
      let (Tensor2 tens) = input in
-     Mat.print tens ;
+     (* Mat.print tens ; *)
      pooling2d_ff tens pl
      |> make_tens2
 
   | Conv2D (meta, params) ->
      let (Tensor2 tens) = input in
-     Mat.print tens ;
+     (* Mat.print tens ; *)
      
      conv2d_ff tens params.kernels params.bias_mat meta 
      |> make_tens2 
@@ -219,6 +219,10 @@ let tens_conv2d_bp prev_layer grad_acc meta params (Tensor2 act_prev)
     conv2d_bp params.kernels act_prev
       act diff_mat grad_acc.kernels grad_acc.bias_mat prev_layer meta
   in
+
+  (* Printf.printf "Conv2d\n%!"; *)
+  (* Mat.print prev_diff ; *)
+  (* Mat.print kern_grad ; *)
   
   { prev_diff = prev_diff |> make_tens2;
     grad = Conv2DParams { kernels = kern_grad ;
@@ -228,16 +232,19 @@ let tens_conv2d_bp prev_layer grad_acc meta params (Tensor2 act_prev)
 let tens_pooling2d_bp prev_layer meta (Tensor2 act_prev) (Tensor2 diff) =
   let open Pooling2D in
   let (Shape.ShapeMat out_shape) = meta.out_shape in
-  { prev_diff = pooling2d_bp act_prev diff prev_layer meta
-                |> make_tens2;
+  let prev_diff = pooling2d_bp act_prev diff prev_layer meta in
+  (* Mat.print prev_diff ; *)
+
+  { prev_diff = prev_diff |> make_tens2;
     grad = Pooling2DParams;
   }
 
 let tens_flatten_bp prev_layer meta (Tensor2 act_prev) (Tensor1 diff) =
-  { prev_diff = mat_flatten_bp
+  let prev_diff = mat_flatten_bp
                   act_prev.shape.dim1 
-                  act_prev.shape.dim2 diff
-                |> make_tens2;
+                  act_prev.shape.dim2 diff in
+
+  { prev_diff = prev_diff |> make_tens2;
     grad = Flatten2DParams;
   }
 
@@ -250,6 +257,8 @@ let tens_fully_connected_bp prev_layer grad_acc meta params (Tensor1 act_prev)
       act diff_mat grad_acc.weight_mat grad_acc.bias_mat prev_layer meta
   in
   
+  (* Printf.printf "FC: \n%!" ; *)
+  (* Vec.print prev_diff ; *)
   { prev_diff = prev_diff |> make_tens1;
     grad = FullyConnectedParams { weight_mat = wgrad ;
                                   bias_mat = bgrad ; }
