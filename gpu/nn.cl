@@ -340,6 +340,10 @@ __kernel void pooling_ff(__global __read_only const float *image,
     size_t y = get_global_id(1);
     size_t z = get_global_id(2);
 
+    if (x >= res_width || y >= res_height) {
+        return;
+    } 
+
     size_t im_size = im_width * im_height;
     size_t filter_size = filter_width * filter_height;
     size_t res_size = res_width * res_height;
@@ -347,9 +351,9 @@ __kernel void pooling_ff(__global __read_only const float *image,
     float res_val = 0.0;
 
     switch (pooling_type) {
-    case POOLING_MAX:
-        for (unsigned long r = 0; r < filter_width; r++) {
-            for (unsigned long c = 0; c < filter_height; c++) {
+    case POOLING_MAX: {
+        for (unsigned long r = 0; r < filter_width; r += stride) {
+            for (unsigned long c = 0; c < filter_height; c += stride) {
                 float cur_pixel = image[z * im_size + y * im_width + r * im_width + x + c];
 
                 if (cur_pixel > res_val) {
@@ -359,9 +363,10 @@ __kernel void pooling_ff(__global __read_only const float *image,
         }
 
         break;
+    }
     case POOLING_AVG:
-        for (unsigned long r = 0; r < filter_width; r++) {
-            for (unsigned long c = 0; c < filter_height; c++) {
+        for (unsigned long r = 0; r < filter_width; r += stride) {
+            for (unsigned long c = 0; c < filter_height; c += stride) {
                 float cur_pixel = image[z * im_size + y * im_width + r * im_width + x + c];
                 res_val += cur_pixel;
             }

@@ -4,7 +4,7 @@ CPP_SRC += blac.cpp
 CPP_SRC += deep.cpp
 
 TEST_SRC =
-TEST_SRC += tests/test.cpp
+TEST_SRC += test.cpp
 
 HEADERS =
 HEADERS += $(wildcard *.h)
@@ -22,11 +22,6 @@ all: lib
 
 test: $(OBJS) $(TEST_OBJS) $(HEADERS)
 	g++ $(OBJS) $(TEST_OBJS) -o test $(CPP_LIBS) $(TEST_LIBS)
-	cd .. && \
-	gpu/test
-
-tests/%.o: tests/%.c $(HEADERS)
-	g++ $< -c $(CPP_FLAGS)
 
 lib: $(OBJS)
 	ar -rc libgpu.a $(OBJS)
@@ -39,3 +34,8 @@ clean:
 	$(RM) -f *.o
 	$(RM) -f *.a
 	$(RM) -f *.so
+	$(RM) -f tests/*.out
+	$(RM) -f tests/*.o
+	$(RM) -f tests/*.a
+	$(RM) -f tests/*.so
+

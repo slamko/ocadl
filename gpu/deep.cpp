@@ -584,8 +584,10 @@ extern "C" int pooling_ff(const struct mat *input,
   kern_set_arg(kernel, res_buf);
 
   if (ret) return ret;
-  
-  size_t ldim1 = 8, ldim2 = 16, ldim3 = 1;
+
+  size_t ldim1 = 8, ldim2 = 16,
+         ldim3 = 1
+         ;
 
   size_t dim1 = align(xdim, ldim1);
   size_t dim2 = align(ydim, ldim2);

@@ -206,7 +206,7 @@ let pooling2d_ff (input : mat) meta =
 
   let actf = pooling_to_enum meta.fselect in
   let (Shape.ShapeMat out_shape) = meta.out_shape in
-  let (Shape.ShapeMat filter_shape) = meta.out_shape in
+  let (Shape.ShapeMat filter_shape) = meta.filter_shape in
 
   let ret = cc_pooling2d_ff (addr inp_ba)
               (Signed.Long.of_int actf) (ULong.of_int meta.stride)
