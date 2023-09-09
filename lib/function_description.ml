@@ -39,6 +39,28 @@ module Functions (F : Ctypes.FOREIGN) = struct
                                                   bool @->
                                                     returning int)
 
+  let c_mat = ptr matrix
+
+  let cc_conv2d_ff = foreign "conv_ff"
+                       (c_mat @-> c_mat @-> c_mat @-> long @->
+                          ulong @-> ulong @-> ulong @-> ulong @-> c_mat @->
+                            returning int)
+ 
+  let cc_conv2d_bp = foreign "conv_bp"
+                       (c_mat @-> c_mat @-> c_mat @-> c_mat @-> c_mat @-> c_mat @-> c_mat @->
+                          long @-> ulong @-> ulong @-> bool @-> 
+                            returning int)
+
+  let cc_pooling2d_ff = foreign "pooling_ff"
+                       (c_mat @-> long @->
+                          ulong @-> ulong @-> ulong @-> ulong @-> ulong @->
+                            c_mat @-> returning int)
+ 
+  let cc_pooling2d_bp = foreign "pooling_bp"
+                       (c_mat @-> c_mat @-> c_mat @->
+                          long @-> ulong @-> ulong @-> ulong @-> ulong @-> bool @-> 
+                            returning int)
+
   let cc_mat_free = foreign "mat_free" (ptr matrix @-> returning void)
 
   let cc_mat_print = foreign "mat_print" (ptr matrix @-> returning void)

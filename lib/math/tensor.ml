@@ -172,7 +172,7 @@ module Mat = struct
     in
 
     let mat_arr = List.map (fun l -> l
-                                     |> List.map (fun x -> x /. 255.0)
+                                     |> List.map (fun x -> x)
                                      |> List.rev
                                      |> Array.of_list)
 

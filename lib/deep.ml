@@ -17,7 +17,7 @@ type ('inp, 'out) backprop_layer = {
     grad : ('inp, 'out) layer_params;
   }
 
-let forward_layer : type a b. a -> (a, b) layer -> b
+let forward_layer : type inp out. inp -> (inp, out) layer -> out
   = fun input layer_type ->
   match layer_type with
   | Input3 _ -> input
@@ -35,32 +35,25 @@ let forward_layer : type a b. a -> (a, b) layer -> b
      let (Tensor2 tens) = input in
      mat_flatten tens |> make_tens1
 
-  | _ -> failwith "Not implemented"
+  | Pooling2D pl ->
+     let (Tensor2 tens) = input in
+     (* cc_mat_print tens.matrix ; *)
+     pooling2d_ff tens pl
+     |> make_tens2
 
-(*
   | Conv2D (meta, params) ->
      let (Tensor2 tens) = input in
-     let (Shape.ShapeMat out_shape) = meta.out_shape in
      (* cc_mat_print tens.matrix ; *)
-     conv2d_ff tens params.kernels params.bias_mat
-       meta.act meta.padding meta.stride out_shape.dim2 out_shape.dim1
+     conv2d_ff tens params.kernels params.bias_mat meta 
      |> make_tens2 
 
+(*
   | Conv3D (cn, cnp) -> 
      let (Tensor3 tens) = input in
      let (Shape.ShapeMatVec out_shape) = cn.out_shape in
      conv3d_ff tens cnp.kernels cnp.bias_mat cn.act cn.padding cn.stride
        out_shape.dim2 out_shape.dim1 
      |> make_tens3
-
-  | Pooling2D pl ->
-     let (Tensor2 tens) = input in
-     (* cc_mat_print tens.matrix ; *)
-     let (Shape.ShapeMat out_shape) = pl.out_shape in
-     let (Shape.ShapeMat filter_shape) = pl.filter_shape in
-     pooling2d_ff tens pl.fselect pl.stride out_shape filter_shape
-     |> make_tens2
-
   | Pooling pl ->
      let (Tensor3 tens) = input in
      let (Shape.ShapeMatVec out_shape) = pl.out_shape in
@@ -214,34 +207,31 @@ let loss data nn =
   let* loss = loss_rec nn data 0. in
   let avg_loss = List.length data |> float_of_int |> (/.) @@ loss in
   Ok avg_loss
-(*
-let conv2d_bp prev_layer grad_acc meta params (Tensor2 act_prev)
+
+let tens_conv2d_bp prev_layer grad_acc meta params (Tensor2 act_prev)
       (Tensor2 act) (Tensor2 diff_mat) =
 
   let open Conv2D in
   let actf = actf_to_enum meta.act in
   let (prev_diff, kern_grad, bgrad) =
-    cc_conv_bp params.kernels.matrix act_prev.matrix
-      act.matrix diff_mat.matrix grad_acc.kernels.matrix grad_acc.bias_mat.matrix prev_layer actf
+    conv2d_bp params.kernels act_prev
+      act diff_mat grad_acc.kernels grad_acc.bias_mat prev_layer meta
   in
   
-  { prev_diff = prev_diff |> Mat.create |> make_tens2;
-    grad = Conv2DParams { kernels = kern_grad |> Mat.wrap;
-                          bias_mat = bgrad |> Vec.wrap; }
+  { prev_diff = prev_diff |> make_tens2;
+    grad = Conv2DParams { kernels = kern_grad ;
+                          bias_mat = bgrad ; }
   }
 
-let pooling2d_bp prev_layer meta (Tensor2 act_prev) (Tensor2 diff) =
+let tens_pooling2d_bp prev_layer meta (Tensor2 act_prev) (Tensor2 diff) =
   let open Pooling2D in
   let (Shape.ShapeMat out_shape) = meta.out_shape in
-  { prev_diff = cc_pooling_bp act_prev.matrix diff.matrix
-                  (pooling_to_enum meta.fselect) meta.stride
-                   (col out_shape.dim2) (row out_shape.dim1)
-                |> Mat.create |> make_tens2;
+  { prev_diff = pooling2d_bp act_prev diff prev_layer meta
+                |> make_tens2;
     grad = Pooling2DParams;
   }
-  *)
 
-let flatten_bp prev_layer meta (Tensor2 act_prev) (Tensor1 diff) =
+let tens_flatten_bp prev_layer meta (Tensor2 act_prev) (Tensor1 diff) =
   { prev_diff = mat_flatten_bp
                   act_prev.shape.dim1 
                   act_prev.shape.dim2 diff
@@ -249,7 +239,7 @@ let flatten_bp prev_layer meta (Tensor2 act_prev) (Tensor1 diff) =
     grad = Flatten2DParams;
   }
 
-let fully_connected_bp prev_layer grad_acc meta params (Tensor1 act_prev)
+let tens_fully_connected_bp prev_layer grad_acc meta params (Tensor1 act_prev)
       (Tensor1 act) (Tensor1 diff_mat) =
 
   let open Fully_connected in
@@ -262,8 +252,6 @@ let fully_connected_bp prev_layer grad_acc meta params (Tensor1 act_prev)
     grad = FullyConnectedParams { weight_mat = wgrad ;
                                   bias_mat = bgrad ; }
   }
-
-
 
 let backprop_layer : type a b n x. (a, b) layer ->
                           (n, x) layer_params ->
@@ -284,7 +272,7 @@ let backprop_layer : type a b n x. (a, b) layer ->
        grad = Input1Params;
      }
   | Flatten2D meta ->
-     flatten_bp prev_layer meta act_prev diff_mat
+     tens_flatten_bp prev_layer meta act_prev diff_mat
   | FullyConnected (meta, params) ->
      let grad =
        (match param_lay with
@@ -292,9 +280,7 @@ let backprop_layer : type a b n x. (a, b) layer ->
         | _ -> failwith "Unmatched grad type"
        )
      in
-     fully_connected_bp prev_layer grad meta params act_prev act diff_mat
-  | _ -> failwith "bp"
-(*
+     tens_fully_connected_bp prev_layer grad meta params act_prev act diff_mat
   | Conv2D (meta, params) ->
      let grad =
        (match param_lay with
@@ -302,10 +288,11 @@ let backprop_layer : type a b n x. (a, b) layer ->
         | _ -> failwith "Unmatched grad type"
        )
      in
-     conv2d_bp prev_layer grad meta params act_prev act diff_mat
+     tens_conv2d_bp prev_layer grad meta params act_prev act diff_mat
   | Pooling2D meta ->
-     pooling2d_bp prev_layer meta act_prev diff_mat
+     tens_pooling2d_bp prev_layer meta act_prev diff_mat 
 
+(*
   | Conv3D (meta, params) ->
      conv3d_bp meta params prev_layer act act_prev diff_mat 
   | Pooling meta ->
@@ -483,17 +470,16 @@ let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
        (meta.shape, Shape.get_shape data_in)
     | FullyConnected (meta, _), Tensor1 _ ->
        (meta.out_shape, Shape.get_shape data_in)
+    | Conv2D (meta, _), Tensor2 _ ->
+       (meta.out_shape, Shape.get_shape data_in)
 (*
     | Conv3D (meta, _), Tensor3 _ ->
        (meta.out_shape, Shape.get_shape data_in)
-    | Conv2D (meta, _), Tensor2 _ ->
-       (meta.out_shape, Shape.get_shape data_in)
-    | Pooling meta, Tensor3 _ ->
+   | Pooling meta, Tensor3 _ ->
        (meta.out_shape, Shape.get_shape data_in)
  *)
     | Pooling2D meta, Tensor2 _ ->
        (meta.out_shape, Shape.get_shape data_in)
-    | _ -> failwith "geon"
   in
 
   let (out_layer_shape, out_data_shape)
@@ -503,12 +489,13 @@ let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
        (match lay, data_out with
         | FullyConnected (m, _) , Tensor1 _ ->
            m.out_shape, Shape.get_shape data_out
+        | Input3 m, Tensor3 _ ->
+           m.shape, Shape.get_shape data_out
+       
         (*
         | Flatten m, Tensor1 _ ->
            m.out_shape, Shape.get_shape data_out
-       | Input3 m, Tensor3 _ ->
-           m.shape, Shape.get_shape data_out
-           | Conv3D (m, _), Tensor3 _ ->
+          | Conv3D (m, _), Tensor3 _ ->
            m.out_shape, Shape.get_shape data_out
         | Pooling m, Tensor3 _ ->
            m.out_shape, Shape.get_shape data_out
@@ -523,7 +510,6 @@ let check_nn_geometry : type inp out n. (n succ, inp, out) nnet ->
            meta.out_shape, Shape.get_shape data_out
         | Pooling2D m, Tensor2 _ ->
            m.out_shape, Shape.get_shape data_out
-        | _ -> failwith "geon"
        )
   in
  

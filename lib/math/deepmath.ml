@@ -71,6 +71,14 @@ let vec_to_ba (tens : vec) =
   setf input_mat dim3 (Size_t.of_int 1) ;
   input_mat 
 
+let ba_to_vec matrix =
+  bigarray_of_ptr array1 (Size_t.to_int (getf matrix cols))
+    Float32 (getf matrix arr)
+
+let ba_to_mat matrix =
+  bigarray_of_ptr array2 ((Size_t.to_int (getf matrix rows)), (Size_t.to_int (getf matrix cols)))
+    Float32 (getf matrix arr)
+
 let fully_connected_ff (input : vec) (wmat : mat) (bvec : vec) meta =
   let res = make matrix in
   let inp_mat = vec_to_ba input in
@@ -87,8 +95,8 @@ let fully_connected_ff (input : vec) (wmat : mat) (bvec : vec) meta =
     failwith "Fully connected ff failed" ;
   end ;
   
-  getf res arr
-  |> bigarray_of_ptr array1 (Size_t.to_int (getf res cols)) Float32
+  res
+  |> ba_to_vec
   |> Vec.create
 
 let fully_connected_bp (wmat : mat) (prev_act : vec)
@@ -113,20 +121,136 @@ let fully_connected_bp (wmat : mat) (prev_act : vec)
     failwith "Fully connected ff failed" ;
   end ;
   
-  let new_prev_diff = getf prev_diff_ba arr
-                      |> bigarray_of_ptr array1 (Size_t.to_int (getf prev_diff_ba cols)) Float32
+  let new_prev_diff = prev_diff_ba
+                      |> ba_to_vec
                       |> Vec.create in
 
-  let new_wgrad = getf wgrad_ba arr
-                   |> bigarray_of_ptr array2 ((Size_t.to_int (getf wgrad_ba rows)), (Size_t.to_int (getf wgrad_ba cols))) Float32
-                   |> Mat.wrap in
+  let new_wgrad = wgrad_ba
+                  |> ba_to_mat
+                  |> Mat.wrap in
 
-  let new_bgrad = getf bgrad_ba arr
-                   |> bigarray_of_ptr array1 ((Size_t.to_int (getf bgrad_ba cols))) Float32
-                   |> Vec.wrap in
+  let new_bgrad = bgrad_ba 
+                  |> ba_to_vec
+                  |> Vec.wrap in
 
   (new_prev_diff, new_wgrad, new_bgrad)
 
+let conv2d_ff (input : mat) (kerns : mat) (bvec : vec) meta =
+  let open Conv2D in
+  
+  let res = make matrix in
+  let inp_ba = mat_to_ba input in
+  let kerns_ba = mat_to_ba kerns in
+  let bmat_ba = vec_to_ba bvec in
+
+  let actf = actf_to_enum meta.act in
+  let (Shape.ShapeMat out_shape) = meta.out_shape in
+
+  let ret = cc_conv2d_ff (addr inp_ba) (addr kerns_ba) (addr bmat_ba)
+              (Signed.Long.of_int actf) (ULong.of_int meta.padding) (ULong.of_int meta.stride)
+              (ULong.of_int @@ col out_shape.dim2) (ULong.of_int @@ row out_shape.dim1) (addr res)
+                in
+  if ret > 0
+  then begin 
+    Printf.eprintf "Error code: %d\n" ret ;
+    failwith "Conv 2d ff failed" ;
+  end ;
+  
+  res 
+  |> ba_to_mat
+  |> Mat.create
+
+let conv2d_bp (kerns : mat) (prev_act : mat)
+      (act : mat) (diff : mat) (kern_grad : mat) (bgrad : vec) prev_layer meta =
+
+  let open Conv2D in
+
+  let prev_diff_ba = make matrix in
+  let kerns_ba = mat_to_ba kerns in
+  let prev_act_ba = mat_to_ba prev_act in
+  let act_ba = mat_to_ba act in
+  let diff_ba = mat_to_ba diff in
+  let kern_grad_ba = mat_to_ba kern_grad in
+  let bgrad_ba = vec_to_ba bgrad in
+
+  let actf = actf_to_enum meta.act in
+
+  let ret  = cc_conv2d_bp (addr kerns_ba) (addr prev_act_ba) (addr act_ba)
+               (addr diff_ba) (addr prev_diff_ba) (addr kern_grad_ba) (addr bgrad_ba)
+               (Signed.Long.of_int actf) (ULong.of_int meta.stride) (ULong.of_int meta.padding) prev_layer in
+  if ret > 0
+  then begin 
+    Printf.eprintf "Error code: %d\n" ret ;
+    failwith "Conv2D backprop failed\n" ;
+  end ;
+  
+  let new_prev_diff = prev_diff_ba 
+                      |> ba_to_mat
+                      |> Mat.create in
+
+  let new_kern_grad = kern_grad_ba 
+                      |> ba_to_mat
+                      |> Mat.wrap in
+
+  let new_bgrad = bgrad_ba
+                  |> ba_to_vec
+                  |> Vec.wrap in
+
+  (new_prev_diff, new_kern_grad, new_bgrad)
+
+let pooling2d_ff (input : mat) meta =
+  let open Pooling2D in
+  
+  let res = make matrix in
+  let inp_ba = mat_to_ba input in
+
+  let actf = pooling_to_enum meta.fselect in
+  let (Shape.ShapeMat out_shape) = meta.out_shape in
+  let (Shape.ShapeMat filter_shape) = meta.out_shape in
+
+  let ret = cc_pooling2d_ff (addr inp_ba)
+              (Signed.Long.of_int actf) (ULong.of_int meta.stride)
+              (ULong.of_int @@ col out_shape.dim2) (ULong.of_int @@ row out_shape.dim1)
+              (ULong.of_int @@ col filter_shape.dim2) (ULong.of_int @@ row filter_shape.dim1) 
+              (addr res)
+                in
+  if ret > 0
+  then begin 
+    Printf.eprintf "Error code: %d\n" ret ;
+    failwith "Pooling 2d ff failed" ;
+  end ;
+  
+  res 
+  |> ba_to_mat
+  |> Mat.create
+
+let pooling2d_bp (prev_act : mat) (diff : mat)
+      prev_layer meta =
+
+  let open Pooling2D in
+
+  let prev_diff_ba = make matrix in
+  let prev_act_ba = mat_to_ba prev_act in
+  let diff_ba = mat_to_ba diff in
+
+  let actf = pooling_to_enum meta.fselect in
+  let (Shape.ShapeMat filter_shape) = meta.out_shape in
+
+  let ret  = cc_pooling2d_bp (addr prev_act_ba)
+               (addr diff_ba) (addr prev_diff_ba)
+               (Signed.Long.of_int actf) (ULong.of_int meta.stride) (ULong.of_int 0)
+               (ULong.of_int @@ col filter_shape.dim2) (ULong.of_int @@ row filter_shape.dim1) 
+               prev_layer in
+
+  if ret > 0
+  then begin 
+    Printf.eprintf "Error code: %d\n" ret ;
+    failwith "Pooling2D backprop failed\n" ;
+  end ;
+  
+  prev_diff_ba 
+  |> ba_to_mat
+  |> Mat.create
 
 let mat_sub (a : mat) (b : mat) =
   let res = make matrix in
@@ -205,98 +329,3 @@ let mat_flatten_bp (Row new_rows) (Col new_cols) (mat : vec) =
 let vec_sum (vec: vec) =
   let ba = vec_to_ba vec in
   cc_vec_sum (addr ba)
-
-(*
-
-external cc_mat3_nil : int -> int -> int -> Mat3.tensor = "cc_mat3_nil"
-
-external cc_mat_nil : int -> int -> Mat.tensor = "cc_mat_nil"
-
-external cc_vec_nil : int -> Vec.tensor = "cc_vec_nil"
-
-external cc_fully_connected_ff : Vec.tensor -> Mat.tensor -> Vec.tensor -> int ->
-  Vec.tensor = "cc_fully_connected_ff"
-
-external cc_mat_add : Mat.tensor -> Mat.tensor -> Mat.tensor = "cc_mat_add"
-
-external cc_mat_sub : Mat.tensor -> Mat.tensor -> Mat.tensor = "cc_mat_sub"
-
-(* external cc_mat_sum : Mat.tensor -> float = "cc_mat_sum" *)
-
-external cc_vec_sub : Vec.tensor -> Vec.tensor -> Vec.tensor = "cc_vec_sub"
-
-external cc_vec_add : Vec.tensor -> Vec.tensor -> Vec.tensor = "cc_vec_add"
-
-external cc_vec_sum : Vec.tensor -> float = "cc_vec_sum"
-
-external cc_mat_flatten : Mat.tensor -> Vec.tensor = "cc_mat_flatten"
-
-external cc_mat_flatten_bp : int -> int -> Vec.tensor ->
-                             Mat.tensor = "cc_mat_flatten_bp"
-
-external cc_mat3_flatten : Mat3.tensor -> Vec.tensor = "cc_mat3_flatten"
-
-external cc_mat3_flatten_bp : int -> int -> int -> Vec.tensor ->
-                             Mat3.tensor = "cc_mat3_flatten_bp"
-
-external gpu_init : unit -> unit = "cc_gpu_init"
-
-external gpu_finish : unit -> unit = "cc_gpu_finish"
-
-external cc_pooling_bp : Mat.tensor -> Mat.tensor -> int -> int -> int -> int ->
-                         Mat.tensor =
-  "cc_pooling_bp_bytecode" "cc_pooling2d_bp_native"
-
-external cc_conv_bp : Mat.tensor -> Mat.tensor -> Mat.tensor ->
-                                 Mat.tensor -> Mat.tensor -> Vec.tensor -> bool -> int ->
-                                (Mat.tensor * Mat.tensor * Vec.tensor) =
-  "cc_conv_bp_bytecode" "cc_conv2d_bp_native"
-
-external cc_fully_connected_bp : Mat.tensor -> Vec.tensor -> Vec.tensor ->
-                                 Vec.tensor -> Mat.tensor -> Vec.tensor -> bool -> int ->
-                                (Vec.tensor * Mat.tensor * Vec.tensor) =
-  "cc_fully_connected_bp_bytecode" "cc_fully_connected_bp_native"
-
-external cc_pooling3d_ff : Mat3.tensor -> int -> int -> int -> int -> int -> int ->
-                           Mat3.tensor =
-  "cc_pooling_ff_bytecode" "cc_pooling_ff_native"
-
-let pooling3d_ff (inp : mat3) pool_type stride
-      (res_shape : Mat3.shape) (filter_shape : Mat.shape) =
-  cc_pooling3d_ff inp.matrix (pooling_to_enum pool_type) stride
-    (col res_shape.dim2) (row res_shape.dim1)
-    (col filter_shape.dim2) (row filter_shape.dim1)
-  |> Mat3.create
-
-external cc_pooling2d_ff : Mat.tensor -> int -> int -> int -> int -> int -> int ->
-                           Mat.tensor =
-  "cc_pooling_ff_bytecode" "cc_pooling_ff_native"
-
-let pooling2d_ff (inp : mat) pool_type stride
-      (res_shape : Mat.shape) (filter_shape : Mat.shape) =
-  cc_pooling2d_ff inp.matrix (pooling_to_enum pool_type) stride
-    (col res_shape.dim2) (row res_shape.dim1)
-    (col filter_shape.dim2) (row filter_shape.dim1)
-  |> Mat.create
-
-external cc_conv3d_ff : Mat3.tensor -> Mat3.tensor -> Vec.tensor ->
-                      int -> int -> int -> int -> int -> Mat3.tensor =
-  "cc_conv_ff_bytecode" "cc_conv_ff_native"
-
-let conv3d_ff (inp : mat3) (kerns : mat3) (bias : vec) actf padding stride (Col resw) (Row resh) =
-  cc_conv3d_ff inp.matrix kerns.matrix bias.matrix (actf_to_enum actf) padding stride resw resh
-  |> Mat3.create
-
-external cc_conv2d_ff : Mat.tensor -> Mat.tensor -> Vec.tensor ->
-                      int -> int -> int -> int -> int -> Mat.tensor =
-  "cc_conv_ff_bytecode" "cc_conv_ff_native"
-
-let conv2d_ff (inp : mat) (kerns : mat) (bias : vec) actf padding stride (Col resw) (Row resh) =
-  cc_conv2d_ff inp.matrix kerns.matrix bias.matrix (actf_to_enum actf) padding stride resw resh
-  |> Mat.create
-
-external cc_mat_scale : float -> Mat.tensor -> Mat.tensor = "cc_mat_scale"
-
-external cc_vec_scale : (float [@unboxed]) -> Vec.tensor -> Vec.tensor = "cc_vec_scale_byte" "cc_vec_scale"
-
-*)

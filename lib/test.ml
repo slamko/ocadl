@@ -8,15 +8,6 @@ open Tensor
 open Ctypes
 open C.Functions
 
-(*
-let xor_in =
-  [
-    data [|0.; 0.|] ;
-    data [|0.; 1.|] ;
-    data [|1.; 0.|] ;
-    data [|1.; 1.|] ;
-  ]
- *)
 let xor_data =
   [
     (Tensor1 (one_data 0.), Tensor1 (data [|0.; 0.|])) ;
@@ -118,8 +109,8 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     make_input2d (Mat.make_shape (Row 28) (Col 28))
     (* make_input1d (Vec.make_shape (Col 2)) *)
     |> make_flatten2d
-    |> make_fully_connected ~ncount:256 ~actf:Sigmoid
-    |> make_fully_connected ~ncount:128 ~actf:Sigmoid
+    |> make_fully_connected ~ncount:256 ~actf:Relu
+    |> make_fully_connected ~ncount:128 ~actf:Relu
     |> make_fully_connected ~ncount:64 ~actf:Sigmoid
     (* |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid' *)
     (* |> make_fully_connected ~ncount:16 ~act:sigmoid ~deriv:sigmoid' *)
@@ -139,26 +130,8 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     |> make_conv2d ~padding:1 ~stride:1 ~act:Relu
          ~kernel_shape:(Mat.make_shape (Row 2) (Col 2))
 
-    |> make_pooling2d ~stride:1 ~f:Max
+    |> make_pooling2d ~stride:1 ~f:Avarage
          ~filter_shape:(Mat.make_shape (Row 2) (Col 2))
-
-(*
-    |> make_pooling2d ~stride:1 ~f:Max
-         ~filter_shape:(Mat.make_shape (Row 2) (Col 2))
-
-    |> make_conv2d ~padding:1 ~stride:1 ~act:Relu
-         ~kernel_shape:(Mat.make_shape (Row 8) (Col 8))
-
-    |> make_pooling2d ~stride:1 ~f:Max
-         ~filter_shape:(Mat.make_shape (Row 2) (Col 2))
-
-    |> make_conv2d ~padding:1 ~stride:1 ~act:relu ~deriv:relu'
-         ~kernel_shape:(make_shape (Row 4) (Col 4))
-         ~kernel_num:1
-
-    |> make_pooling ~stride:2 ~f:pooling_max ~fbp:pooling_max_deriv
-         ~filter_shape:(make_shape (Row 4) (Col 4))
- *)
 
     |> make_flatten2d
     (* |> make_fully_connected ~ncount:16 ~actf:Sigmoid *)
@@ -171,7 +144,7 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     (* if Sys.file_exists !save_file *)
     (* then restore_nn_from_json !save_file base_nn *)
     (* else *)
-      base_nn
+      conv_nn
   in
 
   let* res = loss train_data nn in
