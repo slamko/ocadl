@@ -435,6 +435,10 @@ int mat_pad(cl::Buffer &mat_buf, unsigned long padding, const struct mat *mat, c
 
   ret = queue.enqueueNDRangeKernel(pad_kernel, NullRange, glob_range, loc_range);
 
+  // Matrix ms =mat_nil(padded_rows, padded_cols);
+  // ret = queue.enqueueReadBuffer(*padded_buf, CL_TRUE, 0, padded_size, ms.matrix.matrix);
+  // ms.print();
+
   return ret;
 }
 
@@ -477,9 +481,15 @@ extern "C" int conv_ff(const struct mat *input,
   size_t argi = 0;
   Buffer padded_buf;
 
-  mat_pad(inp_buf, padding, input, &padded_buf);
+  printf("Padded: \n");
+  if ((ret = mat_pad(inp_buf, padding, input, &padded_buf))) {
+    return ret;
+  }
  
   Kernel kernel { nn_prog, "conv_ff" };
+  
+  size_t padded_rows = input->rows + padding * 2;
+  size_t padded_cols = input->cols + padding * 2;
 
   argi = 0;
   kern_set_arg(kernel, padded_buf);
@@ -490,8 +500,8 @@ extern "C" int conv_ff(const struct mat *input,
   kern_set_size_arg(kernel, sizeof(cl_ulong), &padding);
   kern_set_size_arg(kernel, sizeof(cl_ulong), &actf);
 
-  kern_set_size_arg(kernel, sizeof(cl_ulong), &input->cols);
-  kern_set_size_arg(kernel, sizeof(cl_ulong), &input->rows);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &padded_cols);
+  kern_set_size_arg(kernel, sizeof(cl_ulong), &padded_rows);
 
   kern_set_size_arg(kernel, sizeof(cl_ulong), &kernels->dim3);
   kern_set_size_arg(kernel, sizeof(cl_ulong), &input->dim3);

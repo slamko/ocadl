@@ -22,6 +22,8 @@ all: lib
 
 test: $(OBJS) $(TEST_OBJS) $(HEADERS)
 	g++ $(OBJS) $(TEST_OBJS) -o test $(CPP_LIBS) $(TEST_LIBS)
+	cd .. && \
+	gpu/test
 
 tests/%.o: tests/%.c $(HEADERS)
 	g++ $< -c $(CPP_FLAGS)
@@ -29,7 +31,7 @@ tests/%.o: tests/%.c $(HEADERS)
 lib: $(OBJS)
 	ar -rc libgpu.a $(OBJS)
 
-%.o: %.c $(HEADERS)
+%.o: %.cpp $(HEADERS)
 	g++ -fPIC $< $(CPP_FLAGS) -c
 
 clean:

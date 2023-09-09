@@ -186,6 +186,7 @@ float convolve(__global __read_only const float *image,
         }
     }
 
+    // printf("Sum: %f %lu\n", sum, image_num);
     return sum;
 }
 
