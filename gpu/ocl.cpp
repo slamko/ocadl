@@ -14,6 +14,8 @@ cl::Program math_prog;
 cl::Program nn_prog;
 cl::Device device;
 
+bool init;
+
 int get_default_device(cl::Device *device) {
   using namespace cl;
   std::vector<Platform> platforms;
@@ -68,6 +70,10 @@ int build_prog(std::string source_name, cl::Device device, cl::Program *prog) {
 extern "C" int ocl_init() {
   using namespace cl;
 
+  if (init) {
+    return 0;
+  }
+  
   int ret = 1;
 
   if ((ret = get_default_device(&device))) {
@@ -86,6 +92,8 @@ extern "C" int ocl_init() {
     std::cerr << "Math lib build failed\n";
     return ret;
   }
+
+  init = true;
 
   return 0;
 }

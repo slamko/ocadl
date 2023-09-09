@@ -7,6 +7,8 @@ extern "C" {
 }
 #include <immintrin.h>
 #include <xmmintrin.h>
+#include "deep.hpp"
+#include <CL/opencl.hpp>
 
 void sse_conv(const struct mat *image,
               const struct mat *kernel,
@@ -58,11 +60,20 @@ int main(int argc, char **argv) {
   struct mat res1 = {0};
   struct mat res2 = {0};
 
+  ocl_init();
+
   // mat_print(&m1);
   auto start = high_resolution_clock::now();
   // conv2(&m1, &kernel, 0, dim - kdim + 1, dim - kdim + 1, &res1);
   // convolve(&m1, &kernel, 0, dim - kdim + 1, dim - kdim + 1, &res2);
-  sse_conv(&m1, &kernel, dim - kdim + 1, dim - kdim + 1, &res2);
+  // sse_conv(&m1, &kernel, dim - kdim + 1, dim - kdim + 1, &res2);
+
+  cl_mem_flags in_flags =  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS;
+  cl::Buffer inp_buf { context, in_flags, mat_mem_size(&m1), m1.matrix };
+  cl::Buffer out {};
+
+  std::cout << mat_pad(inp_buf, 1, &m1, out);
+  
   auto stop = high_resolution_clock::now();
   auto dur = duration_cast<microseconds>(stop - start);
   std::cout << "Time: " << dur.count() << std::endl;

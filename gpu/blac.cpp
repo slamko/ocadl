@@ -1,7 +1,8 @@
+#include "blasc.hpp"
 #include <CL/opencl.hpp>
 #include "ocl.hpp"
-#include "blasc.hpp"
 #include <math.h>
+#include <iomanip>
 
 extern "C" {
 #include "blasc.h"
@@ -23,12 +24,30 @@ size_t mat_mem_size(const struct mat *mat) {
 }
 
 void mat_free(struct mat *mat) {
-  delete[] mat->matrix;
+  if (!mat->managed) {
+    delete[] mat->matrix;
+  }
 }
 
 void fatal_error(std::string msg) {
   std::cerr << msg << std::endl;
   std::exit(1);
+}
+
+bool mat_cmp(const Matrix &amat, const Matrix &bmat) {
+  const struct mat *a = &amat.matrix;
+  const struct mat *b = &bmat.matrix;
+
+  if (a->rows != b->rows || a->cols != b->cols || a->dim3 != b->dim3) return false;
+
+  for (size_t i = 0; i < a->rows * a->cols * a->dim3; i++) {
+    if (a->matrix[i] + 0.00001 < b->matrix[i] ||
+        a->matrix[i] - 0.00001 > b->matrix[i]) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 struct mat mat3_of_array(float *matrix, size_t rows, size_t cols, size_t dim3) {
@@ -41,6 +60,7 @@ struct mat mat3_of_array(float *matrix, size_t rows, size_t cols, size_t dim3) {
     size_t mat_dims = rows * cols * dim3;
     
     mat.matrix = matrix;
+    mat.managed = 1;
     
     return mat;
 }
@@ -100,7 +120,8 @@ void mat_print(const struct mat *mat) {
     for (size_t d3 = 0; d3 < mat->dim3; d3++) {
         for (size_t r = 0; r < mat->rows; r++) {
             for (size_t c = 0; c < mat->cols; c++) {
-              std::cout << mat->matrix[c + r * mat->cols + d3 * mat->rows] << "  ";
+              std::printf("%.2f  ", mat->matrix[c + r * mat->cols + d3 * mat->rows] ); 
+              // std::cout << << std::setprecision(2) << "  ";
             }
             std::cout << std::endl;
         }

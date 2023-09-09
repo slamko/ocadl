@@ -25,6 +25,19 @@ float relu_deriv(float x) {
 #define ACTF_SIGMOID 0
 #define ACTF_RELU 1
 
+float activ(float value, long actf) {
+    switch (actf) {
+    case ACTF_SIGMOID:
+        return sigmoid(value);
+        break;
+    case ACTF_RELU:
+        return relu(value);
+    default:
+        printf("Error: Unknown activation function\n");
+        break;
+    }
+}
+
 float deriv(float value, long actf) {
     switch (actf) {
     case ACTF_SIGMOID:
@@ -77,20 +90,8 @@ __kernel void dense_ff(__global __read_only const float *input,
     }
 
     float biased_sum = sum + bias_mat[x];
-    float r = 0.0;
-
-    switch (actf) {
-    case ACTF_SIGMOID:
-        r = sigmoid(biased_sum);
-        break;
-    case ACTF_RELU:
-        r = relu(biased_sum);
-        break;
-    default:
-        printf("Error: Unknown activation function\n");
-        break;
-    }
-    
+    float r = activ(biased_sum, actf);
+        
     res[x] = r;
 }
 
@@ -196,20 +197,8 @@ __kernel void conv_ff(__global __read_only const float *image,
     }
 
     float biased_sum = sum + bias_vec[z];
-
-    float r = 0.0;
-    switch (actf) {
-    case ACTF_SIGMOID:
-        r = sigmoid(biased_sum);
-        break;
-    case ACTF_RELU:
-        r = relu(biased_sum);
-        break;
-    default:
-        printf("Error: Unknown activation function\n");
-        break;
-    }
-    
+    float r = activ(biased_sum, actf);
+   
     res[z * res_size + y * res_width + x] = r; 
 }
 
@@ -245,10 +234,10 @@ __kernel void conv_pad(__global __read_only const float *image,
     }
 
     for (size_t i = 0; i < res_height; i++) {
-        if ((x >= padding || x <= res_width - padding) &&
-            (i >= padding || i <= res_height - padding)) {
+        if ((x >= padding && x < res_width - padding) &&
+            (i >= padding && i < res_height - padding)) {
 
-            res[i * res_width + x] = image[i * im_width + x + padding];  
+            res[i * res_width + x] = image[(i - padding) * im_width + (x - padding)];  
         } else {
             res[i * res_width + x] = 0.0;  
         }
@@ -377,7 +366,7 @@ __kernel void pooling_bp(__global __read_only const float *act_prev,
 
     switch (type) {
     case POOLING_MAX:;
-        float pix_max = -1000.0; 
+        float pix_max = -1000000000.0; 
         size_t max_id = 0;
 
         for (unsigned long r = 0; r < filter_width; r++) {

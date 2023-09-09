@@ -127,11 +127,14 @@ let test train_data_fname save_file epochs learning_rate batch_size =
     |> make_pooling2d ~stride:1 ~f:Max
          ~filter_shape:(Mat.make_shape (Row 2) (Col 2))
 
+(*
     |> make_conv2d ~padding:1 ~stride:1 ~act:Relu
          ~kernel_shape:(Mat.make_shape (Row 2) (Col 2))
 
     |> make_pooling2d ~stride:1 ~f:Avarage
          ~filter_shape:(Mat.make_shape (Row 2) (Col 2))
+     cc_vec_print tens.matrix ;
+ *)
 
     |> make_flatten2d
     (* |> make_fully_connected ~ncount:16 ~actf:Sigmoid *)

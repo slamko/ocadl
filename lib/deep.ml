@@ -27,7 +27,8 @@ let forward_layer : type inp out. inp -> (inp, out) layer -> out
   | FullyConnected (fc, fcp) ->
      let (Tensor1 tens) = input in
      let act = actf_to_enum fc.activation in
-     (* cc_vec_print tens.matrix ; *)
+     Vec.print tens ;
+     
      fully_connected_ff tens fcp.weight_mat fcp.bias_mat fc
      |> make_tens1
 
@@ -37,13 +38,14 @@ let forward_layer : type inp out. inp -> (inp, out) layer -> out
 
   | Pooling2D pl ->
      let (Tensor2 tens) = input in
-     (* cc_mat_print tens.matrix ; *)
+     Mat.print tens ;
      pooling2d_ff tens pl
      |> make_tens2
 
   | Conv2D (meta, params) ->
      let (Tensor2 tens) = input in
-     (* cc_mat_print tens.matrix ; *)
+     Mat.print tens ;
+     
      conv2d_ff tens params.kernels params.bias_mat meta 
      |> make_tens2 
 

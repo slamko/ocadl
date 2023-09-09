@@ -18,4 +18,6 @@ public:
 };
 
 
+bool mat_cmp(const Matrix &, const Matrix &);
+
 #endif

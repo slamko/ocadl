@@ -409,6 +409,35 @@ extern "C" int fully_connected_ff(const struct mat *input,
   return ret;
 }
 
+int mat_pad(cl::Buffer &mat_buf, unsigned long padding, const struct mat *mat, cl::Buffer *padded_buf) {
+  using namespace cl;
+  int ret = 0;
+
+  size_t padded_rows = mat->rows + padding * 2;
+  size_t padded_cols = mat->cols + padding * 2;
+  size_t padded_size = padded_rows * padded_cols * sizeof (float);
+  *padded_buf = Buffer { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, padded_size, NULL };
+
+  Kernel pad_kernel { nn_prog, "conv_pad" };
+  size_t argi = 0;
+
+  kern_set_arg(pad_kernel, mat_buf);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &padding);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &mat->cols);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &padded_cols);
+  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &padded_rows);
+  kern_set_arg(pad_kernel, *padded_buf);
+
+  if (ret) return ret;
+
+  auto loc_range = NDRange(64);
+  auto glob_range = NDRange(align(padded_rows, 64));
+
+  ret = queue.enqueueNDRangeKernel(pad_kernel, NullRange, glob_range, loc_range);
+
+  return ret;
+}
+
 extern "C" int conv_ff(const struct mat *input,
                        const struct mat *kernels,
                        const struct mat *bias_vec,
@@ -445,26 +474,11 @@ extern "C" int conv_ff(const struct mat *input,
   Buffer bmat_buf { context, in_flags, bmat_size, bias_vec->matrix };
   Buffer res_buf { context, CL_MEM_WRITE_ONLY, res_mat_size, NULL };
 
-  Matrix padded_mat { mat_make(input->rows + padding * 2, input->cols + padding * 2) };
-  size_t padded_size = mat_mem_size(&padded_mat.matrix);
-  Buffer padded_buf { context, CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, padded_size, NULL };
-
-  Kernel pad_kernel { nn_prog, "conv_pad" };
   size_t argi = 0;
-  kern_set_arg(pad_kernel, inp_buf);
-  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &padding);
-  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &input->cols);
-  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &input->cols + padding * 2);
-  kern_set_size_arg(pad_kernel, sizeof (cl_ulong), &input->rows + padding * 2);
-  kern_set_arg(pad_kernel, padded_buf);
-  if (ret) return ret;
+  Buffer padded_buf;
 
-  auto loc_range = NDRange(32);
-  auto glob_range = NDRange(align(padded_mat.matrix.rows, 32));
-
-  ret = queue.enqueueNDRangeKernel(pad_kernel, NullRange, glob_range, loc_range);
-  if (ret) return ret;
-  
+  mat_pad(inp_buf, padding, input, &padded_buf);
+ 
   Kernel kernel { nn_prog, "conv_ff" };
 
   argi = 0;
@@ -498,8 +512,8 @@ extern "C" int conv_ff(const struct mat *input,
   size_t dim2 = align(ydim, ldim2);
   size_t dim3 = align(zdim, ldim3);
  
-  glob_range = NDRange(dim1, dim2, dim3);
-  loc_range = NDRange(ldim1, ldim2, ldim3);
+  auto glob_range = NDRange(dim1, dim2, dim3);
+  auto loc_range = NDRange(ldim1, ldim2, ldim3);
 
   ret = queue.enqueueNDRangeKernel(kernel, NullRange, glob_range, loc_range);
   if (ret) return ret;

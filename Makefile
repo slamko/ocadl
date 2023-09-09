@@ -47,6 +47,8 @@ all: $(SRC)
 		$(SRC) -cclib -lOpenCL -cclib -lstdc++
 
 dune: $(SRC)
+	make -C gpu
+	rm -rf _build/default/lib/lib*	
 	export PKG_CONFIG_PATH=/home/slamko/proj/ai/gocadl/gpu:$PKG_CONFIG_PATH && dune build
 
 clean:

@@ -4,11 +4,13 @@
 #include <stddef.h>
 
 struct mat {
-  float *matrix;
+    float *matrix;
+    
+    size_t rows;
+    size_t cols;
+    size_t dim3;
 
-  size_t rows;
-  size_t cols;
-  size_t dim3;
+    int managed;
 };
 
 #define err(msg) fprintf(stderr, msg)
