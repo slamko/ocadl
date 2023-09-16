@@ -4,7 +4,7 @@
 
 (test
  (name ocadl)
- (libraries lacaml
+ (libraries 
             unix
             ocadl)
 )

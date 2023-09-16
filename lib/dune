@@ -13,8 +13,8 @@
             ppx_deriving
             ctypes
             ctypes-foreign
-            ppx_catch
             csv)
+
  (inline_tests)
  (preprocess
   (pps ppx_catch
