@@ -17,7 +17,7 @@
 
  (inline_tests)
  (preprocess
-  (pps ppx_catch
+  (pps 
        ppx_deriving.show
        ppx_deriving.enum
        ppx_inline_test))

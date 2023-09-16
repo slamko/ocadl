@@ -59,6 +59,22 @@ clean:
 	rm -f lib/*.cmxa
 	rm -f lib/*.cmx
 	rm -f lib/*.cmt
+
+	rm -f lib/math/*.o
+	rm -f lib/math/*.cmi
+	rm -f lib/math/*.cma
+	rm -f lib/math/*.cmxa
+	rm -f lib/math/*.cmx
+	rm -f lib/math/*.cmt
+
+	rm -f lib/layers/*.o
+	rm -f lib/layers/*.cmi
+	rm -f lib/layers/*.cma
+	rm -f lib/layers/*.cmxa
+	rm -f lib/layers/*.cmx
+	rm -f lib/layers/*.cmt
+
+
 	rm -f *.o
 	rm -f *.cmi
 	rm -f *.cma
